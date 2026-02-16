@@ -1,0 +1,234 @@
+@{
+    ViewData["Title"] = "Downloads";
+}
+
+<div class="row mb-4">
+    <div class="col-8">
+        <h2>Available Videos</h2>
+        <p class="text-muted">Videos from your subscribed channels ready to download</p>
+    </div>
+    <div class="col-4 text-end">
+        <button type="button" class="btn btn-success" data-bind="click: checkForNewVideos, enable: !checking()">
+            <span data-bind="visible: !checking()"><i class="bi bi-arrow-clockwise"></i> Check for Updates</span>
+            <span data-bind="visible: checking()">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                Checking...
+            </span>
+        </button>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary" data-bind="css: { active: filter() === 'all' }, click: function() { filter('all'); }">
+                All Videos
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-bind="css: { active: filter() === 'pending' }, click: function() { filter('pending'); }">
+                Not Downloaded
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-bind="css: { active: filter() === 'downloaded' }, click: function() { filter('downloaded'); }">
+                Downloaded
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div id="videos-list"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/knockout@3.5.1/build/output/knockout-latest.js"></script>
+    <script type="text/javascript">
+        function DownloadsViewModel() {
+            var self = this;
+            
+            self.allVideos = ko.observableArray([]);
+            self.filter = ko.observable('all');
+            self.loading = ko.observable(true);
+            self.checking = ko.observable(false);
+            
+            self.videos = ko.computed(function() {
+                var filter = self.filter();
+                var videos = self.allVideos();
+                
+                if (filter === 'pending') {
+                    return videos.filter(function(v) { return !v.DownloadedAt; });
+                } else if (filter === 'downloaded') {
+                    return videos.filter(function(v) { return v.DownloadedAt; });
+                }
+                
+                return videos;
+            });
+            
+            self.loadVideos = function() {
+                self.loading(true);
+                
+                fetch('/odata/VideoApi?$expand=Channel&$orderby=UploadDate desc')
+                    .then(response => response.json())
+                    .then(data => {
+                        self.allVideos(data.value || []);
+                        self.loading(false);
+                    })
+                    .catch(error => {
+                        console.error('Error loading videos:', error);
+                        self.loading(false);
+                    });
+            };
+            
+            self.checkForNewVideos = function() {
+                self.checking(true);
+                
+                // In a real implementation, this would trigger a background job
+                // For now, we'll just simulate it
+                setTimeout(function() {
+                    self.checking(false);
+                    alert('Check for new videos would be triggered here. This will be implemented in the background service.');
+                }, 1000);
+            };
+            
+            self.downloadVideo = function(video) {
+                if (video.DownloadedAt) {
+                    alert('This video has already been downloaded.');
+                    return;
+                }
+                
+                if (!confirm('Download "' + video.Title + '"?')) {
+                    return;
+                }
+                
+                // In a real implementation, this would queue the video for download
+                alert('Video download would be queued here. This will be implemented with the background service.');
+            };
+            
+            self.formatDate = function(dateString) {
+                if (!dateString) return 'N/A';
+                var date = new Date(dateString);
+                return date.toLocaleDateString();
+            };
+            
+            self.formatDuration = function(duration) {
+                if (!duration) return 'N/A';
+                return duration.substring(0, 8);
+            };
+            
+            self.formatFileSize = function(bytes) {
+                if (!bytes) return 'N/A';
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+                if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+            };
+        }
+        
+        var viewModel;
+        
+        $(document).ready(function() {
+            viewModel = new DownloadsViewModel();
+            ko.applyBindings(viewModel);
+            viewModel.loadVideos();
+        });
+    </script>
+    
+    <style>
+        .video-download-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            transition: box-shadow 0.3s;
+        }
+        
+        .video-download-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .video-download-item.downloaded {
+            background-color: #f0f8f0;
+            border-color: #c3e6cb;
+        }
+        
+        .video-thumbnail-list {
+            width: 160px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-right: 20px;
+            background-color: #000;
+        }
+        
+        .video-details {
+            flex: 1;
+        }
+        
+        .video-title-large {
+            font-weight: 600;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+        }
+        
+        .video-channel-name {
+            color: #606060;
+            margin-bottom: 5px;
+        }
+        
+        .video-meta-info {
+            color: #909090;
+            font-size: 0.9em;
+        }
+        
+        .download-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        
+        .badge-downloaded {
+            background-color: #28a745;
+        }
+    </style>
+}
+
+<div data-bind="visible: loading" class="text-center">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+
+<div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+    <p data-bind="visible: filter() === 'all'">No videos available. Add channels from the <a asp-controller="Channels" asp-action="Index">Channels</a> page to get started.</p>
+    <p data-bind="visible: filter() === 'pending'">No pending downloads.</p>
+    <p data-bind="visible: filter() === 'downloaded'">No downloaded videos yet.</p>
+</div>
+
+<div data-bind="visible: !loading() && videos().length > 0, foreach: videos">
+    <div class="video-download-item" data-bind="css: { downloaded: DownloadedAt }">
+        <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/160x90?text=No+Thumbnail', alt: Title }" class="video-thumbnail-list" />
+        <div class="video-details">
+            <div class="video-title-large" data-bind="text: Title"></div>
+            <div class="video-channel-name" data-bind="text: Channel ? Channel.Name : 'Unknown Channel'"></div>
+            <div class="video-meta-info">
+                Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span>
+                <span data-bind="if: Duration"> | Duration: <span data-bind="text: $parent.formatDuration(Duration)"></span></span>
+                <span data-bind="if: FileSize"> | Size: <span data-bind="text: $parent.formatFileSize(FileSize)"></span></span>
+            </div>
+            <div class="video-meta-info" data-bind="if: DownloadedAt">
+                <span class="badge badge-downloaded">Downloaded</span> on <span data-bind="text: $parent.formatDate(DownloadedAt)"></span>
+            </div>
+        </div>
+        <div class="download-actions">
+            <button class="btn btn-primary btn-sm" data-bind="click: $parent.downloadVideo, visible: !DownloadedAt">
+                <i class="bi bi-download"></i> Download
+            </button>
+            <span data-bind="visible: DownloadedAt" class="text-success">
+                <i class="bi bi-check-circle"></i> Downloaded
+            </span>
+        </div>
+    </div>
+</div>

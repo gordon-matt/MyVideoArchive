@@ -1,0 +1,63 @@
+using Extenso.Data.Entity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace MyVideoArchive.Data.Entities;
+
+public class Video : BaseEntity<int>
+{
+    public required string VideoId { get; set; }
+
+    public required string Title { get; set; }
+
+    public string? Description { get; set; }
+
+    public required string Url { get; set; }
+
+    public string? ThumbnailUrl { get; set; }
+
+    public TimeSpan? Duration { get; set; }
+
+    public DateTime? UploadDate { get; set; }
+
+    public DateTime? DownloadedAt { get; set; }
+
+    public string? FilePath { get; set; }
+
+    public long? FileSize { get; set; }
+
+    public int ChannelId { get; set; }
+
+    public Channel Channel { get; set; } = null!;
+
+    public int? PlaylistId { get; set; }
+
+    public Playlist? Playlist { get; set; }
+}
+
+public class VideoMap : IEntityTypeConfiguration<Video>
+{
+    public void Configure(EntityTypeBuilder<Video> builder)
+    {
+        builder.ToTable("Videos");
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.VideoId).IsRequired().HasMaxLength(128);
+        builder.Property(m => m.Title).IsRequired().HasMaxLength(512).IsUnicode(true);
+        builder.Property(m => m.Description).IsUnicode(true);
+        builder.Property(m => m.Url).IsRequired().HasMaxLength(512);
+        builder.Property(m => m.ThumbnailUrl).HasMaxLength(512);
+        builder.Property(m => m.FilePath).HasMaxLength(1024);
+
+        builder.HasIndex(m => m.VideoId).IsUnique();
+
+        builder.HasOne(m => m.Channel)
+            .WithMany(m => m.Videos)
+            .HasForeignKey(m => m.ChannelId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(m => m.Playlist)
+            .WithMany(m => m.Videos)
+            .HasForeignKey(m => m.PlaylistId)
+            .OnDelete(DeleteBehavior.NoAction);
+    }
+}

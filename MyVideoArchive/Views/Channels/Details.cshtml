@@ -1,0 +1,200 @@
+@{
+    ViewData["Title"] = "Channel Details";
+    var channelId = ViewBag.ChannelId;
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <a href="/channels" class="btn btn-outline-secondary btn-sm mb-3">
+            &larr; Back to Channels
+        </a>
+        <div id="channel-header"></div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="channelTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos" type="button" role="tab">
+            Videos
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="playlists-tab" data-bs-toggle="tab" data-bs-target="#playlists" type="button" role="tab">
+            Playlists
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="channelTabsContent">
+    <div class="tab-pane fade show active" id="videos" role="tabpanel">
+        <div id="videos-grid"></div>
+    </div>
+    <div class="tab-pane fade" id="playlists" role="tabpanel">
+        <div id="playlists-grid"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/knockout@3.5.1/build/output/knockout-latest.js"></script>
+    <script type="text/javascript">
+        function ChannelDetailsViewModel(channelId) {
+            var self = this;
+            
+            self.channelId = channelId;
+            self.channel = ko.observable(null);
+            self.videos = ko.observableArray([]);
+            self.playlists = ko.observableArray([]);
+            self.loading = ko.observable(true);
+            
+            self.loadChannel = function() {
+                fetch('/odata/ChannelApi(' + self.channelId + ')')
+                    .then(response => response.json())
+                    .then(data => {
+                        self.channel(data);
+                    })
+                    .catch(error => {
+                        console.error('Error loading channel:', error);
+                    });
+            };
+            
+            self.loadVideos = function() {
+                fetch('/odata/VideoApi?$filter=ChannelId eq ' + self.channelId + '&$orderby=UploadDate desc')
+                    .then(response => response.json())
+                    .then(data => {
+                        self.videos(data.value || []);
+                        self.loading(false);
+                    })
+                    .catch(error => {
+                        console.error('Error loading videos:', error);
+                        self.loading(false);
+                    });
+            };
+            
+            self.loadPlaylists = function() {
+                fetch('/odata/PlaylistApi?$filter=ChannelId eq ' + self.channelId + '&$orderby=Name')
+                    .then(response => response.json())
+                    .then(data => {
+                        self.playlists(data.value || []);
+                    })
+                    .catch(error => {
+                        console.error('Error loading playlists:', error);
+                    });
+            };
+            
+            self.formatDate = function(dateString) {
+                if (!dateString) return 'N/A';
+                var date = new Date(dateString);
+                return date.toLocaleDateString();
+            };
+            
+            self.formatDuration = function(duration) {
+                if (!duration) return 'N/A';
+                return duration.substring(0, 8);
+            };
+        }
+        
+        var viewModel;
+        
+        $(document).ready(function() {
+            viewModel = new ChannelDetailsViewModel(@channelId);
+            ko.applyBindings(viewModel);
+            viewModel.loadChannel();
+            viewModel.loadVideos();
+            viewModel.loadPlaylists();
+        });
+    </script>
+    
+    <style>
+        .channel-header-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .video-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            transition: box-shadow 0.3s;
+        }
+        
+        .video-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .video-thumbnail-small {
+            width: 120px;
+            height: 68px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-right: 15px;
+            background-color: #000;
+        }
+        
+        .playlist-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: box-shadow 0.3s;
+        }
+        
+        .playlist-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+}
+
+<div data-bind="with: channel">
+    <div class="channel-header-card">
+        <div class="d-flex align-items-center">
+            <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/100?text=No+Image', alt: Name }" style="width: 100px; height: 100px; border-radius: 50%; margin-right: 20px;" />
+            <div>
+                <h2 data-bind="text: Name"></h2>
+                <p data-bind="text: Description" style="opacity: 0.9;"></p>
+                <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div data-bind="visible: loading" class="text-center">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+
+<div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+    <p>No videos found for this channel yet.</p>
+</div>
+
+<div data-bind="visible: !loading() && videos().length > 0, foreach: videos">
+    <div class="video-item">
+        <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }" class="video-thumbnail-small" />
+        <div style="flex: 1;">
+            <h6 data-bind="text: Title"></h6>
+            <small class="text-muted">
+                Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span>
+                <span data-bind="if: DownloadedAt"> | Downloaded: <span data-bind="text: $parent.formatDate(DownloadedAt)"></span></span>
+            </small>
+        </div>
+    </div>
+</div>
+
+<div data-bind="visible: playlists().length === 0" class="alert alert-info" style="display: none;">
+    <p>No playlists subscribed for this channel yet.</p>
+</div>
+
+<div data-bind="visible: playlists().length > 0, foreach: playlists">
+    <div class="playlist-item">
+        <h5 data-bind="text: Name"></h5>
+        <p class="text-muted" data-bind="text: Description"></p>
+        <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+    </div>
+</div>

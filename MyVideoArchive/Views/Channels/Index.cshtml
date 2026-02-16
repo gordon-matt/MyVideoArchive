@@ -1,0 +1,247 @@
+@{
+    ViewData["Title"] = "Channels";
+}
+
+<div class="row mb-4">
+    <div class="col-8">
+        <h2>My Channels</h2>
+        <p class="text-muted">Channels you are subscribed to</p>
+    </div>
+    <div class="col-4 text-end">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addChannelModal">
+            <i class="bi bi-plus-circle"></i> Add Channel
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div id="channels-grid"></div>
+    </div>
+</div>
+
+<!-- Add Channel Modal -->
+<div class="modal fade" id="addChannelModal" tabindex="-1" aria-labelledby="addChannelModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addChannelModalLabel">Add Channel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addChannelForm">
+                    <div class="mb-3">
+                        <label for="channelUrl" class="form-label">Channel URL</label>
+                        <input type="text" class="form-control" id="channelUrl" data-bind="value: newChannelUrl" placeholder="https://www.youtube.com/channel/..." required>
+                        <div class="form-text">Enter a YouTube channel URL</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" data-bind="click: addChannel, enable: newChannelUrl().length > 0">Add Channel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/knockout@3.5.1/build/output/knockout-latest.js"></script>
+    <script type="text/javascript">
+        function ChannelsViewModel() {
+            var self = this;
+            
+            self.channels = ko.observableArray([]);
+            self.loading = ko.observable(true);
+            self.newChannelUrl = ko.observable('');
+            
+            self.loadChannels = function() {
+                self.loading(true);
+                
+                fetch('/odata/ChannelApi?$orderby=Name')
+                    .then(response => response.json())
+                    .then(data => {
+                        self.channels(data.value || []);
+                        self.loading(false);
+                    })
+                    .catch(error => {
+                        console.error('Error loading channels:', error);
+                        self.loading(false);
+                    });
+            };
+            
+            self.addChannel = function() {
+                var url = self.newChannelUrl();
+                if (!url) return;
+                
+                // Extract channel ID from URL
+                var channelId = self.extractChannelId(url);
+                
+                var newChannel = {
+                    ChannelId: channelId,
+                    Name: 'Loading...',
+                    Url: url,
+                    SubscribedAt: new Date().toISOString()
+                };
+                
+                fetch('/odata/ChannelApi', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(newChannel)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    self.channels.push(data);
+                    self.newChannelUrl('');
+                    bootstrap.Modal.getInstance(document.getElementById('addChannelModal')).hide();
+                })
+                .catch(error => {
+                    console.error('Error adding channel:', error);
+                    alert('Failed to add channel. Please try again.');
+                });
+            };
+            
+            self.extractChannelId = function(url) {
+                // Simple extraction - in production, you'd want to use yt-dlp to get proper channel info
+                var match = url.match(/channel\/([^\/\?]+)/);
+                if (match) return match[1];
+                
+                match = url.match(/c\/([^\/\?]+)/);
+                if (match) return match[1];
+                
+                match = url.match(/user\/([^\/\?]+)/);
+                if (match) return match[1];
+                
+                match = url.match(/\/@@([^\/\?]+)/);
+                if (match) return match[1];
+                
+                return url;
+            };
+            
+            self.viewChannel = function(channel) {
+                window.location.href = '/channels/' + channel.Id;
+            };
+            
+            self.deleteChannel = function(channel) {
+                if (!confirm('Are you sure you want to unsubscribe from ' + channel.Name + '?')) {
+                    return;
+                }
+                
+                fetch('/odata/ChannelApi(' + channel.Id + ')', {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        self.channels.remove(channel);
+                    } else {
+                        alert('Failed to delete channel.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting channel:', error);
+                    alert('Failed to delete channel.');
+                });
+            };
+            
+            self.formatDate = function(dateString) {
+                if (!dateString) return 'N/A';
+                var date = new Date(dateString);
+                return date.toLocaleDateString();
+            };
+        }
+        
+        var viewModel;
+        
+        $(document).ready(function() {
+            viewModel = new ChannelsViewModel();
+            ko.applyBindings(viewModel);
+            viewModel.loadChannels();
+        });
+    </script>
+    
+    <style>
+        .channel-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: box-shadow 0.3s;
+            cursor: pointer;
+        }
+        
+        .channel-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .channel-thumbnail {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            object-fit: cover;
+            background-color: #e0e0e0;
+        }
+        
+        .channel-info {
+            flex: 1;
+            padding-left: 20px;
+        }
+        
+        .channel-name {
+            font-weight: 600;
+            font-size: 1.2em;
+            margin-bottom: 5px;
+        }
+        
+        .channel-url {
+            color: #606060;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            word-break: break-all;
+        }
+        
+        .channel-meta {
+            color: #909090;
+            font-size: 0.85em;
+        }
+        
+        .channel-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+    </style>
+}
+
+<div data-bind="visible: loading" class="text-center">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+
+<div data-bind="visible: !loading() && channels().length === 0" class="alert alert-info">
+    <p>No channels yet. Click "Add Channel" to subscribe to your first channel.</p>
+</div>
+
+<div data-bind="visible: !loading() && channels().length > 0">
+    <!-- ko foreach: channels -->
+    <div class="channel-card">
+        <div class="d-flex align-items-center">
+            <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/88?text=No+Image', alt: Name }" class="channel-thumbnail" />
+            <div class="channel-info" data-bind="click: $parent.viewChannel">
+                <div class="channel-name" data-bind="text: Name"></div>
+                <div class="channel-url" data-bind="text: Url"></div>
+                <div class="channel-meta">
+                    Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span>
+                </div>
+            </div>
+            <div class="channel-actions">
+                <button class="btn btn-danger btn-sm" data-bind="click: $parent.deleteChannel" onclick="event.stopPropagation();">
+                    Unsubscribe
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- /ko -->
+</div>

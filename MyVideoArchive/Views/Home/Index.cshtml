@@ -1,0 +1,138 @@
+@{
+    ViewData["Title"] = "Home";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2>Latest Videos</h2>
+        <p class="text-muted">Recently downloaded videos from your subscribed channels</p>
+    </div>
+</div>
+
+<div data-bind="visible: loading" class="text-center">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+
+<div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+    <p>No videos downloaded yet. Visit the <a asp-controller="Downloads" asp-action="Index">Downloads</a> page to start downloading videos from your subscriptions.</p>
+</div>
+
+<div class="row" data-bind="visible: !loading() && videos().length > 0">
+    <!-- ko foreach: videos -->
+    <div class="col-md-3 col-sm-6 mb-4">
+        <div class="video-card">
+            <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/320x180?text=No+Thumbnail', alt: Title }" class="video-thumbnail" />
+            <div class="video-info">
+                <div class="video-title" data-bind="text: Title, attr: { title: Title }"></div>
+                <div class="video-channel" data-bind="text: Channel ? Channel.Name : 'Unknown Channel'"></div>
+                <div class="video-meta">
+                    <span data-bind="text: $parent.formatDuration(Duration)"></span>
+                    <br/>
+                    <span data-bind="text: $parent.formatFileSize(FileSize)"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- /ko -->
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/knockout@@3.5.1/build/output/knockout-latest.js"></script>
+    <script type="text/javascript">
+        function VideoViewModel() {
+            var self = this;
+            
+            self.videos = ko.observableArray([]);
+            self.loading = ko.observable(true);
+            
+            self.loadVideos = function() {
+                self.loading(true);
+                
+                fetch('/odata/VideoApi?$filter=DownloadedAt ne null&$orderby=DownloadedAt desc&$top=20&$expand=Channel')
+                    .then(response => response.json())
+                    .then(data => {
+                        self.videos(data.value || []);
+                        self.loading(false);
+                    })
+                    .catch(error => {
+                        console.error('Error loading videos:', error);
+                        self.loading(false);
+                    });
+            };
+            
+            self.formatDate = function(dateString) {
+                if (!dateString) return 'N/A';
+                var date = new Date(dateString);
+                return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            };
+            
+            self.formatDuration = function(duration) {
+                if (!duration) return 'N/A';
+                return duration.substring(0, 8);
+            };
+            
+            self.formatFileSize = function(bytes) {
+                if (!bytes) return 'N/A';
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+                if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+            };
+        }
+        
+        var viewModel;
+        
+        $(document).ready(function() {
+            viewModel = new VideoViewModel();
+            ko.applyBindings(viewModel);
+            viewModel.loadVideos();
+        });
+    </script>
+    
+    <style>
+        .video-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            transition: box-shadow 0.3s;
+        }
+        
+        .video-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .video-thumbnail {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            background-color: #000;
+        }
+        
+        .video-info {
+            padding: 15px;
+        }
+        
+        .video-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .video-channel {
+            color: #606060;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        
+        .video-meta {
+            color: #909090;
+            font-size: 0.85em;
+        }
+    </style>
+}
