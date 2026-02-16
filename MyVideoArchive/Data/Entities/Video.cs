@@ -16,9 +16,15 @@ public class Video : BaseEntity<int>
 
     public string? ThumbnailUrl { get; set; }
 
+    public required string Platform { get; set; }
+
     public TimeSpan? Duration { get; set; }
 
     public DateTime? UploadDate { get; set; }
+
+    public int? ViewCount { get; set; }
+
+    public int? LikeCount { get; set; }
 
     public DateTime? DownloadedAt { get; set; }
 
@@ -46,9 +52,10 @@ public class VideoMap : IEntityTypeConfiguration<Video>
         builder.Property(m => m.Description).IsUnicode(true);
         builder.Property(m => m.Url).IsRequired().HasMaxLength(512);
         builder.Property(m => m.ThumbnailUrl).HasMaxLength(512);
+        builder.Property(m => m.Platform).IsRequired().HasMaxLength(64);
         builder.Property(m => m.FilePath).HasMaxLength(1024);
 
-        builder.HasIndex(m => m.VideoId).IsUnique();
+        builder.HasIndex(m => new { m.Platform, m.VideoId }).IsUnique();
 
         builder.HasOne(m => m.Channel)
             .WithMany(m => m.Videos)

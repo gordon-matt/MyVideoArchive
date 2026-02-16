@@ -16,6 +16,12 @@ public class Channel : BaseEntity<int>
 
     public string? Description { get; set; }
 
+    public required string Platform { get; set; }
+
+    public int? SubscriberCount { get; set; }
+
+    public int? VideoCount { get; set; }
+
     public DateTime SubscribedAt { get; set; }
 
     public DateTime? LastChecked { get; set; }
@@ -36,8 +42,9 @@ public class ChannelMap : IEntityTypeConfiguration<Channel>
         builder.Property(m => m.Url).IsRequired().HasMaxLength(512);
         builder.Property(m => m.ThumbnailUrl).HasMaxLength(512);
         builder.Property(m => m.Description).IsUnicode(true);
+        builder.Property(m => m.Platform).IsRequired().HasMaxLength(64);
         builder.Property(m => m.SubscribedAt).IsRequired();
 
-        builder.HasIndex(m => m.ChannelId).IsUnique();
+        builder.HasIndex(m => new { m.Platform, m.ChannelId }).IsUnique();
     }
 }

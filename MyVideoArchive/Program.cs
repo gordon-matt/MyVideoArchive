@@ -2,12 +2,18 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Extenso.AspNetCore.OData;
 using Extenso.Data.Entity;
+using Hangfire;
+using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OData;
 using Microsoft.EntityFrameworkCore;
 using MyVideoArchive.Data;
 using MyVideoArchive.Infrastructure;
 using MyVideoArchive.Services;
+using MyVideoArchive.Services.Abstractions;
+using MyVideoArchive.Services.Jobs;
+using MyVideoArchive.Services.Providers;
+using YoutubeDLSharp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,8 +54,49 @@ builder.Services.AddControllersWithViews()
 
 builder.Services.AddEntityFrameworkRepository();
 
-// Add background service
-builder.Services.AddHostedService<VideoDownloadService>();
+// Configure Hangfire (requires SQL Server)
+if (string.IsNullOrEmpty(connectionString))
+{
+    throw new InvalidOperationException("Hangfire requires a SQL Server connection string. Please configure 'DefaultConnection' in appsettings.json.");
+}
+
+builder.Services.AddHangfire(configuration => configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+    {
+        CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+        SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+        QueuePollInterval = TimeSpan.Zero,
+        UseRecommendedIsolationLevel = true,
+        DisableGlobalLocks = true
+    }));
+
+builder.Services.AddHangfireServer();
+
+// Register video services
+builder.Services.AddSingleton<YoutubeDLInitializer>();
+builder.Services.AddSingleton(sp =>
+{
+    var initializer = sp.GetRequiredService<YoutubeDLInitializer>();
+    return initializer.GetInstanceAsync().GetAwaiter().GetResult();
+});
+
+// Register metadata providers
+builder.Services.AddSingleton<IVideoMetadataProvider, YouTubeMetadataProvider>();
+
+// Register downloaders
+builder.Services.AddSingleton<IVideoDownloader, YouTubeDownloader>();
+
+// Register factories
+builder.Services.AddSingleton<VideoMetadataProviderFactory>();
+builder.Services.AddSingleton<VideoDownloaderFactory>();
+
+// Register Hangfire jobs
+builder.Services.AddTransient<VideoDownloadJob>();
+builder.Services.AddTransient<ChannelSyncJob>();
+builder.Services.AddTransient<PlaylistSyncJob>();
 
 // Configure Autofac
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
@@ -91,6 +138,12 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Configure Hangfire Dashboard
+app.MapHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new HangfireAuthorizationFilter() }
+});
+
 app.MapStaticAssets();
 
 app.MapControllerRoute(
@@ -100,5 +153,16 @@ app.MapControllerRoute(
 
 app.MapRazorPages()
    .WithStaticAssets();
+
+// Schedule recurring jobs
+RecurringJob.AddOrUpdate<ChannelSyncJob>(
+    "sync-all-channels",
+    job => job.SyncAllChannelsAsync(CancellationToken.None),
+    Cron.Hourly); // Check for new videos every hour
+
+RecurringJob.AddOrUpdate<PlaylistSyncJob>(
+    "sync-all-playlists",
+    job => job.SyncAllPlaylistsAsync(CancellationToken.None),
+    Cron.Hourly); // Check for new playlist videos every hour
 
 app.Run();

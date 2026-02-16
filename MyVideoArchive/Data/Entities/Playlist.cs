@@ -14,6 +14,10 @@ public class Playlist : BaseEntity<int>
 
     public string? Description { get; set; }
 
+    public required string Platform { get; set; }
+
+    public int? VideoCount { get; set; }
+
     public DateTime SubscribedAt { get; set; }
 
     public DateTime? LastChecked { get; set; }
@@ -35,9 +39,10 @@ public class PlaylistMap : IEntityTypeConfiguration<Playlist>
         builder.Property(m => m.Name).IsRequired().HasMaxLength(256).IsUnicode(true);
         builder.Property(m => m.Url).IsRequired().HasMaxLength(512);
         builder.Property(m => m.Description).IsUnicode(true);
+        builder.Property(m => m.Platform).IsRequired().HasMaxLength(64);
         builder.Property(m => m.SubscribedAt).IsRequired();
 
-        builder.HasIndex(m => m.PlaylistId).IsUnique();
+        builder.HasIndex(m => new { m.Platform, m.PlaylistId }).IsUnique();
 
         builder.HasOne(m => m.Channel)
             .WithMany(m => m.Playlists)
