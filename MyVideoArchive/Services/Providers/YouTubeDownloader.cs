@@ -24,10 +24,7 @@ public partial class YouTubeDownloader : IVideoDownloader
         _ytdl = youtubeDL;
     }
 
-    public bool CanHandle(string url)
-    {
-        return YouTubeUrlRegex().IsMatch(url);
-    }
+    public bool CanHandle(string url) => YouTubeUrlRegex().IsMatch(url);
 
     public async Task<string> DownloadVideoAsync(
         string videoUrl,

@@ -1,9 +1,6 @@
 using Extenso.Data.Entity;
-using Hangfire;
 using Microsoft.EntityFrameworkCore;
-using MyVideoArchive.Data;
 using MyVideoArchive.Data.Entities;
-using MyVideoArchive.Services.Abstractions;
 
 namespace MyVideoArchive.Services.Jobs;
 

@@ -11,8 +11,9 @@ public class HangfireAuthorizationFilter : IDashboardAuthorizationFilter
     {
         var httpContext = context.GetHttpContext();
 
-        // Allow access if user is authenticated
-        // In production, you should check for specific roles or policies
-        return httpContext.User.Identity?.IsAuthenticated ?? false;
+        return true;//testing
+
+        //return httpContext.User.Identity?.IsAuthenticated == true &&
+        //       httpContext.User.IsInRole(Constants.Roles.Administrators);
     }
 }
