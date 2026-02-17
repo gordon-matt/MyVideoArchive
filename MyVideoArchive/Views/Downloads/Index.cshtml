@@ -4,8 +4,8 @@
 
 <div class="row mb-4">
     <div class="col-8">
-        <h2>Available Videos</h2>
-        <p class="text-muted">Videos from your subscribed channels ready to download</p>
+        <h2>Video Queue</h2>
+        <p class="text-muted">Manage video downloads from your subscribed channels</p>
     </div>
     <div class="col-4 text-end">
         <button type="button" class="btn btn-success" data-bind="click: checkForNewVideos, enable: !checking()">
@@ -19,16 +19,24 @@
 </div>
 
 <div class="row mb-3">
-    <div class="col-12">
+    <div class="col-md-3 mb-2 mb-md-0">
+        <select class="form-select" data-bind="value: selectedChannelId, event: { change: loadVideos }">
+            <option value="">All Channels</option>
+            <!-- ko foreach: channels -->
+            <option data-bind="value: Id, text: Name"></option>
+            <!-- /ko -->
+        </select>
+    </div>
+    <div class="col-md-9">
         <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-primary" data-bind="css: { active: filter() === 'all' }, click: function() { filter('all'); }">
-                All Videos
+            <button type="button" class="btn btn-outline-primary" data-bind="css: { active: statusFilter() === 'all' }, click: function() { statusFilter('all'); loadVideos(); }">
+                All
             </button>
-            <button type="button" class="btn btn-outline-primary" data-bind="css: { active: filter() === 'pending' }, click: function() { filter('pending'); }">
-                Not Downloaded
+            <button type="button" class="btn btn-outline-primary" data-bind="css: { active: statusFilter() === 'available' }, click: function() { statusFilter('available'); loadVideos(); }">
+                Available
             </button>
-            <button type="button" class="btn btn-outline-primary" data-bind="css: { active: filter() === 'downloaded' }, click: function() { filter('downloaded'); }">
-                Downloaded
+            <button type="button" class="btn btn-outline-primary" data-bind="css: { active: statusFilter() === 'queued' }, click: function() { statusFilter('queued'); loadVideos(); }">
+                Queued
             </button>
         </div>
     </div>
@@ -36,7 +44,68 @@
 
 <div class="row">
     <div class="col-12">
-        <div id="videos-list"></div>
+        <div data-bind="visible: loading" class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+            <p>No videos found matching your filters.</p>
+        </div>
+
+        <div data-bind="visible: !loading() && videos().length > 0">
+            <!-- ko foreach: videos -->
+            <div class="video-download-item" data-bind="css: { queued: isQueued }">
+                <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/160x90?text=No+Thumbnail', alt: title }" class="video-thumbnail-list" />
+                <div class="video-details">
+                    <div class="video-title-large" data-bind="text: title"></div>
+                    <div class="video-channel-name" data-bind="text: channelName"></div>
+                    <div class="video-meta-info">
+                        Uploaded: <span data-bind="text: $parent.formatDate(uploadDate)"></span>
+                        <span data-bind="if: duration"> | Duration: <span data-bind="text: $parent.formatDuration(duration)"></span></span>
+                    </div>
+                    <div class="mt-2">
+                        <span data-bind="if: isQueued" class="badge bg-warning text-dark">
+                            <i class="bi bi-hourglass-split"></i> Queued for Download
+                        </span>
+                        <span data-bind="if: !isQueued" class="badge bg-info">
+                            <i class="bi bi-cloud-arrow-down"></i> Available
+                        </span>
+                    </div>
+                </div>
+                <div class="download-actions">
+                    <button class="btn btn-primary btn-sm" data-bind="click: $parent.downloadVideo, visible: !isQueued, enable: !isQueued">
+                        <i class="bi bi-download"></i> Download
+                    </button>
+                    <span data-bind="visible: isQueued" class="text-warning">
+                        <i class="bi bi-hourglass-split"></i> Queued
+                    </span>
+                </div>
+            </div>
+            <!-- /ko -->
+            
+            <!-- Pagination -->
+            <nav aria-label="Videos pagination" data-bind="visible: totalPages() > 1">
+                <ul class="pagination justify-content-center mt-4">
+                    <li class="page-item" data-bind="css: { disabled: currentPage() === 1 }">
+                        <a class="page-link" href="#" data-bind="click: previousPage">Previous</a>
+                    </li>
+                    <!-- ko foreach: pageNumbers -->
+                    <li class="page-item" data-bind="css: { active: $data === $parent.currentPage() }">
+                        <a class="page-link" href="#" data-bind="text: $data, click: function() { $parent.goToPage($data); }"></a>
+                    </li>
+                    <!-- /ko -->
+                    <li class="page-item" data-bind="css: { disabled: currentPage() === totalPages() }">
+                        <a class="page-link" href="#" data-bind="click: nextPage">Next</a>
+                    </li>
+                </ul>
+                <p class="text-center text-muted">
+                    Page <span data-bind="text: currentPage"></span> of <span data-bind="text: totalPages"></span>
+                    (<span data-bind="text: totalCount"></span> total videos)
+                </p>
+            </nav>
+        </div>
     </div>
 </div>
 
@@ -46,31 +115,100 @@
         function DownloadsViewModel() {
             var self = this;
             
-            self.allVideos = ko.observableArray([]);
-            self.filter = ko.observable('all');
+            self.videos = ko.observableArray([]);
+            self.channels = ko.observableArray([]);
+            self.selectedChannelId = ko.observable('');
+            self.statusFilter = ko.observable('all');
             self.loading = ko.observable(true);
             self.checking = ko.observable(false);
             
-            self.videos = ko.computed(function() {
-                var filter = self.filter();
-                var videos = self.allVideos();
+            // Pagination
+            self.currentPage = ko.observable(1);
+            self.pageSize = 25;
+            self.totalPages = ko.observable(1);
+            self.totalCount = ko.observable(0);
+            
+            self.pageNumbers = ko.computed(function() {
+                var pages = [];
+                var current = self.currentPage();
+                var total = self.totalPages();
                 
-                if (filter === 'pending') {
-                    return videos.filter(function(v) { return !v.DownloadedAt; });
-                } else if (filter === 'downloaded') {
-                    return videos.filter(function(v) { return v.DownloadedAt; });
+                // Show max 5 page numbers
+                var start = Math.max(1, current - 2);
+                var end = Math.min(total, start + 4);
+                start = Math.max(1, end - 4);
+                
+                for (var i = start; i <= end; i++) {
+                    pages.push(i);
                 }
-                
-                return videos;
+                return pages;
             });
+            
+            self.loadChannels = function() {
+                fetch('/odata/ChannelApi?$orderby=Name')
+                    .then(response => response.json())
+                    .then(data => {
+                        self.channels(data.value || []);
+                    })
+                    .catch(error => {
+                        console.error('Error loading channels:', error);
+                    });
+            };
             
             self.loadVideos = function() {
                 self.loading(true);
+                self.currentPage(1);
+                self.fetchVideos();
+            };
+            
+            self.fetchVideos = function() {
+                self.loading(true);
                 
-                fetch('/odata/VideoApi?$expand=Channel&$orderby=UploadDate desc')
+                var filter = 'DownloadedAt eq null';
+                
+                // Add status filter
+                if (self.statusFilter() === 'available') {
+                    filter += ' and IsQueued eq false';
+                } else if (self.statusFilter() === 'queued') {
+                    filter += ' and IsQueued eq true';
+                }
+                
+                // Add channel filter
+                if (self.selectedChannelId()) {
+                    filter += ' and ChannelId eq ' + self.selectedChannelId();
+                }
+                
+                var url = '/odata/VideoApi?$filter=' + filter + 
+                          '&$expand=Channel' +
+                          '&$orderby=UploadDate desc' +
+                          '&$skip=' + ((self.currentPage() - 1) * self.pageSize) +
+                          '&$top=' + self.pageSize +
+                          '&$count=true';
+                
+                fetch(url)
                     .then(response => response.json())
                     .then(data => {
-                        self.allVideos(data.value || []);
+                        var videos = (data.value || []).map(function(v) {
+                            return {
+                                id: v.Id,
+                                videoId: v.VideoId,
+                                title: v.Title,
+                                description: v.Description,
+                                url: v.Url,
+                                thumbnailUrl: v.ThumbnailUrl,
+                                duration: v.Duration,
+                                uploadDate: v.UploadDate,
+                                viewCount: v.ViewCount,
+                                likeCount: v.LikeCount,
+                                isQueued: v.IsQueued,
+                                channelId: v.ChannelId,
+                                channelName: v.Channel ? v.Channel.Name : 'Unknown Channel'
+                            };
+                        });
+                        
+                        self.videos(videos);
+                        self.totalCount(data['@@odata.count'] || 0);
+                        self.totalPages(Math.ceil(self.totalCount() / self.pageSize));
                         self.loading(false);
                     })
                     .catch(error => {
@@ -79,29 +217,75 @@
                     });
             };
             
+            self.goToPage = function(page) {
+                if (page >= 1 && page <= self.totalPages()) {
+                    self.currentPage(page);
+                    self.fetchVideos();
+                }
+            };
+            
+            self.previousPage = function() {
+                if (self.currentPage() > 1) {
+                    self.currentPage(self.currentPage() - 1);
+                    self.fetchVideos();
+                }
+            };
+            
+            self.nextPage = function() {
+                if (self.currentPage() < self.totalPages()) {
+                    self.currentPage(self.currentPage() + 1);
+                    self.fetchVideos();
+                }
+            };
+            
             self.checkForNewVideos = function() {
                 self.checking(true);
                 
-                // In a real implementation, this would trigger a background job
-                // For now, we'll just simulate it
-                setTimeout(function() {
+                fetch('/api/channels/sync-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(response => response.json())
+                .then(data => {
                     self.checking(false);
-                    alert('Check for new videos would be triggered here. This will be implemented in the background service.');
-                }, 1000);
+                    alert(data.message || 'Sync job queued successfully!');
+                    setTimeout(function() {
+                        self.loadVideos();
+                    }, 2000);
+                })
+                .catch(error => {
+                    console.error('Error syncing channels:', error);
+                    self.checking(false);
+                    alert('Error syncing channels. Please try again.');
+                });
             };
             
             self.downloadVideo = function(video) {
-                if (video.DownloadedAt) {
-                    alert('This video has already been downloaded.');
+                if (video.isQueued) {
+                    alert('This video is already queued for download.');
                     return;
                 }
                 
-                if (!confirm('Download "' + video.Title + '"?')) {
+                if (!confirm('Queue "' + video.title + '" for download?')) {
                     return;
                 }
                 
-                // In a real implementation, this would queue the video for download
-                alert('Video download would be queued here. This will be implemented with the background service.');
+                fetch('/api/channels/' + video.channelId + '/videos/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videoIds: [video.id] })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    // Remove from UI or mark as queued
+                    video.isQueued = true;
+                    self.videos.remove(video);
+                })
+                .catch(error => {
+                    console.error('Error queueing video:', error);
+                    alert('Error queueing video for download. Please try again.');
+                });
             };
             
             self.formatDate = function(dateString) {
@@ -114,14 +298,6 @@
                 if (!duration) return 'N/A';
                 return duration.substring(0, 8);
             };
-            
-            self.formatFileSize = function(bytes) {
-                if (!bytes) return 'N/A';
-                if (bytes < 1024) return bytes + ' B';
-                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-                if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-                return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-            };
         }
         
         var viewModel;
@@ -129,6 +305,7 @@
         $(document).ready(function() {
             viewModel = new DownloadsViewModel();
             ko.applyBindings(viewModel);
+            viewModel.loadChannels();
             viewModel.loadVideos();
         });
     </script>
@@ -148,9 +325,9 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         
-        .video-download-item.downloaded {
-            background-color: #f0f8f0;
-            border-color: #c3e6cb;
+        .video-download-item.queued {
+            background-color: #fff3cd;
+            border-color: #ffc107;
         }
         
         .video-thumbnail-list {
@@ -188,47 +365,5 @@
             gap: 10px;
             align-items: flex-end;
         }
-        
-        .badge-downloaded {
-            background-color: #28a745;
-        }
     </style>
 }
-
-<div data-bind="visible: loading" class="text-center">
-    <div class="spinner-border" role="status">
-        <span class="visually-hidden">Loading...</span>
-    </div>
-</div>
-
-<div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
-    <p data-bind="visible: filter() === 'all'">No videos available. Add channels from the <a asp-controller="Channels" asp-action="Index">Channels</a> page to get started.</p>
-    <p data-bind="visible: filter() === 'pending'">No pending downloads.</p>
-    <p data-bind="visible: filter() === 'downloaded'">No downloaded videos yet.</p>
-</div>
-
-<div data-bind="visible: !loading() && videos().length > 0, foreach: videos">
-    <div class="video-download-item" data-bind="css: { downloaded: DownloadedAt }">
-        <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/160x90?text=No+Thumbnail', alt: Title }" class="video-thumbnail-list" />
-        <div class="video-details">
-            <div class="video-title-large" data-bind="text: Title"></div>
-            <div class="video-channel-name" data-bind="text: Channel ? Channel.Name : 'Unknown Channel'"></div>
-            <div class="video-meta-info">
-                Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span>
-                <span data-bind="if: Duration"> | Duration: <span data-bind="text: $parent.formatDuration(Duration)"></span></span>
-                <span data-bind="if: FileSize"> | Size: <span data-bind="text: $parent.formatFileSize(FileSize)"></span></span>
-            </div>
-            <div class="video-meta-info" data-bind="if: DownloadedAt">
-                <span class="badge badge-downloaded">Downloaded</span> on <span data-bind="text: $parent.formatDate(DownloadedAt)"></span>
-            </div>
-        </div>
-        <div class="download-actions">
-            <button class="btn btn-primary btn-sm" data-bind="click: $parent.downloadVideo, visible: !DownloadedAt">
-                <i class="bi bi-download"></i> Download
-            </button>
-            <span data-bind="visible: DownloadedAt" class="text-success">
-                <i class="bi bi-check-circle"></i> Downloaded
-            </span>
-        </div>
-    </div>
-</div>

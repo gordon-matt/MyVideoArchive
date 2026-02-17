@@ -28,6 +28,7 @@ public class PlaylistSyncJob
         _backgroundJobClient = backgroundJobClient;
     }
 
+    [DisableConcurrentExecution(timeoutInSeconds: 3600)] // 1 hour timeout
     public async Task ExecuteAsync(int playlistId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting playlist sync job for playlist ID: {PlaylistId}", playlistId);
@@ -37,12 +38,14 @@ public class PlaylistSyncJob
             using var scope = _serviceProvider.CreateScope();
             var playlistRepository = scope.ServiceProvider.GetRequiredService<IRepository<Playlist>>();
             var videoRepository = scope.ServiceProvider.GetRequiredService<IRepository<Video>>();
+            var videoPlaylistRepository = scope.ServiceProvider.GetRequiredService<IRepository<VideoPlaylist>>();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
             {
                 CancellationToken = cancellationToken,
                 Query = x => x.Id == playlistId,
-                Include = query => query.Include(x => x.Videos).Include(x => x.Channel)
+                Include = query => query.Include(x => x.VideoPlaylists).Include(x => x.Channel)
             });
 
             if (playlist == null)
@@ -73,7 +76,7 @@ public class PlaylistSyncJob
             _logger.LogInformation("Found {Count} videos for playlist {PlaylistId}", videoMetadataList.Count, playlistId);
 
             // Process each video
-            var existingVideoIds = playlist.Videos.Select(v => v.VideoId).ToHashSet();
+            var existingVideoPlaylistIds = playlist.VideoPlaylists.Select(vp => vp.VideoId).ToHashSet();
             var newVideosCount = 0;
 
             foreach (var videoMetadata in videoMetadataList)
@@ -85,6 +88,8 @@ public class PlaylistSyncJob
                     Query = v => v.Platform == videoMetadata.Platform && v.VideoId == videoMetadata.VideoId
                 });
 
+                int videoEntityId;
+
                 if (existingVideo != null)
                 {
                     // Update existing video metadata
@@ -95,17 +100,12 @@ public class PlaylistSyncJob
                     existingVideo.ViewCount = videoMetadata.ViewCount;
                     existingVideo.LikeCount = videoMetadata.LikeCount;
 
-                    // Associate with this playlist if not already
-                    if (existingVideo.PlaylistId != playlistId)
-                    {
-                        existingVideo.PlaylistId = playlistId;
-                    }
-
                     await videoRepository.UpdateAsync(existingVideo);
+                    videoEntityId = existingVideo.Id;
                 }
                 else
                 {
-                    // Create new video entry
+                    // Create new video entry (without auto-downloading)
                     var newVideo = new Video
                     {
                         VideoId = videoMetadata.VideoId,
@@ -119,17 +119,30 @@ public class PlaylistSyncJob
                         ViewCount = videoMetadata.ViewCount,
                         LikeCount = videoMetadata.LikeCount,
                         ChannelId = playlist.ChannelId,
-                        PlaylistId = playlistId
+                        IsIgnored = false,
+                        IsQueued = false
                     };
 
                     await videoRepository.InsertAsync(newVideo);
+                    videoEntityId = newVideo.Id;
                     newVideosCount++;
+                }
 
-                    // Queue download job for the new video
-                    _backgroundJobClient.Enqueue<VideoDownloadJob>(job => 
-                        job.ExecuteAsync(newVideo.Id, CancellationToken.None));
+                // Associate video with this playlist if not already associated
+                if (!existingVideoPlaylistIds.Contains(videoEntityId))
+                {
+                    var videoPlaylist = new VideoPlaylist
+                    {
+                        VideoId = videoEntityId,
+                        PlaylistId = playlistId
+                    };
+
+                    dbContext.Set<VideoPlaylist>().Add(videoPlaylist);
                 }
             }
+
+            // Save all VideoPlaylist associations
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             // Update last checked timestamp
             playlist.LastChecked = DateTime.UtcNow;
@@ -146,6 +159,7 @@ public class PlaylistSyncJob
         }
     }
 
+    [DisableConcurrentExecution(timeoutInSeconds: 600)] // 10 minutes timeout
     public async Task SyncAllPlaylistsAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting sync for all playlists");

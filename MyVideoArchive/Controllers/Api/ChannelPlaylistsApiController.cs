@@ -1,0 +1,227 @@
+using Extenso.Data.Entity;
+using Hangfire;
+using LinqKit;
+using Microsoft.AspNetCore.Mvc;
+using MyVideoArchive.Data.Entities;
+using MyVideoArchive.Services;
+using MyVideoArchive.Services.Jobs;
+
+namespace MyVideoArchive.Controllers.Api;
+
+/// <summary>
+/// API controller for managing channel playlists
+/// </summary>
+[ApiController]
+[Route("api/channels/{channelId}/playlists")]
+public class ChannelPlaylistsApiController : ControllerBase
+{
+    private readonly IRepository<Playlist> _playlistRepository;
+    private readonly IRepository<Channel> _channelRepository;
+    private readonly IBackgroundJobClient _backgroundJobClient;
+    private readonly VideoMetadataProviderFactory _metadataProviderFactory;
+    private readonly ILogger<ChannelPlaylistsApiController> _logger;
+
+    public ChannelPlaylistsApiController(
+        IRepository<Playlist> playlistRepository,
+        IRepository<Channel> channelRepository,
+        IBackgroundJobClient backgroundJobClient,
+        VideoMetadataProviderFactory metadataProviderFactory,
+        ILogger<ChannelPlaylistsApiController> logger)
+    {
+        _playlistRepository = playlistRepository;
+        _channelRepository = channelRepository;
+        _backgroundJobClient = backgroundJobClient;
+        _metadataProviderFactory = metadataProviderFactory;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Get all playlists for a channel (available, subscribed, and ignored)
+    /// </summary>
+    [HttpGet("available")]
+    public async Task<IActionResult> GetAvailablePlaylists(
+        int channelId,
+        [FromQuery] bool showIgnored = false)
+    {
+        try
+        {
+            var channel = await _channelRepository.FindOneAsync(channelId);
+            if (channel == null)
+            {
+                return NotFound(new { message = "Channel not found" });
+            }
+
+            // Get metadata provider
+            var provider = _metadataProviderFactory.GetProviderByPlatform(channel.Platform);
+            if (provider == null)
+            {
+                return BadRequest(new { message = $"No provider found for platform {channel.Platform}" });
+            }
+
+            // Get all playlists from the channel (this would need to be implemented in the provider)
+            // For now, we'll just return playlists already in our database
+            var predicate = PredicateBuilder.New<Playlist>(v => v.ChannelId == channelId);
+
+            if (!showIgnored)
+            {
+                predicate = predicate.And(p => !p.IsIgnored);
+            }
+
+            var options = new SearchOptions<Playlist>
+            {
+                CancellationToken = HttpContext.RequestAborted,
+                Query = predicate,
+                OrderBy = query => query
+                    .OrderByDescending(p => p.SubscribedAt)
+                    .ThenBy(p => p.Name)
+            };
+
+            var playlists = _playlistRepository.FindAsync(options, p => new
+            {
+                p.Id,
+                p.PlaylistId,
+                p.Name,
+                p.Description,
+                p.Url,
+                p.VideoCount,
+                p.SubscribedAt,
+                p.LastChecked,
+                p.IsIgnored,
+                IsSubscribed = p.SubscribedAt != default
+            });
+
+            return Ok(new { playlists });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving playlists for channel {ChannelId}", channelId);
+            return StatusCode(500, new { message = "An error occurred while retrieving playlists" });
+        }
+    }
+
+    /// <summary>
+    /// Subscribe to selected playlists
+    /// </summary>
+    [HttpPost("subscribe")]
+    public async Task<IActionResult> SubscribePlaylists(int channelId, [FromBody] SubscribePlaylistsRequest request)
+    {
+        try
+        {
+            if (request.PlaylistIds == null || request.PlaylistIds.Count == 0)
+            {
+                return BadRequest(new { message = "No playlist IDs provided" });
+            }
+
+            var channel = await _channelRepository.FindOneAsync(channelId);
+            if (channel == null)
+            {
+                return NotFound(new { message = "Channel not found" });
+            }
+
+            var subscribedCount = 0;
+            foreach (var playlistId in request.PlaylistIds)
+            {
+                var playlist = await _playlistRepository.FindOneAsync(playlistId);
+                if (playlist != null && playlist.ChannelId == channelId)
+                {
+                    // Queue sync job for the playlist
+                    _backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
+                        job.ExecuteAsync(playlist.Id, CancellationToken.None));
+                    subscribedCount++;
+                }
+            }
+
+            return Ok(new
+            {
+                message = $"Queued sync for {subscribedCount} playlist(s)",
+                subscribedCount
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error subscribing to playlists for channel {ChannelId}", channelId);
+            return StatusCode(500, new { message = "An error occurred while subscribing to playlists" });
+        }
+    }
+
+    /// <summary>
+    /// Subscribe to all playlists for a channel
+    /// </summary>
+    [HttpPost("subscribe-all")]
+    public async Task<IActionResult> SubscribeAllPlaylists(int channelId)
+    {
+        try
+        {
+            var playlists = await _playlistRepository.FindAsync(new SearchOptions<Playlist>
+            {
+                Query = p => p.ChannelId == channelId && !p.IsIgnored
+            });
+
+            if (playlists.Count == 0)
+            {
+                return Ok(new { message = "No playlists available to subscribe", subscribedCount = 0 });
+            }
+
+            foreach (var playlist in playlists)
+            {
+                _backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
+                    job.ExecuteAsync(playlist.Id, CancellationToken.None));
+            }
+
+            return Ok(new
+            {
+                message = $"Queued sync for {playlists.Count} playlist(s)",
+                subscribedCount = playlists.Count
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error subscribing to all playlists for channel {ChannelId}", channelId);
+            return StatusCode(500, new { message = "An error occurred while subscribing to playlists" });
+        }
+    }
+
+    /// <summary>
+    /// Toggle ignore status for a playlist
+    /// </summary>
+    [HttpPut("{playlistId}/ignore")]
+    public async Task<IActionResult> ToggleIgnore(int channelId, int playlistId, [FromBody] IgnorePlaylistRequest request)
+    {
+        try
+        {
+            var playlist = await _playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+            {
+                Query = p => p.Id == playlistId && p.ChannelId == channelId
+            });
+
+            if (playlist == null)
+            {
+                return NotFound(new { message = "Playlist not found" });
+            }
+
+            playlist.IsIgnored = request.IsIgnored;
+            await _playlistRepository.UpdateAsync(playlist);
+
+            return Ok(new
+            {
+                message = request.IsIgnored ? "Playlist ignored" : "Playlist unignored",
+                isIgnored = playlist.IsIgnored
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling ignore status for playlist {PlaylistId}", playlistId);
+            return StatusCode(500, new { message = "An error occurred while updating playlist status" });
+        }
+    }
+}
+
+public class SubscribePlaylistsRequest
+{
+    public List<int> PlaylistIds { get; set; } = [];
+}
+
+public class IgnorePlaylistRequest
+{
+    public bool IsIgnored { get; set; }
+}

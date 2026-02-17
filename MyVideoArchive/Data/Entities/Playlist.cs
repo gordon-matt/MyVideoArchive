@@ -22,11 +22,13 @@ public class Playlist : BaseEntity<int>
 
     public DateTime? LastChecked { get; set; }
 
+    public bool IsIgnored { get; set; }
+
     public int ChannelId { get; set; }
 
     public Channel Channel { get; set; } = null!;
 
-    public ICollection<Video> Videos { get; set; } = [];
+    public ICollection<VideoPlaylist> VideoPlaylists { get; set; } = [];
 }
 
 public class PlaylistMap : IEntityTypeConfiguration<Playlist>

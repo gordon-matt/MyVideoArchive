@@ -51,8 +51,8 @@ public class ChannelVideosApiController : ControllerBase
 
             var predicate = PredicateBuilder.New<Video>(v => v.ChannelId == channelId);
 
-            // Only show videos that haven't been downloaded yet
-            predicate = predicate.And(v => v.DownloadedAt == null);
+            // Only show videos that haven't been downloaded yet and aren't queued
+            predicate = predicate.And(v => v.DownloadedAt == null && !v.IsQueued);
 
             // Filter based on showIgnored flag
             if (!showIgnored)
@@ -135,9 +135,12 @@ public class ChannelVideosApiController : ControllerBase
             var queuedCount = 0;
             foreach (var video in videos)
             {
-                // Only queue if not already downloaded
-                if (video.DownloadedAt == null)
+                // Only queue if not already downloaded and not already queued
+                if (video.DownloadedAt == null && !video.IsQueued)
                 {
+                    video.IsQueued = true;
+                    await _videoRepository.UpdateAsync(video);
+                    
                     _backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
                         job.ExecuteAsync(video.Id, CancellationToken.None));
                     queuedCount++;
@@ -167,9 +170,10 @@ public class ChannelVideosApiController : ControllerBase
         {
             var videos = await _videoRepository.FindAsync(new SearchOptions<Video>
             {
-                Query = v => v.ChannelId == channelId
-                    && v.DownloadedAt == null
+                Query = v => v.ChannelId == channelId 
+                    && v.DownloadedAt == null 
                     && !v.IsIgnored
+                    && !v.IsQueued
             });
 
             if (videos.Count == 0)
@@ -179,6 +183,9 @@ public class ChannelVideosApiController : ControllerBase
 
             foreach (var video in videos)
             {
+                video.IsQueued = true;
+                await _videoRepository.UpdateAsync(video);
+                
                 _backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
                     job.ExecuteAsync(video.Id, CancellationToken.None));
             }

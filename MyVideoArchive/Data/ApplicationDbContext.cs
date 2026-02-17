@@ -17,5 +17,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.ApplyConfiguration(new ChannelMap());
         builder.ApplyConfiguration(new VideoMap());
         builder.ApplyConfiguration(new PlaylistMap());
+        builder.ApplyConfiguration(new VideoPlaylistMap());
     }
 }

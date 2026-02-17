@@ -171,15 +171,74 @@
     </div>
     <div class="tab-pane fade" id="playlists" role="tabpanel">
         <div id="playlists-grid">
-            <div data-bind="visible: playlists().length === 0" class="alert alert-info">
-                <p>No playlists subscribed for this channel yet.</p>
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="showIgnoredPlaylistsCheck" data-bind="checked: showIgnoredPlaylists, click: toggleShowIgnoredPlaylists">
+                    <label class="form-check-label" for="showIgnoredPlaylistsCheck">
+                        Show Ignored Playlists
+                    </label>
+                </div>
             </div>
-
-            <div data-bind="visible: playlists().length > 0, foreach: playlists">
-                <div class="playlist-item">
-                    <h5 data-bind="text: Name"></h5>
-                    <p class="text-muted" data-bind="text: Description"></p>
-                    <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+            
+            <div class="mb-3">
+                <button class="btn btn-primary me-2" data-bind="click: subscribeSelectedPlaylists">
+                    <i class="bi bi-plus-circle"></i> Subscribe Selected
+                </button>
+                <button class="btn btn-success" data-bind="click: subscribeAllPlaylists">
+                    <i class="bi bi-check-circle"></i> Subscribe All
+                </button>
+            </div>
+            
+            <div data-bind="visible: playlistsLoading" class="text-center my-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            
+            <div data-bind="visible: !playlistsLoading() && playlists().length === 0" class="alert alert-info">
+                <p>No playlists found for this channel.</p>
+            </div>
+            
+            <div data-bind="visible: !playlistsLoading() && playlists().length > 0">
+                <div class="card mb-3">
+                    <div class="card-header d-flex align-items-center">
+                        <input type="checkbox" class="form-check-input me-2" data-bind="checked: selectAllPlaylists, click: toggleSelectAllPlaylists">
+                        <strong>Select All</strong>
+                    </div>
+                </div>
+                
+                <div data-bind="foreach: playlists">
+                    <div class="playlist-item card mb-3">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-auto">
+                                    <input type="checkbox" class="form-check-input playlist-checkbox" data-bind="checked: selected">
+                                </div>
+                                <div class="col">
+                                    <h6 data-bind="text: name"></h6>
+                                    <p class="text-muted small mb-1" data-bind="text: description" style="max-height: 60px; overflow: hidden;"></p>
+                                    <small class="text-muted">
+                                        <span data-bind="if: videoCount">Videos: <span data-bind="text: videoCount"></span></span>
+                                        <span data-bind="if: lastChecked"> | Last checked: <span data-bind="text: $parent.formatDate(lastChecked)"></span></span>
+                                    </small>
+                                    <div data-bind="if: isSubscribed" class="mt-1">
+                                        <span class="badge bg-success">Subscribed</span>
+                                    </div>
+                                    <div data-bind="if: isIgnored" class="mt-1">
+                                        <span class="badge bg-secondary">Ignored</span>
+                                    </div>
+                                </div>
+                                <div class="col-auto d-flex align-items-center">
+                                    <button class="btn btn-sm btn-outline-danger" data-bind="click: $parent.ignorePlaylist">
+                                        <span data-bind="text: isIgnored ? 'Unignore' : 'Ignore'"></span>
+                                    </button>
+                                    <a data-bind="attr: { href: '/playlists/' + id }, visible: isSubscribed" class="btn btn-sm btn-outline-primary ms-2">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -199,6 +258,7 @@
             self.playlists = ko.observableArray([]);
             self.loading = ko.observable(true);
             self.availableLoading = ko.observable(false);
+            self.playlistsLoading = ko.observable(false);
             
             // Available videos state
             self.currentPage = ko.observable(1);
@@ -207,6 +267,10 @@
             self.totalCount = ko.observable(0);
             self.showIgnored = ko.observable(false);
             self.selectAll = ko.observable(false);
+            
+            // Playlists state
+            self.showIgnoredPlaylists = ko.observable(false);
+            self.selectAllPlaylists = ko.observable(false);
             
             self.loadChannel = function() {
                 fetch('/odata/ChannelApi(' + self.channelId + ')')
@@ -257,14 +321,100 @@
             };
             
             self.loadPlaylists = function() {
-                fetch('/odata/PlaylistApi?$filter=ChannelId eq ' + self.channelId + '&$orderby=Name')
+                self.playlistsLoading(true);
+                var url = '/api/channels/' + self.channelId + '/playlists/available?showIgnored=' + self.showIgnoredPlaylists();
+                
+                fetch(url)
                     .then(response => response.json())
                     .then(data => {
-                        self.playlists(data.value || []);
+                        var playlists = data.playlists.map(function(p) {
+                            p.selected = ko.observable(false);
+                            return p;
+                        });
+                        self.playlists(playlists);
+                        self.playlistsLoading(false);
+                        self.selectAllPlaylists(false);
                     })
                     .catch(error => {
                         console.error('Error loading playlists:', error);
+                        self.playlistsLoading(false);
                     });
+            };
+            
+            // Playlist functions
+            self.toggleSelectAllPlaylists = function() {
+                var selected = self.selectAllPlaylists();
+                self.playlists().forEach(function(playlist) {
+                    playlist.selected(selected);
+                });
+            };
+            
+            self.subscribeSelectedPlaylists = function() {
+                var selectedPlaylists = self.playlists()
+                    .filter(function(p) { return p.selected(); });
+                
+                var selectedIds = selectedPlaylists.map(function(p) { return p.id; });
+                
+                if (selectedIds.length === 0) {
+                    alert('Please select at least one playlist to subscribe.');
+                    return;
+                }
+                
+                fetch('/api/channels/' + self.channelId + '/playlists/subscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playlistIds: selectedIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    self.loadPlaylists();
+                })
+                .catch(error => {
+                    console.error('Error subscribing to playlists:', error);
+                    alert('Error subscribing to playlists. Please try again.');
+                });
+            };
+            
+            self.subscribeAllPlaylists = function() {
+                if (!confirm('Are you sure you want to subscribe to all playlists for this channel?')) {
+                    return;
+                }
+                
+                fetch('/api/channels/' + self.channelId + '/playlists/subscribe-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    self.loadPlaylists();
+                })
+                .catch(error => {
+                    console.error('Error subscribing to all playlists:', error);
+                    alert('Error subscribing to playlists. Please try again.');
+                });
+            };
+            
+            self.ignorePlaylist = function(playlist) {
+                fetch('/api/channels/' + self.channelId + '/playlists/' + playlist.id + '/ignore', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isIgnored: !playlist.isIgnored })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    self.loadPlaylists();
+                })
+                .catch(error => {
+                    console.error('Error ignoring playlist:', error);
+                    alert('Error updating playlist status. Please try again.');
+                });
+            };
+            
+            self.toggleShowIgnoredPlaylists = function() {
+                self.showIgnoredPlaylists(!self.showIgnoredPlaylists());
+                self.loadPlaylists();
             };
             
             // Pagination
@@ -417,6 +567,13 @@
             $('#available-tab').on('shown.bs.tab', function() {
                 if (viewModel.availableVideos().length === 0) {
                     viewModel.loadAvailableVideos();
+                }
+            });
+            
+            // Load playlists when the tab is clicked
+            $('#playlists-tab').on('shown.bs.tab', function() {
+                if (viewModel.playlists().length === 0) {
+                    viewModel.loadPlaylists();
                 }
             });
         });

@@ -34,13 +34,13 @@ public class Video : BaseEntity<int>
 
     public bool IsIgnored { get; set; }
 
+    public bool IsQueued { get; set; }
+
     public int ChannelId { get; set; }
 
     public Channel Channel { get; set; } = null!;
 
-    public int? PlaylistId { get; set; }
-
-    public Playlist? Playlist { get; set; }
+    public ICollection<VideoPlaylist> VideoPlaylists { get; set; } = [];
 }
 
 public class VideoMap : IEntityTypeConfiguration<Video>
@@ -63,10 +63,5 @@ public class VideoMap : IEntityTypeConfiguration<Video>
             .WithMany(m => m.Videos)
             .HasForeignKey(m => m.ChannelId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(m => m.Playlist)
-            .WithMany(m => m.Videos)
-            .HasForeignKey(m => m.PlaylistId)
-            .OnDelete(DeleteBehavior.NoAction);
     }
 }

@@ -90,6 +90,7 @@ public class VideoDownloadJob
             video.FilePath = filePath;
             video.FileSize = new FileInfo(filePath).Length;
             video.DownloadedAt = DateTime.UtcNow;
+            video.IsQueued = false;
 
             await videoRepository.UpdateAsync(video);
 
@@ -98,6 +99,24 @@ public class VideoDownloadJob
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error downloading video {VideoId}", videoId);
+            
+            // Reset IsQueued flag on failure so it can be retried
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var videoRepository = scope.ServiceProvider.GetRequiredService<IRepository<Video>>();
+                var video = await videoRepository.FindOneAsync(videoId);
+                if (video != null && video.IsQueued)
+                {
+                    video.IsQueued = false;
+                    await videoRepository.UpdateAsync(video);
+                }
+            }
+            catch (Exception resetEx)
+            {
+                _logger.LogError(resetEx, "Error resetting IsQueued flag for video {VideoId}", videoId);
+            }
+            
             throw;
         }
     }
