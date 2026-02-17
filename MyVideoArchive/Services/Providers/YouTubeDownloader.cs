@@ -12,16 +12,18 @@ public partial class YouTubeDownloader : IVideoDownloader
 {
     private readonly ILogger<YouTubeDownloader> _logger;
     private readonly YoutubeDL _ytdl;
+    private readonly IConfiguration _configuration;
 
     public string PlatformName => "YouTube";
 
     [GeneratedRegex(@"(youtube\.com|youtu\.be)", RegexOptions.IgnoreCase)]
     private static partial Regex YouTubeUrlRegex();
 
-    public YouTubeDownloader(ILogger<YouTubeDownloader> logger, YoutubeDL youtubeDL)
+    public YouTubeDownloader(ILogger<YouTubeDownloader> logger, YoutubeDL youtubeDL, IConfiguration configuration)
     {
         _logger = logger;
         _ytdl = youtubeDL;
+        _configuration = configuration;
     }
 
     public bool CanHandle(string url) => YouTubeUrlRegex().IsMatch(url);
@@ -42,10 +44,14 @@ public partial class YouTubeDownloader : IVideoDownloader
                 Directory.CreateDirectory(outputPath);
             }
 
+            // Get video quality from configuration
+            var videoQuality = _configuration.GetValue<string>("VideoDownload:VideoQuality") 
+                ?? "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
+
             // Configure download options
             var options = new OptionSet
             {
-                Format = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                Format = videoQuality,
                 MergeOutputFormat = DownloadMergeFormat.Mp4,
                 Output = Path.Combine(outputPath, "%(id)s.%(ext)s"),
                 WriteInfoJson = true,

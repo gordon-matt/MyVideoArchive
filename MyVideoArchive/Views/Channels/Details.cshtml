@@ -181,6 +181,13 @@
             </div>
             
             <div class="mb-3">
+                <button class="btn btn-info me-2" data-bind="click: refreshPlaylists, enable: !refreshingPlaylists()">
+                    <span data-bind="visible: !refreshingPlaylists()"><i class="bi bi-arrow-clockwise"></i> Refresh from YouTube</span>
+                    <span data-bind="visible: refreshingPlaylists()">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        Refreshing...
+                    </span>
+                </button>
                 <button class="btn btn-primary me-2" data-bind="click: subscribeSelectedPlaylists">
                     <i class="bi bi-plus-circle"></i> Subscribe Selected
                 </button>
@@ -213,6 +220,10 @@
                             <div class="row">
                                 <div class="col-auto">
                                     <input type="checkbox" class="form-check-input playlist-checkbox" data-bind="checked: selected">
+                                </div>
+                                <div class="col-auto">
+                                    <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/160x90?text=No+Thumbnail', alt: name }" 
+                                         style="width: 160px; height: 90px; object-fit: cover; border-radius: 4px;">
                                 </div>
                                 <div class="col">
                                     <h6 data-bind="text: name"></h6>
@@ -259,6 +270,7 @@
             self.loading = ko.observable(true);
             self.availableLoading = ko.observable(false);
             self.playlistsLoading = ko.observable(false);
+            self.refreshingPlaylists = ko.observable(false);
             
             // Available videos state
             self.currentPage = ko.observable(1);
@@ -415,6 +427,30 @@
             self.toggleShowIgnoredPlaylists = function() {
                 self.showIgnoredPlaylists(!self.showIgnoredPlaylists());
                 self.loadPlaylists();
+            };
+            
+            self.refreshPlaylists = function() {
+                if (!confirm('This will fetch the latest playlists from YouTube. Continue?')) {
+                    return;
+                }
+                
+                self.refreshingPlaylists(true);
+                
+                fetch('/api/channels/' + self.channelId + '/playlists/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    self.refreshingPlaylists(false);
+                    alert(data.message);
+                    self.loadPlaylists();
+                })
+                .catch(error => {
+                    console.error('Error refreshing playlists:', error);
+                    self.refreshingPlaylists(false);
+                    alert('Error refreshing playlists from YouTube. Please try again.');
+                });
             };
             
             // Pagination

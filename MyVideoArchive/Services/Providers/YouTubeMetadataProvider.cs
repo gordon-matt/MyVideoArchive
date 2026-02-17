@@ -260,4 +260,65 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
     {
         return uploadDate;
     }
+
+    public async Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Fetching playlists for channel: {Url}", channelUrl);
+
+            // Use yt-dlp to get channel playlists
+            // The trick is to use the channel's playlists URL
+            var playlistsUrl = channelUrl.TrimEnd('/') + "/playlists";
+
+            var options = new OptionSet
+            {
+                FlatPlaylist = true,
+                DumpSingleJson = true
+            };
+
+            var result = await _ytdl.RunVideoDataFetch(playlistsUrl, overrideOptions: options);
+
+            if (!result.Success || result.Data == null)
+            {
+                _logger.LogWarning("Failed to fetch playlists for {Url}: {Error}", channelUrl, string.Join(", ", result.ErrorOutput));
+                return [];
+            }
+
+            var playlists = new List<PlaylistMetadata>();
+
+            // The result should contain entries that are playlists
+            if (result.Data.Entries != null)
+            {
+                foreach (var entry in result.Data.Entries)
+                {
+                    // Each entry represents a playlist
+                    if (!string.IsNullOrEmpty(entry.ID))
+                    {
+                        playlists.Add(new PlaylistMetadata
+                        {
+                            PlaylistId = entry.ID,
+                            Name = entry.Title ?? "Unknown Playlist",
+                            Url = entry.Url ?? entry.WebpageUrl ?? $"https://www.youtube.com/playlist?list={entry.ID}",
+                            Description = entry.Description,
+                            ThumbnailUrl = GetBestThumbnail(entry.Thumbnails),
+                            ChannelId = result.Data.ChannelID ?? result.Data.Channel ?? result.Data.Uploader ?? string.Empty,
+                            ChannelName = result.Data.Channel ?? result.Data.Uploader ?? "Unknown Channel",
+                            //VideoCount = entry.PlaylistCount, //PlaylistCount does not exist
+                            Platform = PlatformName,
+                            VideoIds = []
+                        });
+                    }
+                }
+            }
+
+            _logger.LogInformation("Found {Count} playlists for channel {Url}", playlists.Count, channelUrl);
+            return playlists;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching playlists for channel {Url}", channelUrl);
+            return [];
+        }
+    }
 }

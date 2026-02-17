@@ -10,6 +10,8 @@ public class PlaylistMetadata
     
     public string? Description { get; set; }
     
+    public string? ThumbnailUrl { get; set; }
+    
     public required string ChannelId { get; set; }
     
     public required string ChannelName { get; set; }

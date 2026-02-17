@@ -76,13 +76,14 @@ public class ChannelPlaylistsApiController : ControllerBase
                     .ThenBy(p => p.Name)
             };
 
-            var playlists = _playlistRepository.FindAsync(options, p => new
+            var playlists = await _playlistRepository.FindAsync(options, p => new
             {
                 p.Id,
                 p.PlaylistId,
                 p.Name,
                 p.Description,
                 p.Url,
+                p.ThumbnailUrl,
                 p.VideoCount,
                 p.SubscribedAt,
                 p.LastChecked,
@@ -124,6 +125,13 @@ public class ChannelPlaylistsApiController : ControllerBase
                 var playlist = await _playlistRepository.FindOneAsync(playlistId);
                 if (playlist != null && playlist.ChannelId == channelId)
                 {
+                    // Update SubscribedAt if not already subscribed
+                    if (playlist.SubscribedAt == DateTime.MinValue)
+                    {
+                        playlist.SubscribedAt = DateTime.UtcNow;
+                        await _playlistRepository.UpdateAsync(playlist);
+                    }
+                    
                     // Queue sync job for the playlist
                     _backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
                         job.ExecuteAsync(playlist.Id, CancellationToken.None));
@@ -164,6 +172,13 @@ public class ChannelPlaylistsApiController : ControllerBase
 
             foreach (var playlist in playlists)
             {
+                // Update SubscribedAt if not already subscribed
+                if (playlist.SubscribedAt == DateTime.MinValue)
+                {
+                    playlist.SubscribedAt = DateTime.UtcNow;
+                    await _playlistRepository.UpdateAsync(playlist);
+                }
+                
                 _backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
                     job.ExecuteAsync(playlist.Id, CancellationToken.None));
             }
@@ -212,6 +227,90 @@ public class ChannelPlaylistsApiController : ControllerBase
         {
             _logger.LogError(ex, "Error toggling ignore status for playlist {PlaylistId}", playlistId);
             return StatusCode(500, new { message = "An error occurred while updating playlist status" });
+        }
+    }
+
+    /// <summary>
+    /// Refresh playlists from YouTube for a channel
+    /// </summary>
+    [HttpPost("refresh")]
+    public async Task<IActionResult> RefreshPlaylists(int channelId)
+    {
+        try
+        {
+            var channel = await _channelRepository.FindOneAsync(channelId);
+            if (channel == null)
+            {
+                return NotFound(new { message = "Channel not found" });
+            }
+
+            // Get metadata provider
+            var provider = _metadataProviderFactory.GetProviderByPlatform(channel.Platform);
+            if (provider == null)
+            {
+                return BadRequest(new { message = $"No provider found for platform {channel.Platform}" });
+            }
+
+            // Fetch playlists from YouTube
+            var playlistMetadataList = await provider.GetChannelPlaylistsAsync(channel.Url);
+            
+            _logger.LogInformation("Found {Count} playlists for channel {ChannelId}", playlistMetadataList.Count, channelId);
+
+            var newPlaylistsCount = 0;
+            var existingPlaylists = await _playlistRepository.FindAsync(new SearchOptions<Playlist>
+            {
+                Query = p => p.ChannelId == channelId
+            });
+
+            var existingPlaylistIds = existingPlaylists.Select(p => p.PlaylistId).ToHashSet();
+
+            foreach (var playlistMetadata in playlistMetadataList)
+            {
+                if (existingPlaylistIds.Contains(playlistMetadata.PlaylistId))
+                {
+                    // Update existing playlist
+                    var existingPlaylist = existingPlaylists.First(p => p.PlaylistId == playlistMetadata.PlaylistId);
+                    existingPlaylist.Name = playlistMetadata.Name;
+                    existingPlaylist.Description = playlistMetadata.Description;
+                    existingPlaylist.Url = playlistMetadata.Url;
+                    existingPlaylist.ThumbnailUrl = playlistMetadata.ThumbnailUrl;
+                    existingPlaylist.VideoCount = playlistMetadata.VideoCount;
+
+                    await _playlistRepository.UpdateAsync(existingPlaylist);
+                }
+                else
+                {
+                    // Create new playlist entry
+                    var newPlaylist = new Playlist
+                    {
+                        PlaylistId = playlistMetadata.PlaylistId,
+                        Name = playlistMetadata.Name,
+                        Description = playlistMetadata.Description,
+                        Url = playlistMetadata.Url,
+                        ThumbnailUrl = playlistMetadata.ThumbnailUrl,
+                        Platform = playlistMetadata.Platform,
+                        VideoCount = playlistMetadata.VideoCount,
+                        SubscribedAt = DateTime.MinValue, // Not subscribed yet
+                        IsIgnored = false,
+                        ChannelId = channelId
+                    };
+
+                    await _playlistRepository.InsertAsync(newPlaylist);
+                    newPlaylistsCount++;
+                }
+            }
+
+            return Ok(new
+            {
+                message = $"Refreshed playlists. Found {playlistMetadataList.Count} total, {newPlaylistsCount} new",
+                totalCount = playlistMetadataList.Count,
+                newCount = newPlaylistsCount
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing playlists for channel {ChannelId}", channelId);
+            return StatusCode(500, new { message = "An error occurred while refreshing playlists" });
         }
     }
 }

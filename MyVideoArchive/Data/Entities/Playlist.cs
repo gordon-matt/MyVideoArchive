@@ -14,6 +14,8 @@ public class Playlist : BaseEntity<int>
 
     public string? Description { get; set; }
 
+    public string? ThumbnailUrl { get; set; }
+
     public required string Platform { get; set; }
 
     public int? VideoCount { get; set; }
@@ -41,6 +43,7 @@ public class PlaylistMap : IEntityTypeConfiguration<Playlist>
         builder.Property(m => m.Name).IsRequired().HasMaxLength(256).IsUnicode(true);
         builder.Property(m => m.Url).IsRequired().HasMaxLength(512);
         builder.Property(m => m.Description).IsUnicode(true);
+        builder.Property(m => m.ThumbnailUrl).HasMaxLength(512);
         builder.Property(m => m.Platform).IsRequired().HasMaxLength(64);
         builder.Property(m => m.SubscribedAt).IsRequired();
 

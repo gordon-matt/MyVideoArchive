@@ -41,4 +41,9 @@ public interface IVideoMetadataProvider
     /// Retrieves metadata for all videos in a playlist
     /// </summary>
     Task<List<VideoMetadata>> GetPlaylistVideosAsync(string playlistUrl, CancellationToken cancellationToken = default);
+    
+    /// <summary>
+    /// Retrieves all playlists for a channel
+    /// </summary>
+    Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default);
 }
