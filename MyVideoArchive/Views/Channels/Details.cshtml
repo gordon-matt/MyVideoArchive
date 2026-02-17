@@ -55,16 +55,21 @@
             </div>
 
             <div data-bind="visible: !loading() && videos().length > 0, foreach: videos">
-                <div class="video-item">
-                    <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }" class="video-thumbnail-small" />
-                    <div style="flex: 1;">
-                        <h6 data-bind="text: Title"></h6>
-                        <small class="text-muted">
-                            Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span>
-                            <span data-bind="if: DownloadedAt"> | Downloaded: <span data-bind="text: $parent.formatDate(DownloadedAt)"></span></span>
-                        </small>
+                <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
+                    <div class="video-item">
+                        <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }" class="video-thumbnail-small" />
+                        <div style="flex: 1;">
+                            <h6 data-bind="text: Title"></h6>
+                            <small class="text-muted">
+                                Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span>
+                                <span data-bind="if: DownloadedAt"> | Downloaded: <span data-bind="text: $parent.formatDate(DownloadedAt)"></span></span>
+                            </small>
+                        </div>
+                        <div class="ms-auto">
+                            <i class="bi bi-play-circle fs-3 text-primary"></i>
+                        </div>
                     </div>
-                </div>
+                </a>
             </div>
         </div>
     </div>
@@ -310,9 +315,10 @@
             
             // Download Selected
             self.downloadSelected = function() {
-                var selectedIds = self.availableVideos()
-                    .filter(function(v) { return v.selected(); })
-                    .map(function(v) { return v.id; });
+                var selectedVideos = self.availableVideos()
+                    .filter(function(v) { return v.selected(); });
+                
+                var selectedIds = selectedVideos.map(function(v) { return v.id; });
                 
                 if (selectedIds.length === 0) {
                     alert('Please select at least one video to download.');
@@ -326,8 +332,13 @@
                 })
                 .then(response => response.json())
                 .then(data => {
+                    // Remove downloaded videos from the UI immediately
+                    selectedVideos.forEach(function(video) {
+                        self.availableVideos.remove(video);
+                    });
+                    self.selectAll(false);
+                    
                     alert(data.message);
-                    self.loadAvailableVideos();
                 })
                 .catch(error => {
                     console.error('Error downloading videos:', error);
@@ -347,8 +358,9 @@
                 })
                 .then(response => response.json())
                 .then(data => {
+                    // Clear all videos from the available list
+                    self.availableVideos([]);
                     alert(data.message);
-                    self.loadAvailableVideos();
                 })
                 .catch(error => {
                     console.error('Error downloading all videos:', error);
@@ -427,11 +439,19 @@
             margin-bottom: 15px;
             display: flex;
             align-items: center;
-            transition: box-shadow 0.3s;
+            transition: all 0.3s;
+            color: inherit;
         }
         
         .video-item:hover {
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateX(5px);
+            background-color: #f8f9fa;
+        }
+        
+        a:has(.video-item) {
+            text-decoration: none;
+            color: inherit;
         }
         
         .video-thumbnail-small {

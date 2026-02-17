@@ -158,11 +158,11 @@ app.MapRazorPages()
 RecurringJob.AddOrUpdate<ChannelSyncJob>(
     "sync-all-channels",
     job => job.SyncAllChannelsAsync(CancellationToken.None),
-    Cron.Hourly); // Check for new videos every hour
+    Cron.Daily); // Check for new videos every day
 
 RecurringJob.AddOrUpdate<PlaylistSyncJob>(
     "sync-all-playlists",
     job => job.SyncAllPlaylistsAsync(CancellationToken.None),
-    Cron.Hourly); // Check for new playlist videos every hour
+    Cron.Daily); // Check for new playlist videos every day
 
 app.Run();

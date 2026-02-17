@@ -1,0 +1,185 @@
+@{
+    ViewData["Title"] = "Video Player";
+    var videoId = ViewBag.VideoId;
+}
+
+<div class="container-fluid px-0">
+    <div class="row g-0">
+        <div class="col-12">
+            <div id="video-player-container" class="bg-dark" style="min-height: 400px;">
+                <div class="text-center text-white py-5" data-bind="visible: loading">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Loading video...</p>
+                </div>
+                
+                <div data-bind="visible: !loading() && video()">
+                    <video id="videoPlayer" class="w-100" controls data-bind="attr: { src: videoUrl }">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                
+                <div data-bind="visible: !loading() && !video()" class="text-center text-white py-5">
+                    <h3>Video not found or not yet downloaded</h3>
+                    <p>This video may not be available yet.</p>
+                    <a href="/channels" class="btn btn-outline-light">Back to Channels</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4" data-bind="visible: video()">
+        <div class="col-12 col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="card-title" data-bind="text: video() && video().Title"></h2>
+                    
+                    <div class="d-flex align-items-center mb-3 text-muted">
+                        <span data-bind="if: video() && video().ViewCount">
+                            <i class="bi bi-eye"></i> <span data-bind="text: formatNumber(video().ViewCount)"></span> views
+                        </span>
+                        <span data-bind="if: video() && video().LikeCount" class="ms-3">
+                            <i class="bi bi-hand-thumbs-up"></i> <span data-bind="text: formatNumber(video().LikeCount)"></span> likes
+                        </span>
+                        <span data-bind="if: video() && video().UploadDate" class="ms-3">
+                            <i class="bi bi-calendar"></i> <span data-bind="text: formatDate(video().UploadDate)"></span>
+                        </span>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="mb-3">
+                        <a data-bind="attr: { href: '/channels/' + (video() && video().ChannelId) }" class="text-decoration-none">
+                            <strong><i class="bi bi-person-circle"></i> <span data-bind="text: video() && video().Channel && video().Channel.Name"></span></strong>
+                        </a>
+                    </div>
+                    
+                    <div class="description-box p-3 bg-light rounded">
+                        <p class="mb-0" data-bind="text: video() && video().Description" style="white-space: pre-wrap;"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-lg-4 mt-4 mt-lg-0">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Video Information</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr data-bind="if: video() && video().Duration">
+                                <th>Duration</th>
+                                <td data-bind="text: formatDuration(video().Duration)"></td>
+                            </tr>
+                            <tr data-bind="if: video() && video().Platform">
+                                <th>Platform</th>
+                                <td data-bind="text: video().Platform"></td>
+                            </tr>
+                            <tr data-bind="if: video() && video().DownloadedAt">
+                                <th>Downloaded</th>
+                                <td data-bind="text: formatDate(video().DownloadedAt)"></td>
+                            </tr>
+                            <tr data-bind="if: video() && video().FileSize">
+                                <th>File Size</th>
+                                <td data-bind="text: formatFileSize(video().FileSize)"></td>
+                            </tr>
+                            <tr data-bind="if: video() && video().Url">
+                                <th>Original URL</th>
+                                <td><a data-bind="attr: { href: video().Url }" target="_blank" class="text-truncate d-block" style="max-width: 200px;">Open Original</a></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/knockout@3.5.1/build/output/knockout-latest.js"></script>
+    <script type="text/javascript">
+        function VideoPlayerViewModel(videoId) {
+            var self = this;
+            
+            self.videoId = videoId;
+            self.video = ko.observable(null);
+            self.loading = ko.observable(true);
+            self.videoUrl = ko.observable(null);
+            
+            self.loadVideo = function() {
+                fetch('/odata/VideoApi(' + self.videoId + ')?$expand=Channel')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Video not found');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        self.video(data);
+                        
+                        // Set up video URL for streaming
+                        if (data.Id) {
+                            self.videoUrl('/api/videos/' + data.Id + '/stream');
+                        }
+                        
+                        self.loading(false);
+                    })
+                    .catch(error => {
+                        console.error('Error loading video:', error);
+                        self.loading(false);
+                    });
+            };
+            
+            self.formatDate = function(dateString) {
+                if (!dateString) return 'N/A';
+                var date = new Date(dateString);
+                return date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+            };
+            
+            self.formatDuration = function(duration) {
+                if (!duration) return 'N/A';
+                return duration.substring(0, 8);
+            };
+            
+            self.formatNumber = function(num) {
+                if (!num) return '0';
+                return num.toLocaleString();
+            };
+            
+            self.formatFileSize = function(bytes) {
+                if (!bytes) return 'N/A';
+                var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+                if (bytes == 0) return '0 Byte';
+                var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+                return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
+            };
+        }
+        
+        var viewModel;
+        
+        $(document).ready(function() {
+            viewModel = new VideoPlayerViewModel(@videoId);
+            ko.applyBindings(viewModel);
+            viewModel.loadVideo();
+        });
+    </script>
+    
+    <style>
+        #videoPlayer {
+            max-height: 80vh;
+            background-color: #000;
+        }
+        
+        .description-box {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+}

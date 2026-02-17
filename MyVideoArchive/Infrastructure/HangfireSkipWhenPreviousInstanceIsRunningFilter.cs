@@ -60,6 +60,6 @@ public class HangfireSkipWhenPreviousInstanceIsRunningFilter : JobFilterAttribut
         }
 
         transaction.SetRangeInHash($"recurring-job:{recurringJobId}",
-            new[] { new KeyValuePair<string, string>("Running", running ? "true" : "false") });
+            [new KeyValuePair<string, string>("Running", running ? "true" : "false")]);
     }
 }

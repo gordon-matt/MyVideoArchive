@@ -51,6 +51,9 @@ public class ChannelVideosApiController : ControllerBase
 
             var predicate = PredicateBuilder.New<Video>(v => v.ChannelId == channelId);
 
+            // Only show videos that haven't been downloaded yet
+            predicate = predicate.And(v => v.DownloadedAt == null);
+
             // Filter based on showIgnored flag
             if (!showIgnored)
             {
