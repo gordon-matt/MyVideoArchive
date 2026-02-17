@@ -1,8 +1,10 @@
 using Extenso.Data.Entity;
 using Hangfire;
 using LinqKit;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyVideoArchive.Data.Entities;
+using MyVideoArchive.Services;
 using MyVideoArchive.Services.Jobs;
 
 namespace MyVideoArchive.Controllers.Api;
@@ -10,25 +12,53 @@ namespace MyVideoArchive.Controllers.Api;
 /// <summary>
 /// API controller for managing channel videos (available, download, ignore operations)
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/channels/{channelId}/videos")]
 public class ChannelVideosApiController : ControllerBase
 {
     private readonly IRepository<Video> _videoRepository;
     private readonly IRepository<Channel> _channelRepository;
+    private readonly IRepository<UserChannel> _userChannelRepository;
     private readonly IBackgroundJobClient _backgroundJobClient;
+    private readonly IUserContextService _userContext;
     private readonly ILogger<ChannelVideosApiController> _logger;
 
     public ChannelVideosApiController(
         IRepository<Video> videoRepository,
         IRepository<Channel> channelRepository,
+        IRepository<UserChannel> userChannelRepository,
         IBackgroundJobClient backgroundJobClient,
+        IUserContextService userContext,
         ILogger<ChannelVideosApiController> logger)
     {
         _videoRepository = videoRepository;
         _channelRepository = channelRepository;
+        _userChannelRepository = userChannelRepository;
         _backgroundJobClient = backgroundJobClient;
+        _userContext = userContext;
         _logger = logger;
+    }
+    
+    private async Task<bool> UserHasAccessToChannel(int channelId)
+    {
+        if (_userContext.IsAdministrator())
+        {
+            return true;
+        }
+        
+        var userId = _userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return false;
+        }
+        
+        var userChannel = await _userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
+        {
+            Query = uc => uc.UserId == userId && uc.ChannelId == channelId
+        });
+        
+        return userChannel != null;
     }
 
     /// <summary>
@@ -43,6 +73,12 @@ public class ChannelVideosApiController : ControllerBase
     {
         try
         {
+            // Check user access
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+            
             var channel = await _channelRepository.FindOneAsync(channelId);
             if (channel == null)
             {
@@ -117,6 +153,12 @@ public class ChannelVideosApiController : ControllerBase
     {
         try
         {
+            // Check user access
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+            
             if (request.VideoIds == null || request.VideoIds.Count == 0)
             {
                 return BadRequest(new { message = "No video IDs provided" });
@@ -168,6 +210,12 @@ public class ChannelVideosApiController : ControllerBase
     {
         try
         {
+            // Check user access
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+            
             var videos = await _videoRepository.FindAsync(new SearchOptions<Video>
             {
                 Query = v => v.ChannelId == channelId 
@@ -211,6 +259,12 @@ public class ChannelVideosApiController : ControllerBase
     {
         try
         {
+            // Check user access
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+            
             var video = await _videoRepository.FindOneAsync(new SearchOptions<Video>
             {
                 Query = v => v.Id == videoId && v.ChannelId == channelId

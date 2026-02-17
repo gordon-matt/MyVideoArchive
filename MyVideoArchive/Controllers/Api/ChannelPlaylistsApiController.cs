@@ -1,6 +1,7 @@
 using Extenso.Data.Entity;
 using Hangfire;
 using LinqKit;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Services;
@@ -11,28 +12,59 @@ namespace MyVideoArchive.Controllers.Api;
 /// <summary>
 /// API controller for managing channel playlists
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/channels/{channelId}/playlists")]
 public class ChannelPlaylistsApiController : ControllerBase
 {
     private readonly IRepository<Playlist> _playlistRepository;
     private readonly IRepository<Channel> _channelRepository;
+    private readonly IRepository<UserChannel> _userChannelRepository;
+    private readonly IRepository<UserPlaylist> _userPlaylistRepository;
     private readonly IBackgroundJobClient _backgroundJobClient;
     private readonly VideoMetadataProviderFactory _metadataProviderFactory;
+    private readonly IUserContextService _userContext;
     private readonly ILogger<ChannelPlaylistsApiController> _logger;
 
     public ChannelPlaylistsApiController(
         IRepository<Playlist> playlistRepository,
         IRepository<Channel> channelRepository,
+        IRepository<UserChannel> userChannelRepository,
+        IRepository<UserPlaylist> userPlaylistRepository,
         IBackgroundJobClient backgroundJobClient,
         VideoMetadataProviderFactory metadataProviderFactory,
+        IUserContextService userContext,
         ILogger<ChannelPlaylistsApiController> logger)
     {
         _playlistRepository = playlistRepository;
         _channelRepository = channelRepository;
+        _userChannelRepository = userChannelRepository;
+        _userPlaylistRepository = userPlaylistRepository;
         _backgroundJobClient = backgroundJobClient;
         _metadataProviderFactory = metadataProviderFactory;
+        _userContext = userContext;
         _logger = logger;
+    }
+    
+    private async Task<bool> UserHasAccessToChannel(int channelId)
+    {
+        if (_userContext.IsAdministrator())
+        {
+            return true;
+        }
+        
+        var userId = _userContext.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return false;
+        }
+        
+        var userChannel = await _userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
+        {
+            Query = uc => uc.UserId == userId && uc.ChannelId == channelId
+        });
+        
+        return userChannel != null;
     }
 
     /// <summary>
@@ -45,6 +77,12 @@ public class ChannelPlaylistsApiController : ControllerBase
     {
         try
         {
+            // Check user access
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+            
             var channel = await _channelRepository.FindOneAsync(channelId);
             if (channel == null)
             {
@@ -108,6 +146,12 @@ public class ChannelPlaylistsApiController : ControllerBase
     {
         try
         {
+            // Check user access
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+            
             if (request.PlaylistIds == null || request.PlaylistIds.Count == 0)
             {
                 return BadRequest(new { message = "No playlist IDs provided" });
@@ -118,6 +162,8 @@ public class ChannelPlaylistsApiController : ControllerBase
             {
                 return NotFound(new { message = "Channel not found" });
             }
+            
+            var userId = _userContext.GetCurrentUserId();
 
             var subscribedCount = 0;
             foreach (var playlistId in request.PlaylistIds)
@@ -130,6 +176,23 @@ public class ChannelPlaylistsApiController : ControllerBase
                     {
                         playlist.SubscribedAt = DateTime.UtcNow;
                         await _playlistRepository.UpdateAsync(playlist);
+                    }
+                    
+                    // Check if user already subscribed
+                    var existingSubscription = await _userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
+                    {
+                        Query = up => up.UserId == userId && up.PlaylistId == playlistId
+                    });
+                    
+                    if (existingSubscription == null)
+                    {
+                        // Create user subscription
+                        await _userPlaylistRepository.InsertAsync(new UserPlaylist
+                        {
+                            UserId = userId!,
+                            PlaylistId = playlistId,
+                            SubscribedAt = DateTime.UtcNow
+                        });
                     }
                     
                     // Queue sync job for the playlist
@@ -160,6 +223,14 @@ public class ChannelPlaylistsApiController : ControllerBase
     {
         try
         {
+            // Check user access
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+            
+            var userId = _userContext.GetCurrentUserId();
+            
             var playlists = await _playlistRepository.FindAsync(new SearchOptions<Playlist>
             {
                 Query = p => p.ChannelId == channelId && !p.IsIgnored
@@ -177,6 +248,23 @@ public class ChannelPlaylistsApiController : ControllerBase
                 {
                     playlist.SubscribedAt = DateTime.UtcNow;
                     await _playlistRepository.UpdateAsync(playlist);
+                }
+                
+                // Check if user already subscribed
+                var existingSubscription = await _userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
+                {
+                    Query = up => up.UserId == userId && up.PlaylistId == playlist.Id
+                });
+                
+                if (existingSubscription == null)
+                {
+                    // Create user subscription
+                    await _userPlaylistRepository.InsertAsync(new UserPlaylist
+                    {
+                        UserId = userId!,
+                        PlaylistId = playlist.Id,
+                        SubscribedAt = DateTime.UtcNow
+                    });
                 }
                 
                 _backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
@@ -204,6 +292,12 @@ public class ChannelPlaylistsApiController : ControllerBase
     {
         try
         {
+            // Check user access
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+            
             var playlist = await _playlistRepository.FindOneAsync(new SearchOptions<Playlist>
             {
                 Query = p => p.Id == playlistId && p.ChannelId == channelId
@@ -238,6 +332,12 @@ public class ChannelPlaylistsApiController : ControllerBase
     {
         try
         {
+            // Check user access
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+            
             var channel = await _channelRepository.FindOneAsync(channelId);
             if (channel == null)
             {

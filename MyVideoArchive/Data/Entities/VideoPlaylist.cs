@@ -13,6 +13,11 @@ public class VideoPlaylist : IEntity
     public int VideoId { get; set; }
 
     public int PlaylistId { get; set; }
+    
+    /// <summary>
+    /// Original order of the video in the playlist (from YouTube)
+    /// </summary>
+    public int Order { get; set; }
 
     public Video Video { get; set; } = null!;
 

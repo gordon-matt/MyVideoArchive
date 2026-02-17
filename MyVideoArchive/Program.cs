@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OData;
 using Microsoft.EntityFrameworkCore;
 using MyVideoArchive.Data;
+using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Infrastructure;
 using MyVideoArchive.Services;
 using MyVideoArchive.Services.Abstractions;
@@ -36,8 +37,13 @@ else
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = false)
-    .AddEntityFrameworkStores<ApplicationDbContext>();
+builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
+{
+    options.SignIn.RequireConfirmedAccount = true;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders()
+.AddDefaultUI();
 
 builder.Services.AddControllersWithViews()
     .AddNewtonsoftJson()
@@ -97,6 +103,10 @@ builder.Services.AddSingleton<VideoDownloaderFactory>();
 builder.Services.AddTransient<VideoDownloadJob>();
 builder.Services.AddTransient<ChannelSyncJob>();
 builder.Services.AddTransient<PlaylistSyncJob>();
+
+// Register user context service
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IUserContextService, UserContextService>();
 
 // Configure Autofac
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
@@ -164,5 +174,25 @@ RecurringJob.AddOrUpdate<PlaylistSyncJob>(
     "sync-all-playlists",
     job => job.SyncAllPlaylistsAsync(CancellationToken.None),
     Cron.Daily); // Check for new playlist videos every day
+
+
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
+
+        await DbInitializer.InitializeAsync(context, userManager, roleManager);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
+    }
+}
 
 app.Run();

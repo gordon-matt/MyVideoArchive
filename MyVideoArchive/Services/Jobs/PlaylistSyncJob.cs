@@ -78,9 +78,12 @@ public class PlaylistSyncJob
             // Process each video
             var existingVideoPlaylistIds = playlist.VideoPlaylists.Select(vp => vp.VideoId).ToHashSet();
             var newVideosCount = 0;
+            var videoOrder = 0; // Track the order of videos as they appear in the playlist
 
             foreach (var videoMetadata in videoMetadataList)
             {
+                videoOrder++; // Increment order for each video in playlist
+                
                 // Check if video exists in the database (could be in another playlist or standalone)
                 var existingVideo = await videoRepository.FindOneAsync(new SearchOptions<Video>
                 {
@@ -134,7 +137,8 @@ public class PlaylistSyncJob
                     var videoPlaylist = new VideoPlaylist
                     {
                         VideoId = videoEntityId,
-                        PlaylistId = playlistId
+                        PlaylistId = playlistId,
+                        Order = videoOrder // Set the original order
                     };
 
                     dbContext.Set<VideoPlaylist>().Add(videoPlaylist);
