@@ -73,15 +73,24 @@
                     </div>
                     
                     <div data-bind="visible: !loadingVideos() && playlistVideos().length > 0, foreach: playlistVideos">
-                        <div class="playlist-video-item" data-bind="click: $parent.playVideo, css: { active: $parent.currentVideo() && $parent.currentVideo().Id === Id }">
+                        <div class="playlist-video-item" data-bind="click: $parent.playVideo, css: { active: $parent.currentVideo() && $parent.currentVideo().Id === Id, 'not-downloaded': !DownloadedAt }">
                             <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }" class="playlist-video-thumbnail" />
-                            <div class="playlist-video-info">
+                            <div class="playlist-video-info flex-grow-1">
                                 <div class="playlist-video-title" data-bind="text: Title"></div>
-                                <div class="playlist-video-channel" data-bind="if: Channel, text: Channel.Name"></div>
-                                <small class="text-muted" data-bind="if: Duration, text: $parent.formatDuration(Duration)"></small>
+                                <!-- ko if: Channel -->
+                                <div class="playlist-video-channel" data-bind="text: Channel.Name"></div>
+                                <!-- /ko -->
+                                <!-- ko if: Duration -->
+                                <small class="text-muted" data-bind="text: $parent.formatDuration(Duration)"></small>
+                                <!-- /ko -->
                                 <div data-bind="if: !DownloadedAt" class="mt-1">
                                     <span class="badge bg-warning text-dark small">Not Downloaded</span>
                                 </div>
+                            </div>
+                            <div data-bind="if: !DownloadedAt" class="ms-2">
+                                <button class="btn btn-sm btn-primary" data-bind="click: $parent.downloadVideo">
+                                    <i class="bi bi-download"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -140,7 +149,8 @@
                 self.loadingVideos(true);
                 
                 // Query VideoPlaylist junction table to get all videos in this playlist
-                fetch('/odata/VideoApi?$filter=VideoPlaylists/any(vp: vp/PlaylistId eq ' + self.playlistId + ')&$expand=Channel&$orderby=UploadDate desc')
+                // Keep original playlist order
+                fetch('/odata/VideoApi?$filter=VideoPlaylists/any(vp: vp/PlaylistId eq ' + self.playlistId + ')&$expand=Channel')
                     .then(response => response.json())
                     .then(data => {
                         self.playlistVideos(data.value || []);
@@ -162,8 +172,7 @@
             
             self.playVideo = function(video) {
                 if (!video.DownloadedAt) {
-                    alert('This video has not been downloaded yet.');
-                    return;
+                    return; // Just don't play if not downloaded, don't show alert
                 }
                 
                 self.currentVideo(video);
@@ -171,6 +180,34 @@
                 
                 // Scroll to top
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+            
+            self.downloadVideo = function(video, event) {
+                event.stopPropagation(); // Prevent triggering playVideo
+                
+                if (video.IsQueued) {
+                    alert('This video is already queued for download.');
+                    return;
+                }
+                
+                if (!confirm('Queue "' + video.Title + '" for download?')) {
+                    return;
+                }
+                
+                fetch('/api/channels/' + video.ChannelId + '/videos/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videoIds: [video.Id] })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    self.loadPlaylistVideos();
+                })
+                .catch(error => {
+                    console.error('Error queueing video:', error);
+                    alert('Error queueing video for download. Please try again.');
+                });
             };
             
             self.formatDate = function(dateString) {
@@ -244,6 +281,15 @@
         .playlist-video-item.active {
             background-color: #cfe2ff;
             border-color: #0d6efd;
+        }
+        
+        .playlist-video-item.not-downloaded {
+            cursor: default;
+            opacity: 0.8;
+        }
+        
+        .playlist-video-item.not-downloaded:hover {
+            background-color: #fff;
         }
         
         .playlist-video-thumbnail {
