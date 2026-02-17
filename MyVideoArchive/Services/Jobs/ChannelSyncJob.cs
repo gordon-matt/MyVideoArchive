@@ -2,6 +2,7 @@ using Extenso.Data.Entity;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MyVideoArchive.Data.Entities;
+using MyVideoArchive.Infrastructure;
 
 namespace MyVideoArchive.Services.Jobs;
 
@@ -27,6 +28,8 @@ public class ChannelSyncJob
         _backgroundJobClient = backgroundJobClient;
     }
 
+    [HangfireSkipWhenPreviousInstanceIsRunningFilter]
+    //[DisableConcurrentExecution(timeoutInSeconds: 3600)] // 1 hour timeout
     public async Task ExecuteAsync(int channelId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting channel sync job for channel ID: {ChannelId}", channelId);
@@ -94,7 +97,7 @@ public class ChannelSyncJob
                 }
                 else
                 {
-                    // Create new video entry
+                    // Create new video entry (without auto-downloading)
                     var newVideo = new Video
                     {
                         VideoId = videoMetadata.VideoId,
@@ -107,15 +110,15 @@ public class ChannelSyncJob
                         UploadDate = videoMetadata.UploadDate,
                         ViewCount = videoMetadata.ViewCount,
                         LikeCount = videoMetadata.LikeCount,
-                        ChannelId = channelId
+                        ChannelId = channelId,
+                        IsIgnored = false
                     };
 
                     await videoRepository.InsertAsync(newVideo);
                     newVideosCount++;
 
-                    // Queue download job for the new video
-                    _backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
-                        job.ExecuteAsync(newVideo.Id, CancellationToken.None));
+                    // Note: Videos are no longer auto-downloaded. 
+                    // Users must select videos to download from the Available tab.
                 }
             }
 
@@ -134,6 +137,8 @@ public class ChannelSyncJob
         }
     }
 
+    [HangfireSkipWhenPreviousInstanceIsRunningFilter]
+    //[DisableConcurrentExecution(timeoutInSeconds: 600)] // 10 minutes timeout
     public async Task SyncAllChannelsAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting sync for all channels");

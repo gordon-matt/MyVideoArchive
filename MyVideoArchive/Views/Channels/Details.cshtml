@@ -8,7 +8,18 @@
         <a href="/channels" class="btn btn-outline-secondary btn-sm mb-3">
             &larr; Back to Channels
         </a>
-        <div id="channel-header"></div>
+        <div data-bind="with: channel">
+            <div class="channel-header-card">
+                <div class="d-flex align-items-center">
+                    <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/100?text=No+Image', alt: Name }" style="width: 100px; height: 100px; border-radius: 50%; margin-right: 20px;" />
+                    <div>
+                        <h2 data-bind="text: Name"></h2>
+                        <p data-bind="text: Description" style="opacity: 0.9;"></p>
+                        <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -16,6 +27,11 @@
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos" type="button" role="tab">
             Videos
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="available-tab" data-bs-toggle="tab" data-bs-target="#available" type="button" role="tab">
+            Available
         </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -27,10 +43,141 @@
 
 <div class="tab-content" id="channelTabsContent">
     <div class="tab-pane fade show active" id="videos" role="tabpanel">
-        <div id="videos-grid"></div>
+        <div id="videos-grid">
+            <div data-bind="visible: loading" class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+
+            <div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+                <p>No downloaded videos found for this channel yet. Check the "Available" tab to download videos.</p>
+            </div>
+
+            <div data-bind="visible: !loading() && videos().length > 0, foreach: videos">
+                <div class="video-item">
+                    <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }" class="video-thumbnail-small" />
+                    <div style="flex: 1;">
+                        <h6 data-bind="text: Title"></h6>
+                        <small class="text-muted">
+                            Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span>
+                            <span data-bind="if: DownloadedAt"> | Downloaded: <span data-bind="text: $parent.formatDate(DownloadedAt)"></span></span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="tab-pane fade" id="available" role="tabpanel">
+        <div id="available-grid">
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="showIgnoredCheck" data-bind="checked: showIgnored, click: toggleShowIgnored">
+                    <label class="form-check-label" for="showIgnoredCheck">
+                        Show Ignored Videos
+                    </label>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <button class="btn btn-primary me-2" data-bind="click: downloadSelected">
+                    <i class="bi bi-download"></i> Download Selected
+                </button>
+                <button class="btn btn-success" data-bind="click: downloadAll">
+                    <i class="bi bi-cloud-download"></i> Download All
+                </button>
+            </div>
+            
+            <div data-bind="visible: availableLoading" class="text-center my-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            
+            <div data-bind="visible: !availableLoading() && availableVideos().length === 0" class="alert alert-info">
+                <p>No available videos found.</p>
+            </div>
+            
+            <div data-bind="visible: !availableLoading() && availableVideos().length > 0">
+                <div class="card mb-3">
+                    <div class="card-header d-flex align-items-center">
+                        <input type="checkbox" class="form-check-input me-2" data-bind="checked: selectAll, click: toggleSelectAll">
+                        <strong>Select All (Current Page)</strong>
+                    </div>
+                </div>
+                
+                <div data-bind="foreach: availableVideos">
+                    <div class="available-video-item card mb-3">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-auto">
+                                    <input type="checkbox" class="form-check-input video-checkbox" data-bind="checked: selected">
+                                </div>
+                                <div class="col-auto">
+                                    <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/160x90?text=No+Thumbnail', alt: title }" 
+                                         style="width: 160px; height: 90px; object-fit: cover; border-radius: 4px;">
+                                </div>
+                                <div class="col">
+                                    <h6 data-bind="text: title"></h6>
+                                    <p class="text-muted small mb-1" data-bind="text: description" style="max-height: 60px; overflow: hidden;"></p>
+                                    <small class="text-muted">
+                                        Uploaded: <span data-bind="text: $parent.formatDate(uploadDate)"></span>
+                                        <span data-bind="if: duration"> | Duration: <span data-bind="text: $parent.formatDuration(duration)"></span></span>
+                                    </small>
+                                    <div data-bind="if: isDownloaded" class="mt-1">
+                                        <span class="badge bg-success">Downloaded</span>
+                                    </div>
+                                    <div data-bind="if: isIgnored" class="mt-1">
+                                        <span class="badge bg-secondary">Ignored</span>
+                                    </div>
+                                </div>
+                                <div class="col-auto d-flex align-items-center">
+                                    <button class="btn btn-sm btn-outline-danger" data-bind="click: $parent.ignoreVideo">
+                                        <span data-bind="text: isIgnored ? 'Unignore' : 'Ignore'"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pagination -->
+                <nav aria-label="Available videos pagination" data-bind="visible: totalPages() > 1">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item" data-bind="css: { disabled: currentPage() === 1 }">
+                            <a class="page-link" href="#" data-bind="click: previousPage">Previous</a>
+                        </li>
+                        <!-- ko foreach: pageNumbers -->
+                        <li class="page-item" data-bind="css: { active: $data === $parent.currentPage() }">
+                            <a class="page-link" href="#" data-bind="text: $data, click: function() { $parent.goToPage($data); }"></a>
+                        </li>
+                        <!-- /ko -->
+                        <li class="page-item" data-bind="css: { disabled: currentPage() === totalPages() }">
+                            <a class="page-link" href="#" data-bind="click: nextPage">Next</a>
+                        </li>
+                    </ul>
+                    <p class="text-center text-muted">
+                        Page <span data-bind="text: currentPage"></span> of <span data-bind="text: totalPages"></span>
+                        (<span data-bind="text: totalCount"></span> total videos)
+                    </p>
+                </nav>
+            </div>
+        </div>
     </div>
     <div class="tab-pane fade" id="playlists" role="tabpanel">
-        <div id="playlists-grid"></div>
+        <div id="playlists-grid">
+            <div data-bind="visible: playlists().length === 0" class="alert alert-info">
+                <p>No playlists subscribed for this channel yet.</p>
+            </div>
+
+            <div data-bind="visible: playlists().length > 0, foreach: playlists">
+                <div class="playlist-item">
+                    <h5 data-bind="text: Name"></h5>
+                    <p class="text-muted" data-bind="text: Description"></p>
+                    <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -43,8 +190,18 @@
             self.channelId = channelId;
             self.channel = ko.observable(null);
             self.videos = ko.observableArray([]);
+            self.availableVideos = ko.observableArray([]);
             self.playlists = ko.observableArray([]);
             self.loading = ko.observable(true);
+            self.availableLoading = ko.observable(false);
+            
+            // Available videos state
+            self.currentPage = ko.observable(1);
+            self.pageSize = 20;
+            self.totalPages = ko.observable(1);
+            self.totalCount = ko.observable(0);
+            self.showIgnored = ko.observable(false);
+            self.selectAll = ko.observable(false);
             
             self.loadChannel = function() {
                 fetch('/odata/ChannelApi(' + self.channelId + ')')
@@ -58,7 +215,7 @@
             };
             
             self.loadVideos = function() {
-                fetch('/odata/VideoApi?$filter=ChannelId eq ' + self.channelId + '&$orderby=UploadDate desc')
+                fetch('/odata/VideoApi?$filter=ChannelId eq ' + self.channelId + ' and DownloadedAt ne null&$orderby=UploadDate desc')
                     .then(response => response.json())
                     .then(data => {
                         self.videos(data.value || []);
@@ -67,6 +224,30 @@
                     .catch(error => {
                         console.error('Error loading videos:', error);
                         self.loading(false);
+                    });
+            };
+            
+            self.loadAvailableVideos = function() {
+                self.availableLoading(true);
+                var url = '/api/channels/' + self.channelId + '/videos/available?page=' + self.currentPage() + 
+                         '&pageSize=' + self.pageSize + '&showIgnored=' + self.showIgnored();
+                
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        var videos = data.videos.map(function(v) {
+                            v.selected = ko.observable(false);
+                            return v;
+                        });
+                        self.availableVideos(videos);
+                        self.totalPages(data.pagination.totalPages);
+                        self.totalCount(data.pagination.totalCount);
+                        self.availableLoading(false);
+                        self.selectAll(false);
+                    })
+                    .catch(error => {
+                        console.error('Error loading available videos:', error);
+                        self.availableLoading(false);
                     });
             };
             
@@ -79,6 +260,124 @@
                     .catch(error => {
                         console.error('Error loading playlists:', error);
                     });
+            };
+            
+            // Pagination
+            self.goToPage = function(page) {
+                if (page >= 1 && page <= self.totalPages()) {
+                    self.currentPage(page);
+                    self.loadAvailableVideos();
+                }
+            };
+            
+            self.previousPage = function() {
+                if (self.currentPage() > 1) {
+                    self.currentPage(self.currentPage() - 1);
+                    self.loadAvailableVideos();
+                }
+            };
+            
+            self.nextPage = function() {
+                if (self.currentPage() < self.totalPages()) {
+                    self.currentPage(self.currentPage() + 1);
+                    self.loadAvailableVideos();
+                }
+            };
+            
+            self.pageNumbers = ko.computed(function() {
+                var pages = [];
+                var current = self.currentPage();
+                var total = self.totalPages();
+                
+                // Show max 5 page numbers
+                var start = Math.max(1, current - 2);
+                var end = Math.min(total, start + 4);
+                start = Math.max(1, end - 4);
+                
+                for (var i = start; i <= end; i++) {
+                    pages.push(i);
+                }
+                return pages;
+            });
+            
+            // Select All
+            self.toggleSelectAll = function() {
+                var selected = self.selectAll();
+                self.availableVideos().forEach(function(video) {
+                    video.selected(selected);
+                });
+            };
+            
+            // Download Selected
+            self.downloadSelected = function() {
+                var selectedIds = self.availableVideos()
+                    .filter(function(v) { return v.selected(); })
+                    .map(function(v) { return v.id; });
+                
+                if (selectedIds.length === 0) {
+                    alert('Please select at least one video to download.');
+                    return;
+                }
+                
+                fetch('/api/channels/' + self.channelId + '/videos/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videoIds: selectedIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    self.loadAvailableVideos();
+                })
+                .catch(error => {
+                    console.error('Error downloading videos:', error);
+                    alert('Error queueing downloads. Please try again.');
+                });
+            };
+            
+            // Download All
+            self.downloadAll = function() {
+                if (!confirm('Are you sure you want to download all available videos for this channel?')) {
+                    return;
+                }
+                
+                fetch('/api/channels/' + self.channelId + '/videos/download-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    self.loadAvailableVideos();
+                })
+                .catch(error => {
+                    console.error('Error downloading all videos:', error);
+                    alert('Error queueing downloads. Please try again.');
+                });
+            };
+            
+            // Ignore Video
+            self.ignoreVideo = function(video) {
+                fetch('/api/channels/' + self.channelId + '/videos/' + video.id + '/ignore', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isIgnored: !video.isIgnored })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    self.loadAvailableVideos();
+                })
+                .catch(error => {
+                    console.error('Error ignoring video:', error);
+                    alert('Error updating video status. Please try again.');
+                });
+            };
+            
+            // Toggle show ignored
+            self.toggleShowIgnored = function() {
+                self.showIgnored(!self.showIgnored());
+                self.currentPage(1);
+                self.loadAvailableVideos();
             };
             
             self.formatDate = function(dateString) {
@@ -101,6 +400,13 @@
             viewModel.loadChannel();
             viewModel.loadVideos();
             viewModel.loadPlaylists();
+            
+            // Load available videos when the tab is clicked
+            $('#available-tab').on('shown.bs.tab', function() {
+                if (viewModel.availableVideos().length === 0) {
+                    viewModel.loadAvailableVideos();
+                }
+            });
         });
     </script>
     
@@ -150,51 +456,3 @@
         }
     </style>
 }
-
-<div data-bind="with: channel">
-    <div class="channel-header-card">
-        <div class="d-flex align-items-center">
-            <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/100?text=No+Image', alt: Name }" style="width: 100px; height: 100px; border-radius: 50%; margin-right: 20px;" />
-            <div>
-                <h2 data-bind="text: Name"></h2>
-                <p data-bind="text: Description" style="opacity: 0.9;"></p>
-                <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div data-bind="visible: loading" class="text-center">
-    <div class="spinner-border" role="status">
-        <span class="visually-hidden">Loading...</span>
-    </div>
-</div>
-
-<div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
-    <p>No videos found for this channel yet.</p>
-</div>
-
-<div data-bind="visible: !loading() && videos().length > 0, foreach: videos">
-    <div class="video-item">
-        <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }" class="video-thumbnail-small" />
-        <div style="flex: 1;">
-            <h6 data-bind="text: Title"></h6>
-            <small class="text-muted">
-                Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span>
-                <span data-bind="if: DownloadedAt"> | Downloaded: <span data-bind="text: $parent.formatDate(DownloadedAt)"></span></span>
-            </small>
-        </div>
-    </div>
-</div>
-
-<div data-bind="visible: playlists().length === 0" class="alert alert-info" style="display: none;">
-    <p>No playlists subscribed for this channel yet.</p>
-</div>
-
-<div data-bind="visible: playlists().length > 0, foreach: playlists">
-    <div class="playlist-item">
-        <h5 data-bind="text: Name"></h5>
-        <p class="text-muted" data-bind="text: Description"></p>
-        <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
-    </div>
-</div>

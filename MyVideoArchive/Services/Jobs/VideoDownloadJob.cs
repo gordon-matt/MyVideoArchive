@@ -1,6 +1,8 @@
 using Extenso.Data.Entity;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MyVideoArchive.Data.Entities;
+using MyVideoArchive.Infrastructure;
 
 namespace MyVideoArchive.Services.Jobs;
 
@@ -26,6 +28,8 @@ public class VideoDownloadJob
         _configuration = configuration;
     }
 
+    [HangfireSkipWhenPreviousInstanceIsRunningFilter]
+    //[DisableConcurrentExecution(timeoutInSeconds: 7200)] // 2 hours timeout
     public async Task ExecuteAsync(int videoId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting video download job for video ID: {VideoId}", videoId);

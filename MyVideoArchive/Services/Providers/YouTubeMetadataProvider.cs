@@ -176,7 +176,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                     VideoId = x.ID ?? string.Empty,
                     Title = x.Title ?? "Unknown Title",
                     Description = x.Description,
-                    Url = x.WebpageUrl ?? string.Empty,
+                    Url = x.Url ?? string.Empty,
                     ThumbnailUrl = GetBestThumbnail(x.Thumbnails),
                     Duration = x.Duration.HasValue ? TimeSpan.FromSeconds(x.Duration.Value) : null,
                     UploadDate = x.UploadDate,
@@ -216,13 +216,24 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 return [];
             }
 
-            var videos = new List<VideoMetadata>();
-
-            // For playlist videos, flat data returns basic info
-            // Return minimal result for now
-            _logger.LogInformation("Playlist data fetched for {Url}, detailed video fetching not implemented yet", playlistUrl);
-
-            return videos;
+            return result.Data.Entries
+                .Select(x => new VideoMetadata
+                {
+                    VideoId = x.ID ?? string.Empty,
+                    Title = x.Title ?? "Unknown Title",
+                    Description = x.Description,
+                    Url = x.Url ?? string.Empty,
+                    ThumbnailUrl = GetBestThumbnail(x.Thumbnails),
+                    Duration = x.Duration.HasValue ? TimeSpan.FromSeconds(x.Duration.Value) : null,
+                    UploadDate = x.UploadDate,
+                    ViewCount = x.ViewCount.HasValue ? (int?)x.ViewCount : null,
+                    LikeCount = x.LikeCount.HasValue ? (int?)x.LikeCount : null,
+                    ChannelId = x.Channel ?? x.Uploader ?? string.Empty,
+                    ChannelName = x.Channel ?? x.Uploader ?? "Unknown Channel",
+                    Platform = PlatformName,
+                    PlaylistId = null
+                })
+                .ToList();
         }
         catch (Exception ex)
         {

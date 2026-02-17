@@ -32,6 +32,8 @@ public class Video : BaseEntity<int>
 
     public long? FileSize { get; set; }
 
+    public bool IsIgnored { get; set; }
+
     public int ChannelId { get; set; }
 
     public Channel Channel { get; set; } = null!;
