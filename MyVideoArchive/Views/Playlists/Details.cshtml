@@ -180,11 +180,10 @@
                     });
                 
                 // Load videos with proper ordering
-                fetch('/api/playlists/' + self.playlistId + '/videos')
+                fetch(`/api/playlists/${self.playlistId}/videos?useCustomOrder=${self.useCustomOrder()}`)
                     .then(response => response.json())
                     .then(data => {
                         self.playlistVideos(data.videos || []);
-                        self.useCustomOrder(data.useCustomOrder || false);
                         self.loadingVideos(false);
                         
                         // Initialize drag-drop after data is loaded
@@ -337,12 +336,6 @@
                     });
                 }
                 
-                console.log('Saving custom order:', {
-                    useCustomOrder: self.useCustomOrder(),
-                    videoCount: videoOrders.length,
-                    videoOrders: videoOrders
-                });
-                
                 fetch('/api/playlists/' + self.playlistId + '/reorder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -352,7 +345,6 @@
                     })
                 })
                 .then(response => {
-                    console.log('Response status:', response.status);
                     if (!response.ok) {
                         return response.text().then(text => {
                             throw new Error('Server error: ' + text);
@@ -361,7 +353,6 @@
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Order saved successfully:', data.message);
                     // Update sortable state
                     if (self.sortableInstance) {
                         self.sortableInstance.option('disabled', !self.useCustomOrder());

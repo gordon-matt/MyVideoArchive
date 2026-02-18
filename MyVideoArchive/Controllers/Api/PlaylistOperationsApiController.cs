@@ -47,7 +47,7 @@ public class PlaylistOperationsApiController : ControllerBase
     {
         try
         {
-            var userId = _userContext.GetCurrentUserId();
+            string? userId = _userContext.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -103,19 +103,6 @@ public class PlaylistOperationsApiController : ControllerBase
                     });
                 }
             }
-            else
-            {
-                // If switching back to original order, delete custom orders
-                var existingOrders = await _userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>
-                {
-                    Query = uvo => uvo.UserId == userId && uvo.PlaylistId == playlistId
-                });
-
-                foreach (var existingOrder in existingOrders)
-                {
-                    await _userVideoOrderRepository.DeleteAsync(existingOrder);
-                }
-            }
 
             return Ok(new { message = "Custom order saved successfully" });
         }
@@ -134,7 +121,7 @@ public class PlaylistOperationsApiController : ControllerBase
     {
         try
         {
-            var userId = _userContext.GetCurrentUserId();
+            string? userId = _userContext.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -146,7 +133,7 @@ public class PlaylistOperationsApiController : ControllerBase
                 Query = uvo => uvo.UserId == userId && uvo.PlaylistId == playlistId
             });
 
-            var useCustomOrder = customOrders.Count > 0;
+            bool useCustomOrder = customOrders.Count > 0;
 
             return Ok(new { useCustomOrder });
         }
@@ -156,7 +143,7 @@ public class PlaylistOperationsApiController : ControllerBase
             return StatusCode(500, new { message = "An error occurred while getting order setting" });
         }
     }
-    
+
     /// <summary>
     /// Get custom video order for a playlist
     /// </summary>
@@ -165,7 +152,7 @@ public class PlaylistOperationsApiController : ControllerBase
     {
         try
         {
-            var userId = _userContext.GetCurrentUserId();
+            string? userId = _userContext.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -187,16 +174,16 @@ public class PlaylistOperationsApiController : ControllerBase
             return StatusCode(500, new { message = "An error occurred while getting custom order" });
         }
     }
-    
+
     /// <summary>
     /// Get videos for a playlist with proper ordering (original or custom)
     /// </summary>
     [HttpGet("{playlistId}/videos")]
-    public async Task<IActionResult> GetPlaylistVideos(int playlistId)
+    public async Task<IActionResult> GetPlaylistVideos(int playlistId, bool useCustomOrder = false)
     {
         try
         {
-            var userId = _userContext.GetCurrentUserId();
+            string? userId = _userContext.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -216,9 +203,8 @@ public class PlaylistOperationsApiController : ControllerBase
                 Query = uvo => uvo.UserId == userId && uvo.PlaylistId == playlistId
             });
 
-            var hasCustomOrder = customOrders.Count > 0;
-
-            if (hasCustomOrder)
+            bool hasCustomOrder = customOrders.Count > 0;
+            if (useCustomOrder && hasCustomOrder)
             {
                 // Sort by custom order
                 var orderMap = customOrders.ToDictionary(co => co.VideoId, co => co.CustomOrder);
@@ -251,7 +237,7 @@ public class PlaylistOperationsApiController : ControllerBase
                 }
             }).ToList();
 
-            return Ok(new { videos, useCustomOrder = hasCustomOrder });
+            return Ok(new { videos });
         }
         catch (Exception ex)
         {
