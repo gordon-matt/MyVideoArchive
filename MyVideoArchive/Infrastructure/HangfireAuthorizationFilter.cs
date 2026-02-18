@@ -11,9 +11,7 @@ public class HangfireAuthorizationFilter : IDashboardAuthorizationFilter
     {
         var httpContext = context.GetHttpContext();
 
-        return true;//testing
-
-        //return httpContext.User.Identity?.IsAuthenticated == true &&
-        //       httpContext.User.IsInRole(Constants.Roles.Administrators);
+        return httpContext.User.Identity?.IsAuthenticated == true &&
+               httpContext.User.IsInRole(Constants.Roles.Administrators);
     }
 }

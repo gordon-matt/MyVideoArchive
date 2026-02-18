@@ -1,5 +1,4 @@
 using Extenso.Data.Entity;
-using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Infrastructure;
@@ -11,34 +10,31 @@ namespace MyVideoArchive.Services.Jobs;
 /// </summary>
 public class VideoDownloadJob
 {
-    private readonly ILogger<VideoDownloadJob> _logger;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly VideoDownloaderFactory _downloaderFactory;
-    private readonly IConfiguration _configuration;
+    private readonly ILogger<VideoDownloadJob> logger;
+    private readonly VideoDownloaderFactory downloaderFactory;
+    private readonly IConfiguration configuration;
+    private readonly IRepository<Video> videoRepository;
 
     public VideoDownloadJob(
         ILogger<VideoDownloadJob> logger,
-        IServiceProvider serviceProvider,
         VideoDownloaderFactory downloaderFactory,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IRepository<Video> videoRepository)
     {
-        _logger = logger;
-        _serviceProvider = serviceProvider;
-        _downloaderFactory = downloaderFactory;
-        _configuration = configuration;
+        this.logger = logger;
+        this.downloaderFactory = downloaderFactory;
+        this.configuration = configuration;
+        this.videoRepository = videoRepository;
     }
 
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
     //[DisableConcurrentExecution(timeoutInSeconds: 7200)] // 2 hours timeout
     public async Task ExecuteAsync(int videoId, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting video download job for video ID: {VideoId}", videoId);
+        logger.LogInformation("Starting video download job for video ID: {VideoId}", videoId);
 
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var videoRepository = scope.ServiceProvider.GetRequiredService<IRepository<Video>>();
-
             var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
             {
                 CancellationToken = cancellationToken,
@@ -48,39 +44,36 @@ public class VideoDownloadJob
 
             if (video == null)
             {
-                _logger.LogWarning("Video with ID {VideoId} not found", videoId);
+                logger.LogWarning("Video with ID {VideoId} not found", videoId);
                 return;
             }
 
             // Skip if already downloaded
             if (!string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath))
             {
-                _logger.LogInformation("Video {VideoId} already downloaded", videoId);
+                logger.LogInformation("Video {VideoId} already downloaded", videoId);
                 return;
             }
 
             // Get the appropriate downloader
-            var downloader = _downloaderFactory.GetDownloaderByPlatform(video.Platform);
+            var downloader = downloaderFactory.GetDownloaderByPlatform(video.Platform);
             if (downloader == null)
             {
-                _logger.LogError("No downloader found for platform: {Platform}", video.Platform);
+                logger.LogError("No downloader found for platform: {Platform}", video.Platform);
                 return;
             }
 
             // Get download path from configuration
-            var downloadPath = _configuration.GetValue<string>("VideoDownload:OutputPath") 
+            string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
             // Create channel-specific subdirectory
-            var channelPath = Path.Combine(downloadPath, SanitizeFileName(video.Channel.Name));
+            string channelPath = Path.Combine(downloadPath, SanitizeFileName(video.Channel.Name));
 
             // Download the video
-            var progress = new Progress<double>(p =>
-            {
-                _logger.LogInformation("Download progress for video {VideoId}: {Progress:P0}", videoId, p);
-            });
+            var progress = new Progress<double>(p => logger.LogInformation("Download progress for video {VideoId}: {Progress:P0}", videoId, p));
 
-            var filePath = await downloader.DownloadVideoAsync(
+            string filePath = await downloader.DownloadVideoAsync(
                 video.Url,
                 channelPath,
                 progress,
@@ -92,38 +85,36 @@ public class VideoDownloadJob
             video.DownloadedAt = DateTime.UtcNow;
             video.IsQueued = false;
 
-            await videoRepository.UpdateAsync(video);
+            await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
 
-            _logger.LogInformation("Successfully downloaded video {VideoId} to {FilePath}", videoId, filePath);
+            logger.LogInformation("Successfully downloaded video {VideoId} to {FilePath}", videoId, filePath);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error downloading video {VideoId}", videoId);
-            
+            logger.LogError(ex, "Error downloading video {VideoId}", videoId);
+
             // Reset IsQueued flag on failure so it can be retried
             try
             {
-                using var scope = _serviceProvider.CreateScope();
-                var videoRepository = scope.ServiceProvider.GetRequiredService<IRepository<Video>>();
                 var video = await videoRepository.FindOneAsync(videoId);
                 if (video != null && video.IsQueued)
                 {
                     video.IsQueued = false;
-                    await videoRepository.UpdateAsync(video);
+                    await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
                 }
             }
             catch (Exception resetEx)
             {
-                _logger.LogError(resetEx, "Error resetting IsQueued flag for video {VideoId}", videoId);
+                logger.LogError(resetEx, "Error resetting IsQueued flag for video {VideoId}", videoId);
             }
-            
+
             throw;
         }
     }
 
     private static string SanitizeFileName(string fileName)
     {
-        var invalidChars = Path.GetInvalidFileNameChars();
+        char[] invalidChars = Path.GetInvalidFileNameChars();
         return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
     }
 }

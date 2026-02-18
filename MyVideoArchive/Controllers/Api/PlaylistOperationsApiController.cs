@@ -2,7 +2,6 @@ using Extenso.Data.Entity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using MyVideoArchive.Data;
 using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Services;
 
@@ -16,27 +15,24 @@ namespace MyVideoArchive.Controllers.Api;
 [Route("api/playlists")]
 public class PlaylistOperationsApiController : ControllerBase
 {
-    private readonly IRepository<Playlist> _playlistRepository;
     private readonly IRepository<UserPlaylist> _userPlaylistRepository;
     private readonly IRepository<UserVideoOrder> _userVideoOrderRepository;
+    private readonly IRepository<PlaylistVideo> _videoPlaylistRepository;
     private readonly IUserContextService _userContext;
-    private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<PlaylistOperationsApiController> _logger;
 
     public PlaylistOperationsApiController(
-        IRepository<Playlist> playlistRepository,
         IRepository<UserPlaylist> userPlaylistRepository,
         IRepository<UserVideoOrder> userVideoOrderRepository,
         IUserContextService userContext,
-        ApplicationDbContext dbContext,
-        ILogger<PlaylistOperationsApiController> logger)
+        ILogger<PlaylistOperationsApiController> logger,
+        IRepository<PlaylistVideo> videoPlaylistRepository)
     {
-        _playlistRepository = playlistRepository;
         _userPlaylistRepository = userPlaylistRepository;
         _userVideoOrderRepository = userVideoOrderRepository;
         _userContext = userContext;
-        _dbContext = dbContext;
         _logger = logger;
+        _videoPlaylistRepository = videoPlaylistRepository;
     }
 
     /// <summary>
@@ -190,12 +186,12 @@ public class PlaylistOperationsApiController : ControllerBase
             }
 
             // Get all VideoPlaylist records to get original order
-            var videoPlaylists = await _dbContext.Set<VideoPlaylist>()
-                .Where(vp => vp.PlaylistId == playlistId)
-                .Include(vp => vp.Video)
-                .ThenInclude(v => v.Channel)
-                .OrderBy(vp => vp.Order)
-                .ToListAsync();
+            IEnumerable<PlaylistVideo> videoPlaylists = await _videoPlaylistRepository.FindAsync(new SearchOptions<PlaylistVideo>
+            {
+                Query = vp => vp.PlaylistId == playlistId,
+                Include = query => query.Include(vp => vp.Video).ThenInclude(v => v.Channel),
+                OrderBy = query => query.OrderBy(vp => vp.Order)
+            });
 
             // Check if user has custom order
             var customOrders = await _userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>

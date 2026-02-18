@@ -30,7 +30,7 @@ public class Playlist : BaseEntity<int>
 
     public Channel Channel { get; set; } = null!;
 
-    public ICollection<VideoPlaylist> VideoPlaylists { get; set; } = [];
+    public ICollection<PlaylistVideo> VideoPlaylists { get; set; } = [];
 }
 
 public class PlaylistMap : IEntityTypeConfiguration<Playlist>

@@ -40,7 +40,7 @@ public class Video : BaseEntity<int>
 
     public Channel Channel { get; set; } = null!;
 
-    public ICollection<VideoPlaylist> VideoPlaylists { get; set; } = [];
+    public ICollection<PlaylistVideo> VideoPlaylists { get; set; } = [];
 }
 
 public class VideoMap : IEntityTypeConfiguration<Video>

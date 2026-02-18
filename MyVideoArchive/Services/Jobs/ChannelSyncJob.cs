@@ -11,35 +11,34 @@ namespace MyVideoArchive.Services.Jobs;
 /// </summary>
 public class ChannelSyncJob
 {
-    private readonly ILogger<ChannelSyncJob> _logger;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly VideoMetadataProviderFactory _metadataProviderFactory;
-    private readonly IBackgroundJobClient _backgroundJobClient;
+    private readonly ILogger<ChannelSyncJob> logger;
+    private readonly VideoMetadataProviderFactory metadataProviderFactory;
+    private readonly IBackgroundJobClient backgroundJobClient;
+    private readonly IRepository<Channel> channelRepository;
+    private readonly IRepository<Video> videoRepository;
 
     public ChannelSyncJob(
         ILogger<ChannelSyncJob> logger,
-        IServiceProvider serviceProvider,
         VideoMetadataProviderFactory metadataProviderFactory,
-        IBackgroundJobClient backgroundJobClient)
+        IBackgroundJobClient backgroundJobClient,
+        IRepository<Channel> channelRepository,
+        IRepository<Video> videoRepository)
     {
-        _logger = logger;
-        _serviceProvider = serviceProvider;
-        _metadataProviderFactory = metadataProviderFactory;
-        _backgroundJobClient = backgroundJobClient;
+        this.logger = logger;
+        this.metadataProviderFactory = metadataProviderFactory;
+        this.backgroundJobClient = backgroundJobClient;
+        this.channelRepository = channelRepository;
+        this.videoRepository = videoRepository;
     }
 
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
     //[DisableConcurrentExecution(timeoutInSeconds: 3600)] // 1 hour timeout
     public async Task ExecuteAsync(int channelId, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting channel sync job for channel ID: {ChannelId}", channelId);
+        logger.LogInformation("Starting channel sync job for channel ID: {ChannelId}", channelId);
 
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var channelRepository = scope.ServiceProvider.GetRequiredService<IRepository<Channel>>();
-            var videoRepository = scope.ServiceProvider.GetRequiredService<IRepository<Video>>();
-
             var channel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
             {
                 CancellationToken = cancellationToken,
@@ -49,15 +48,15 @@ public class ChannelSyncJob
 
             if (channel == null)
             {
-                _logger.LogWarning("Channel with ID {ChannelId} not found", channelId);
+                logger.LogWarning("Channel with ID {ChannelId} not found", channelId);
                 return;
             }
 
             // Get the appropriate metadata provider
-            var provider = _metadataProviderFactory.GetProviderByPlatform(channel.Platform);
+            var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
             if (provider == null)
             {
-                _logger.LogError("No metadata provider found for platform: {Platform}", channel.Platform);
+                logger.LogError("No metadata provider found for platform: {Platform}", channel.Platform);
                 return;
             }
 
@@ -74,7 +73,7 @@ public class ChannelSyncJob
 
             // Get all videos from the channel
             var videoMetadataList = await provider.GetChannelVideosAsync(channel.Url, cancellationToken);
-            _logger.LogInformation("Found {Count} videos for channel {ChannelId}", videoMetadataList.Count, channelId);
+            logger.LogInformation("Found {Count} videos for channel {ChannelId}", videoMetadataList.Count, channelId);
 
             // Process each video
             var existingVideoIds = channel.Videos.Select(v => v.VideoId).ToHashSet();
@@ -93,7 +92,7 @@ public class ChannelSyncJob
                     existingVideo.ViewCount = videoMetadata.ViewCount;
                     existingVideo.LikeCount = videoMetadata.LikeCount;
 
-                    await videoRepository.UpdateAsync(existingVideo);
+                    await videoRepository.UpdateAsync(existingVideo, ContextOptions.ForCancellationToken(cancellationToken));
                 }
                 else
                 {
@@ -114,7 +113,7 @@ public class ChannelSyncJob
                         IsIgnored = false
                     };
 
-                    await videoRepository.InsertAsync(newVideo);
+                    await videoRepository.InsertAsync(newVideo, ContextOptions.ForCancellationToken(cancellationToken));
                     newVideosCount++;
 
                     // Note: Videos are no longer auto-downloaded. 
@@ -124,15 +123,15 @@ public class ChannelSyncJob
 
             // Update last checked timestamp
             channel.LastChecked = DateTime.UtcNow;
-            await channelRepository.UpdateAsync(channel);
+            await channelRepository.UpdateAsync(channel, ContextOptions.ForCancellationToken(cancellationToken));
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Channel sync completed for {ChannelId}. New videos: {NewCount}, Total videos: {TotalCount}",
                 channelId, newVideosCount, videoMetadataList.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error syncing channel {ChannelId}", channelId);
+            logger.LogError(ex, "Error syncing channel {ChannelId}", channelId);
             throw;
         }
     }
@@ -141,13 +140,10 @@ public class ChannelSyncJob
     //[DisableConcurrentExecution(timeoutInSeconds: 600)] // 10 minutes timeout
     public async Task SyncAllChannelsAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting sync for all channels");
+        logger.LogInformation("Starting sync for all channels");
 
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var channelRepository = scope.ServiceProvider.GetRequiredService<IRepository<Channel>>();
-
             var channels = await channelRepository.FindAsync(new SearchOptions<Channel>
             {
                 CancellationToken = cancellationToken
@@ -156,15 +152,15 @@ public class ChannelSyncJob
             foreach (var channel in channels)
             {
                 // Queue individual channel sync jobs
-                _backgroundJobClient.Enqueue<ChannelSyncJob>(job =>
+                backgroundJobClient.Enqueue<ChannelSyncJob>(job =>
                     job.ExecuteAsync(channel.Id, CancellationToken.None));
             }
 
-            _logger.LogInformation("Queued sync jobs for {Count} channels", channels.Count);
+            logger.LogInformation("Queued sync jobs for {Count} channels", channels.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error queuing channel sync jobs");
+            logger.LogError(ex, "Error queuing channel sync jobs");
             throw;
         }
     }
