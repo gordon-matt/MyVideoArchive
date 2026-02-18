@@ -54,9 +54,21 @@
                     </div>
                     <div class="card-body">
                         <p class="text-muted small mb-2" data-bind="text: playlist() && playlist().Description"></p>
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
                             <span><strong><span data-bind="text: playlistVideos().length"></span></strong> videos</span>
                             <a data-bind="attr: { href: '/channels/' + (playlist() && playlist().ChannelId) }" class="btn btn-sm btn-outline-primary">View Channel</a>
+                        </div>
+                        
+                        <!-- Order Toggle -->
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="useCustomOrderSwitch" data-bind="checked: useCustomOrder, click: toggleOrderMode">
+                            <label class="form-check-label" for="useCustomOrderSwitch">
+                                <span data-bind="text: useCustomOrder() ? 'My Custom Order' : 'Original Order'"></span>
+                            </label>
+                        </div>
+                        
+                        <div data-bind="visible: useCustomOrder" class="mt-2">
+                            <small class="text-muted"><i class="bi bi-info-circle"></i> Drag videos to reorder</small>
                         </div>
                     </div>
                 </div>
@@ -72,25 +84,28 @@
                         <p class="small mb-0">No videos in this playlist yet.</p>
                     </div>
                     
-                    <div data-bind="visible: !loadingVideos() && playlistVideos().length > 0, foreach: playlistVideos">
-                        <div class="playlist-video-item" data-bind="click: $parent.playVideo, css: { active: $parent.currentVideo() && $parent.currentVideo().Id === Id, 'not-downloaded': !DownloadedAt }">
-                            <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }" class="playlist-video-thumbnail" />
+                <div id="videoListContainer" data-bind="visible: !loadingVideos() && playlistVideos().length > 0, foreach: playlistVideos">
+                    <div class="playlist-video-item" data-bind="click: $parent.playVideo, css: { active: $parent.currentVideo() && $parent.currentVideo().id === id, 'not-downloaded': !downloadedAt }, attr: { 'data-video-id': id }">
+                        <span data-bind="visible: $parent.useCustomOrder()" class="drag-handle">
+                            <i class="bi bi-grip-vertical"></i>
+                        </span>
+                        <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: title }" class="playlist-video-thumbnail" />
                             <div class="playlist-video-info flex-grow-1">
-                                <div class="playlist-video-title" data-bind="text: Title"></div>
-                                <!-- ko if: Channel -->
-                                <div class="playlist-video-channel" data-bind="text: Channel.Name"></div>
+                                <div class="playlist-video-title" data-bind="text: title"></div>
+                                <!-- ko if: channel -->
+                                <div class="playlist-video-channel" data-bind="text: channel.name"></div>
                                 <!-- /ko -->
-                                <!-- ko if: Duration -->
-                                <small class="text-muted" data-bind="text: $parent.formatDuration(Duration)"></small>
+                                <!-- ko if: duration -->
+                                <small class="text-muted" data-bind="text: $parent.formatDuration(duration)"></small>
                                 <!-- /ko -->
-                                <!-- ko if: !DownloadedAt -->
+                                <!-- ko if: !downloadedAt -->
                                 <div class="mt-1">
-                                    <span class="badge bg-warning text-dark small" data-bind="visible: !IsQueued">Not Downloaded</span>
-                                    <span class="badge bg-info text-dark small" data-bind="visible: IsQueued">Downloading...</span>
+                                    <span class="badge bg-warning text-dark small" data-bind="visible: !isQueued">Not Downloaded</span>
+                                    <span class="badge bg-info text-dark small" data-bind="visible: isQueued">Downloading...</span>
                                 </div>
                                 <!-- /ko -->
                             </div>
-                            <div data-bind="if: !DownloadedAt" class="ms-2">
+                            <div data-bind="if: !downloadedAt" class="ms-2">
                                 <button class="btn btn-sm btn-primary" data-bind="click: $parent.downloadVideo">
                                     <i class="bi bi-download"></i>
                                 </button>
@@ -117,6 +132,7 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/knockout@3.5.1/build/output/knockout-latest.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script type="text/javascript">
         function PlaylistDetailsViewModel(playlistId) {
             var self = this;
@@ -128,6 +144,8 @@
             self.currentVideoUrl = ko.observable(null);
             self.loading = ko.observable(true);
             self.loadingVideos = ko.observable(false);
+            self.useCustomOrder = ko.observable(false);
+            self.sortableInstance = null;
             
             self.loadPlaylist = function() {
                 fetch('/odata/PlaylistApi(' + self.playlistId + ')?$expand=Channel')
@@ -151,17 +169,32 @@
             self.loadPlaylistVideos = function() {
                 self.loadingVideos(true);
                 
-                // Query VideoPlaylist junction table to get all videos in this playlist
-                // Keep original playlist order
-                fetch('/odata/VideoApi?$filter=VideoPlaylists/any(vp: vp/PlaylistId eq ' + self.playlistId + ')&$expand=Channel')
+                // Load playlist
+                fetch('/odata/PlaylistApi(' + self.playlistId + ')?$expand=Channel')
+                    .then(response => response.json())
+                    .then(playlistData => {
+                        self.playlist(playlistData);
+                    })
+                    .catch(error => {
+                        console.error('Error loading playlist:', error);
+                    });
+                
+                // Load videos with proper ordering
+                fetch('/api/playlists/' + self.playlistId + '/videos')
                     .then(response => response.json())
                     .then(data => {
-                        self.playlistVideos(data.value || []);
+                        self.playlistVideos(data.videos || []);
+                        self.useCustomOrder(data.useCustomOrder || false);
                         self.loadingVideos(false);
+                        
+                        // Initialize drag-drop after data is loaded
+                        setTimeout(function() {
+                            self.initializeSortable();
+                        }, 100);
                         
                         // Auto-play first downloaded video
                         if (self.playlistVideos().length > 0) {
-                            var firstDownloaded = self.playlistVideos().find(function(v) { return v.DownloadedAt; });
+                            var firstDownloaded = self.playlistVideos().find(function(v) { return v.downloadedAt; });
                             if (firstDownloaded) {
                                 self.playVideo(firstDownloaded);
                             }
@@ -174,12 +207,12 @@
             };
             
             self.playVideo = function(video) {
-                if (!video.DownloadedAt) {
+                if (!video.downloadedAt) {
                     return; // Just don't play if not downloaded, don't show alert
                 }
                 
                 self.currentVideo(video);
-                self.currentVideoUrl('/api/videos/' + video.Id + '/stream');
+                self.currentVideoUrl('/api/videos/' + video.id + '/stream');
                 
                 // Scroll to top
                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -188,19 +221,19 @@
             self.downloadVideo = function(video, event) {
                 event.stopPropagation(); // Prevent triggering playVideo
                 
-                if (video.IsQueued) {
+                if (video.isQueued) {
                     alert('This video is already queued for download.');
                     return;
                 }
                 
-                if (!confirm('Queue "' + video.Title + '" for download?')) {
+                if (!confirm('Queue "' + video.title + '" for download?')) {
                     return;
                 }
                 
-                fetch('/api/channels/' + video.ChannelId + '/videos/download', {
+                fetch('/api/channels/' + video.channelId + '/videos/download', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ videoIds: [video.Id] })
+                    body: JSON.stringify({ videoIds: [video.id] })
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -210,6 +243,138 @@
                 .catch(error => {
                     console.error('Error queueing video:', error);
                     alert('Error queueing video for download. Please try again.');
+                });
+            };
+            
+            self.toggleOrderMode = function() {
+                // The checked binding already toggles the value
+                var isNowCustomOrder = self.useCustomOrder(); // Get the NEW value (after toggle)
+                
+                if (!isNowCustomOrder) {
+                    // Switching FROM custom TO original - delete custom orders and reload
+                    self.clearCustomOrder();
+                } else {
+                    // Switching FROM original TO custom
+                    // If there's no saved custom order, create one with current order
+                    // Otherwise, just reload to get the saved custom order
+                    self.enableCustomOrder();
+                }
+                
+                return true;
+            };
+            
+            self.enableCustomOrder = function() {
+                // Check if custom order already exists, if not, save current order as custom
+                fetch('/api/playlists/' + self.playlistId + '/order-setting')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.useCustomOrder) {
+                            // No custom order exists, save current order
+                            self.saveCustomOrder(true);
+                        } else {
+                            // Custom order exists, reload to show it
+                            self.loadPlaylistVideos();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking custom order:', error);
+                        // Just save current order as fallback
+                        self.saveCustomOrder(true);
+                    });
+            };
+            
+            self.clearCustomOrder = function() {
+                // Delete custom orders by saving with useCustomOrder: false
+                self.saveCustomOrder(true);
+            };
+            
+            self.initializeSortable = function() {
+                var container = document.getElementById('videoListContainer');
+                if (!container) return;
+                
+                // Destroy existing instance if any
+                if (self.sortableInstance) {
+                    self.sortableInstance.destroy();
+                }
+                
+                // Create new Sortable instance
+                self.sortableInstance = new Sortable(container, {
+                    handle: '.drag-handle',
+                    animation: 150,
+                    disabled: !self.useCustomOrder(),
+                    onEnd: function(evt) {
+                        // Get the new order from the DOM
+                        var items = container.querySelectorAll('.playlist-video-item');
+                        var newOrder = [];
+                        
+                        items.forEach(function(item) {
+                            var videoId = parseInt(item.getAttribute('data-video-id'));
+                            var video = self.playlistVideos().find(function(v) { return v.id === videoId; });
+                            if (video) {
+                                newOrder.push(video);
+                            }
+                        });
+                        
+                        // Update the observable array with the new order
+                        self.playlistVideos(newOrder);
+                        
+                        // Save the new order
+                        self.saveCustomOrder();
+                    }
+                });
+            };
+            
+            self.saveCustomOrder = function(reloadAfterSave) {
+                var videoOrders = [];
+                
+                if (self.useCustomOrder()) {
+                    // Build the order array
+                    videoOrders = self.playlistVideos().map(function(video, index) {
+                        return {
+                            videoId: video.id,
+                            order: index + 1
+                        };
+                    });
+                }
+                
+                console.log('Saving custom order:', {
+                    useCustomOrder: self.useCustomOrder(),
+                    videoCount: videoOrders.length,
+                    videoOrders: videoOrders
+                });
+                
+                fetch('/api/playlists/' + self.playlistId + '/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        useCustomOrder: self.useCustomOrder(),
+                        videoOrders: videoOrders
+                    })
+                })
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error('Server error: ' + text);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Order saved successfully:', data.message);
+                    // Update sortable state
+                    if (self.sortableInstance) {
+                        self.sortableInstance.option('disabled', !self.useCustomOrder());
+                    }
+                    
+                    // Reload videos if requested (when toggling order mode)
+                    if (reloadAfterSave) {
+                        self.loadPlaylistVideos();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving order:', error);
+                    alert('Error saving custom order: ' + error.message);
                 });
             };
             
@@ -347,6 +512,25 @@
             color: #606060;
             font-size: 0.85em;
             margin-bottom: 2px;
+        }
+        
+        .drag-handle {
+            cursor: grab;
+            padding: 0 10px;
+            margin-right: 5px;
+            color: #666;
+            font-size: 1.2em;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+        
+        .sortable-ghost {
+            opacity: 0.4;
+            background-color: #e9ecef;
         }
         
         @@media (max-width: 991px) {

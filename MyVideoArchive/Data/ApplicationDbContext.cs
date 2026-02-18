@@ -11,6 +11,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Playlist> Playlists { get; set; }
     public DbSet<UserChannel> UserChannels { get; set; }
     public DbSet<UserPlaylist> UserPlaylists { get; set; }
+    public DbSet<UserVideoOrder> UserVideoOrders { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

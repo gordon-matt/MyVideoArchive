@@ -7,7 +7,7 @@ namespace MyVideoArchive.Data.Entities;
 
 /// <summary>
 /// Junction table for many-to-many relationship between Users and Playlists
-/// Represents a user's subscription to a playlist with optional custom ordering
+/// Represents a user's subscription to a playlist
 /// </summary>
 public class UserPlaylist : IEntity
 {
@@ -16,11 +16,6 @@ public class UserPlaylist : IEntity
     public int PlaylistId { get; set; }
 
     public DateTime SubscribedAt { get; set; }
-    
-    /// <summary>
-    /// Custom order set by the user (nullable - null means use original order)
-    /// </summary>
-    public int? CustomOrder { get; set; }
 
     public ApplicationUser User { get; set; } = null!;
 
