@@ -1,0 +1,9 @@
+﻿#videoPlayer {
+    max-height: 80vh;
+    background-color: #000;
+}
+
+.description-box {
+    max-height: 300px;
+    overflow-y: auto;
+}
