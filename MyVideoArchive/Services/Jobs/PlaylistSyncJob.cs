@@ -73,21 +73,25 @@ public class PlaylistSyncJob
                 playlist.VideoCount = playlistMetadata.VideoCount;
             }
 
-            // Get all videos from the playlist
-            var videoMetadataList = await provider.GetPlaylistVideosAsync(playlist.Url, cancellationToken);
-            logger.LogInformation("Found {Count} videos for playlist {PlaylistId}", videoMetadataList.Count, playlistId);
-
-            // Process each video
-            var existingPlaylistVideoIds = playlist.VideoPlaylists.Select(vp => vp.VideoId).ToHashSet();
-            int newVideosCount = 0;
-            int videoOrder = 0; // Track the order of videos as they appear in the playlist
-
             bool hasAnySubs = await userPlaylistRepository.CountAsync(
                 up => up.PlaylistId == playlistId,
                 ContextOptions.ForCancellationToken(cancellationToken)) > 0;
 
             if (hasAnySubs)
             {
+                // Get all videos from the playlist
+                var videoMetadataList = await provider.GetPlaylistVideosAsync(playlist.Url, cancellationToken);
+                logger.LogInformation("Found {Count} videos for playlist {PlaylistId}", videoMetadataList.Count, playlistId);
+
+                // Process each video
+                var existingPlaylistVideoIds = playlist.VideoPlaylists.Select(vp => vp.VideoId).ToHashSet();
+                int newVideosCount = 0;
+                int videoOrder = 0; // Track the order of videos as they appear in the playlist
+
+                var videoUpdates = new List<Video>();
+                var videoInserts = new List<Video>();
+                var videoPlaylistInserts = new List<PlaylistVideo>();
+
                 foreach (var videoMetadata in videoMetadataList)
                 {
                     videoOrder++; // Increment order for each video in playlist
@@ -111,7 +115,7 @@ public class PlaylistSyncJob
                         existingVideo.ViewCount = videoMetadata.ViewCount;
                         existingVideo.LikeCount = videoMetadata.LikeCount;
 
-                        await videoRepository.UpdateAsync(existingVideo, ContextOptions.ForCancellationToken(cancellationToken));
+                        videoUpdates.Add(existingVideo);
                         videoId = existingVideo.Id;
                     }
                     else
@@ -134,7 +138,7 @@ public class PlaylistSyncJob
                             IsQueued = false
                         };
 
-                        await videoRepository.InsertAsync(newVideo, ContextOptions.ForCancellationToken(cancellationToken));
+                        videoInserts.Add(newVideo);
                         videoId = newVideo.Id;
                         newVideosCount++;
                     }
@@ -151,19 +155,23 @@ public class PlaylistSyncJob
 
                         if (await videoPlaylistRepository.CountAsync(x => x.PlaylistId == playlistId && x.VideoId == videoId) == 0)
                         {
-                            videoPlaylistRepository.Insert(videoPlaylist, ContextOptions.ForCancellationToken(cancellationToken));
+                            videoPlaylistInserts.Add(videoPlaylist);
                         }
                     }
                 }
+
+                await videoRepository.InsertAsync(videoInserts, ContextOptions.ForCancellationToken(cancellationToken));
+                await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
+                await videoPlaylistRepository.InsertAsync(videoPlaylistInserts, ContextOptions.ForCancellationToken(cancellationToken));
             }
 
             // Update last checked timestamp
             playlist.LastChecked = DateTime.UtcNow;
             await playlistRepository.UpdateAsync(playlist, ContextOptions.ForCancellationToken(cancellationToken));
 
-            logger.LogInformation(
-                "Playlist sync completed for {PlaylistId}. New videos: {NewCount}, Total videos: {TotalCount}",
-                playlistId, newVideosCount, videoMetadataList.Count);
+            //logger.LogInformation(
+            //    "Playlist sync completed for {PlaylistId}. New videos: {NewCount}, Total videos: {TotalCount}",
+            //    playlistId, newVideosCount, videoMetadataList.Count);
         }
         catch (Exception ex)
         {

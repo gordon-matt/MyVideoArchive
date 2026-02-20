@@ -79,6 +79,8 @@ public class ChannelSyncJob
             var existingVideoIds = channel.Videos.Select(v => v.VideoId).ToHashSet();
             int newVideosCount = 0;
 
+            var videoUpdates = new List<Video>();
+            var videoInserts = new List<Video>();
             foreach (var videoMetadata in videoMetadataList)
             {
                 if (existingVideoIds.Contains(videoMetadata.VideoId))
@@ -91,8 +93,7 @@ public class ChannelSyncJob
                     existingVideo.Duration = videoMetadata.Duration;
                     existingVideo.ViewCount = videoMetadata.ViewCount;
                     existingVideo.LikeCount = videoMetadata.LikeCount;
-
-                    await videoRepository.UpdateAsync(existingVideo, ContextOptions.ForCancellationToken(cancellationToken));
+                    videoUpdates.Add(existingVideo);
                 }
                 else
                 {
@@ -113,13 +114,16 @@ public class ChannelSyncJob
                         IsIgnored = false
                     };
 
-                    await videoRepository.InsertAsync(newVideo, ContextOptions.ForCancellationToken(cancellationToken));
+                    videoInserts.Add(newVideo);
                     newVideosCount++;
 
                     // Note: Videos are no longer auto-downloaded. 
                     // Users must select videos to download from the Available tab.
                 }
             }
+
+            await videoRepository.InsertAsync(videoInserts, ContextOptions.ForCancellationToken(cancellationToken));
+            await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
 
             // Update last checked timestamp
             channel.LastChecked = DateTime.UtcNow;

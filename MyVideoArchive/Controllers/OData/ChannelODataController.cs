@@ -8,23 +8,23 @@ using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Services;
 using MyVideoArchive.Services.Jobs;
 
-namespace MyVideoArchive.Controllers.Api;
+namespace MyVideoArchive.Controllers.OData;
 
 [Authorize]
-public class ChannelApiController : ODataController
+public class ChannelODataController : ODataController
 {
     private readonly IRepository<Channel> _channelRepository;
     private readonly IRepository<UserChannel> _userChannelRepository;
     private readonly IUserContextService _userContext;
     private readonly IBackgroundJobClient _backgroundJobClient;
-    private readonly ILogger<ChannelApiController> _logger;
+    private readonly ILogger<ChannelODataController> _logger;
 
-    public ChannelApiController(
+    public ChannelODataController(
         IRepository<Channel> channelRepository,
         IRepository<UserChannel> userChannelRepository,
         IUserContextService userContext,
         IBackgroundJobClient backgroundJobClient,
-        ILogger<ChannelApiController> logger)
+        ILogger<ChannelODataController> logger)
     {
         _channelRepository = channelRepository;
         _userChannelRepository = userChannelRepository;

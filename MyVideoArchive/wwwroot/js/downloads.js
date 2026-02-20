@@ -31,7 +31,7 @@
     });
 
     self.loadChannels = function () {
-        fetch('/odata/ChannelApi?$orderby=Name')
+        fetch('/odata/ChannelOData?$orderby=Name')
             .then(response => response.json())
             .then(data => {
                 self.channels(data.value || []);
@@ -64,7 +64,7 @@
             filter += ' and ChannelId eq ' + self.selectedChannelId();
         }
 
-        var url = '/odata/VideoApi?$filter=' + filter +
+        var url = '/odata/VideoOData?$filter=' + filter +
             '&$expand=Channel' +
             '&$orderby=UploadDate desc' +
             '&$skip=' + ((self.currentPage() - 1) * self.pageSize) +

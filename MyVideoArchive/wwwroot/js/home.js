@@ -7,7 +7,7 @@
     self.loadVideos = function () {
         self.loading(true);
 
-        fetch('/odata/VideoApi?$filter=DownloadedAt ne null&$orderby=DownloadedAt desc&$top=20&$expand=Channel')
+        fetch('/odata/VideoOData?$filter=DownloadedAt ne null&$orderby=DownloadedAt desc&$top=20&$expand=Channel')
             .then(response => response.json())
             .then(data => {
                 self.videos(data.value || []);

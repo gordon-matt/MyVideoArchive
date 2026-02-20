@@ -12,7 +12,7 @@
     self.sortableInstance = null;
 
     self.loadPlaylist = function () {
-        fetch('/odata/PlaylistApi(' + self.playlistId + ')?$expand=Channel')
+        fetch('/odata/PlaylistOData(' + self.playlistId + ')?$expand=Channel')
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Playlist not found');
@@ -34,7 +34,7 @@
         self.loadingVideos(true);
 
         // Load playlist
-        fetch('/odata/PlaylistApi(' + self.playlistId + ')?$expand=Channel')
+        fetch('/odata/PlaylistOData(' + self.playlistId + ')?$expand=Channel')
             .then(response => response.json())
             .then(playlistData => {
                 self.playlist(playlistData);

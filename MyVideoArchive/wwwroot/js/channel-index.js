@@ -8,7 +8,7 @@
     self.loadChannels = function () {
         self.loading(true);
 
-        fetch('/odata/ChannelApi?$orderby=Name')
+        fetch('/odata/ChannelOData?$orderby=Name')
             .then(response => response.json())
             .then(data => {
                 self.channels(data.value || []);
@@ -34,7 +34,7 @@
             SubscribedAt: new Date().toISOString()
         };
 
-        fetch('/odata/ChannelApi', {
+        fetch('/odata/ChannelOData', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -79,7 +79,7 @@
             return;
         }
 
-        fetch('/odata/ChannelApi(' + channel.Id + ')', {
+        fetch('/odata/ChannelOData(' + channel.Id + ')', {
             method: 'DELETE'
         })
             .then(response => {

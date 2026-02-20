@@ -3,9 +3,9 @@ using Extenso.Data.Entity;
 using Microsoft.AspNetCore.Authorization;
 using MyVideoArchive.Data.Entities;
 
-namespace MyVideoArchive.Controllers.Api;
+namespace MyVideoArchive.Controllers.OData;
 
-public class PlaylistApiController(IAuthorizationService authorizationService, IRepository<Playlist> repository)
+public class PlaylistODataController(IAuthorizationService authorizationService, IRepository<Playlist> repository)
     : BaseODataController<Playlist, int>(authorizationService, repository)
 {
     protected override int GetId(Playlist entity) => entity.Id;

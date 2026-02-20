@@ -7,7 +7,7 @@
     self.videoUrl = ko.observable(null);
 
     self.loadVideo = function () {
-        fetch('/odata/VideoApi(' + self.videoId + ')?$expand=Channel')
+        fetch('/odata/VideoOData(' + self.videoId + ')?$expand=Channel')
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Video not found');

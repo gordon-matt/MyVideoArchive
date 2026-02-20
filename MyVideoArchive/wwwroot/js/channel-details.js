@@ -24,7 +24,7 @@
     self.selectAllPlaylists = ko.observable(false);
 
     self.loadChannel = function () {
-        fetch('/odata/ChannelApi(' + self.channelId + ')')
+        fetch('/odata/ChannelOData(' + self.channelId + ')')
             .then(response => response.json())
             .then(data => {
                 self.channel(data);
@@ -35,7 +35,7 @@
     };
 
     self.loadVideos = function () {
-        fetch('/odata/VideoApi?$filter=ChannelId eq ' + self.channelId + ' and DownloadedAt ne null&$orderby=UploadDate desc')
+        fetch('/odata/VideoOData?$filter=ChannelId eq ' + self.channelId + ' and DownloadedAt ne null&$orderby=UploadDate desc')
             .then(response => response.json())
             .then(data => {
                 self.videos(data.value || []);

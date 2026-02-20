@@ -241,25 +241,30 @@ public class ChannelPlaylistsApiController : ControllerBase
                 return Ok(new { message = "No playlists available to subscribe", subscribedCount = 0 });
             }
 
+            var playlistIds = playlists.Select(p => p.Id).ToList();
+            var userPlaylistSubscriptions = await _userPlaylistRepository.FindAsync(new SearchOptions<UserPlaylist>
+            {
+                Query = up => up.UserId == userId && playlistIds.Contains(up.PlaylistId)
+            });
+
+            var playlistUpdates = new List<Playlist>();
+            var userPlaylistInserts = new List<UserPlaylist>();
             foreach (var playlist in playlists)
             {
                 // Update SubscribedAt if not already subscribed
                 if (playlist.SubscribedAt == DateTime.MinValue)
                 {
                     playlist.SubscribedAt = DateTime.UtcNow;
-                    await _playlistRepository.UpdateAsync(playlist);
+                    playlistUpdates.Add(playlist);
                 }
 
                 // Check if user already subscribed
-                var existingSubscription = await _userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
-                {
-                    Query = up => up.UserId == userId && up.PlaylistId == playlist.Id
-                });
+                var existingSubscription = userPlaylistSubscriptions.FirstOrDefault(up => up.PlaylistId == playlist.Id);
 
                 if (existingSubscription == null)
                 {
                     // Create user subscription
-                    await _userPlaylistRepository.InsertAsync(new UserPlaylist
+                    userPlaylistInserts.Add(new UserPlaylist
                     {
                         UserId = userId!,
                         PlaylistId = playlist.Id,
@@ -270,6 +275,9 @@ public class ChannelPlaylistsApiController : ControllerBase
                 _backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
                     job.ExecuteAsync(playlist.Id, CancellationToken.None));
             }
+
+            await _playlistRepository.UpdateAsync(playlistUpdates);
+            await _userPlaylistRepository.InsertAsync(userPlaylistInserts);
 
             return Ok(new
             {
@@ -364,6 +372,8 @@ public class ChannelPlaylistsApiController : ControllerBase
 
             var existingPlaylistIds = existingPlaylists.Select(p => p.PlaylistId).ToHashSet();
 
+            var playlistUpdates = new List<Playlist>();
+            var playlistInserts = new List<Playlist>();
             foreach (var playlistMetadata in playlistMetadataList)
             {
                 if (existingPlaylistIds.Contains(playlistMetadata.PlaylistId))
@@ -375,8 +385,7 @@ public class ChannelPlaylistsApiController : ControllerBase
                     existingPlaylist.Url = playlistMetadata.Url;
                     existingPlaylist.ThumbnailUrl = playlistMetadata.ThumbnailUrl;
                     existingPlaylist.VideoCount = playlistMetadata.VideoCount;
-
-                    await _playlistRepository.UpdateAsync(existingPlaylist);
+                    playlistUpdates.Add(existingPlaylist);
                 }
                 else
                 {
@@ -395,10 +404,14 @@ public class ChannelPlaylistsApiController : ControllerBase
                         ChannelId = channelId
                     };
 
-                    await _playlistRepository.InsertAsync(newPlaylist);
+                    playlistInserts.Add(newPlaylist);
+
                     newPlaylistsCount++;
                 }
             }
+
+            await _playlistRepository.InsertAsync(playlistInserts);
+            await _playlistRepository.UpdateAsync(playlistUpdates);
 
             return Ok(new
             {

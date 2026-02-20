@@ -3,6 +3,7 @@ using Hangfire;
 using LinqKit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Services;
 using MyVideoArchive.Services.Jobs;
@@ -174,6 +175,7 @@ public class ChannelVideosApiController : ControllerBase
                 return NotFound(new { message = "No videos found" });
             }
 
+            var videoUpdates = new List<Video>();
             int queuedCount = 0;
             foreach (var video in videos)
             {
@@ -181,13 +183,15 @@ public class ChannelVideosApiController : ControllerBase
                 if (video.DownloadedAt == null && !video.IsQueued)
                 {
                     video.IsQueued = true;
-                    await _videoRepository.UpdateAsync(video);
+                    videoUpdates.Add(video);
 
                     _backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
                         job.ExecuteAsync(video.Id, CancellationToken.None));
                     queuedCount++;
                 }
             }
+
+            await _videoRepository.UpdateAsync(videoUpdates);
 
             return Ok(new
             {
@@ -229,14 +233,17 @@ public class ChannelVideosApiController : ControllerBase
                 return Ok(new { message = "No videos available to download", queuedCount = 0 });
             }
 
+            var videoUpdates = new List<Video>();
             foreach (var video in videos)
             {
                 video.IsQueued = true;
-                await _videoRepository.UpdateAsync(video);
+                videoUpdates.Add(video);
 
                 _backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
                     job.ExecuteAsync(video.Id, CancellationToken.None));
             }
+
+            await _videoRepository.UpdateAsync(videoUpdates);
 
             return Ok(new
             {
