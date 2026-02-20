@@ -6,8 +6,5 @@ namespace MyVideoArchive.Controllers;
 public class DownloadsController : Controller
 {
     [Route("")]
-    public IActionResult Index()
-    {
-        return View();
-    }
+    public IActionResult Index() => View();
 }

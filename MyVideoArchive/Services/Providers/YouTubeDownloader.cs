@@ -1,5 +1,5 @@
-using MyVideoArchive.Services.Abstractions;
 using System.Text.RegularExpressions;
+using MyVideoArchive.Services.Abstractions;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Options;
 
@@ -45,7 +45,7 @@ public partial class YouTubeDownloader : IVideoDownloader
             }
 
             // Get video quality from configuration
-            var videoQuality = _configuration.GetValue<string>("VideoDownload:VideoQuality") 
+            string videoQuality = _configuration.GetValue<string>("VideoDownload:VideoQuality")
                 ?? "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
 
             // Configure download options
@@ -68,13 +68,13 @@ public partial class YouTubeDownloader : IVideoDownloader
 
             if (!result.Success)
             {
-                var errorMessage = string.Join(", ", result.ErrorOutput);
+                string errorMessage = string.Join(", ", result.ErrorOutput);
                 _logger.LogError("Failed to download video from {Url}: {Error}", videoUrl, errorMessage);
                 throw new InvalidOperationException($"Failed to download video: {errorMessage}");
             }
 
             // Find the downloaded file
-            var downloadedFile = result.Data;
+            string downloadedFile = result.Data;
             if (string.IsNullOrEmpty(downloadedFile) || !File.Exists(downloadedFile))
             {
                 throw new InvalidOperationException("Downloaded file not found");

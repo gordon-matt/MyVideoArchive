@@ -32,7 +32,7 @@ public class VideoMetadataProviderFactory
 
     public IVideoMetadataProvider? GetProviderByPlatform(string platform)
     {
-        var provider = _providers.FirstOrDefault(p => 
+        var provider = _providers.FirstOrDefault(p =>
             p.PlatformName.Equals(platform, StringComparison.OrdinalIgnoreCase));
 
         if (provider == null)

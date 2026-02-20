@@ -44,7 +44,7 @@ public class UserPlaylistMap : IEntityTypeConfiguration<UserPlaylist>
             .WithMany()
             .HasForeignKey(up => up.PlaylistId)
             .OnDelete(DeleteBehavior.ClientNoAction);
-        
+
         // Default value for SubscribedAt
         builder.Property(up => up.SubscribedAt)
             .HasDefaultValueSql("GETUTCDATE()");

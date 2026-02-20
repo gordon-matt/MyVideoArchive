@@ -9,12 +9,12 @@ public interface IVideoDownloader
     /// Gets the platform name (e.g., "YouTube", "Vimeo", etc.)
     /// </summary>
     string PlatformName { get; }
-    
+
     /// <summary>
     /// Determines if this downloader can handle the given URL
     /// </summary>
     bool CanHandle(string url);
-    
+
     /// <summary>
     /// Downloads a video from the given URL to the specified output path
     /// </summary>
@@ -24,8 +24,8 @@ public interface IVideoDownloader
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The full path to the downloaded file</returns>
     Task<string> DownloadVideoAsync(
-        string videoUrl, 
-        string outputPath, 
-        IProgress<double>? progress = null, 
+        string videoUrl,
+        string outputPath,
+        IProgress<double>? progress = null,
         CancellationToken cancellationToken = default);
 }

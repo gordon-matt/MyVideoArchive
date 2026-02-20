@@ -1,6 +1,6 @@
+using System.Text.RegularExpressions;
 using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Services.Abstractions;
-using System.Text.RegularExpressions;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Metadata;
 using YoutubeDLSharp.Options;
@@ -26,10 +26,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         _ytdl = youtubeDL;
     }
 
-    public bool CanHandle(string url)
-    {
-        return YouTubeUrlRegex().IsMatch(url);
-    }
+    public bool CanHandle(string url) => YouTubeUrlRegex().IsMatch(url);
 
     public async Task<ChannelMetadata?> GetChannelMetadataAsync(string channelUrl, CancellationToken cancellationToken = default)
     {
@@ -154,7 +151,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
             _logger.LogInformation("Fetching channel videos for: {Url}", channelUrl);
 
             // Append /videos to ensure we get all videos
-            var videosUrl = channelUrl.TrimEnd('/') + "/videos";
+            string videosUrl = channelUrl.TrimEnd('/') + "/videos";
 
             var options = new OptionSet
             {
@@ -245,7 +242,9 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
     private static string? GetBestThumbnail(ThumbnailData[]? thumbnails)
     {
         if (thumbnails == null || thumbnails.Length == 0)
+        {
             return null;
+        }
 
         // Prefer higher resolution thumbnails
         var best = thumbnails
@@ -256,10 +255,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         return best?.Url;
     }
 
-    private static DateTime? ParseUploadDate(DateTime? uploadDate)
-    {
-        return uploadDate;
-    }
+    private static DateTime? ParseUploadDate(DateTime? uploadDate) => uploadDate;
 
     public async Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default)
     {
@@ -269,7 +265,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
 
             // Use yt-dlp to get channel playlists
             // The trick is to use the channel's playlists URL
-            var playlistsUrl = channelUrl.TrimEnd('/') + "/playlists";
+            string playlistsUrl = channelUrl.TrimEnd('/') + "/playlists";
 
             var options = new OptionSet
             {

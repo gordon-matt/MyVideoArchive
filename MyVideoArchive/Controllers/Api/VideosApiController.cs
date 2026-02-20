@@ -45,10 +45,10 @@ public class VideosApiController : ControllerBase
             }
 
             var fileStream = new FileStream(video.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var fileExtension = Path.GetExtension(video.FilePath).ToLowerInvariant();
-            
+            string fileExtension = Path.GetExtension(video.FilePath).ToLowerInvariant();
+
             // Determine content type based on file extension
-            var contentType = fileExtension switch
+            string contentType = fileExtension switch
             {
                 ".mp4" => "video/mp4",
                 ".webm" => "video/webm",

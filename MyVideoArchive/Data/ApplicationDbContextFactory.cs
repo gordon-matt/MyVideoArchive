@@ -12,8 +12,8 @@ public class ApplicationDbContextFactory(IConfiguration configuration) : IDbCont
             if (field is null)
             {
                 var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-                var connectionString = configuration.GetConnectionString("DefaultConnection");
-                
+                string? connectionString = configuration.GetConnectionString("DefaultConnection");
+
                 if (string.IsNullOrEmpty(connectionString))
                 {
                     optionsBuilder.UseInMemoryDatabase("MyVideoArchiveDb");
@@ -22,7 +22,7 @@ public class ApplicationDbContextFactory(IConfiguration configuration) : IDbCont
                 {
                     optionsBuilder.UseSqlServer(connectionString);
                 }
-                
+
                 field = optionsBuilder.Options;
             }
             return field;

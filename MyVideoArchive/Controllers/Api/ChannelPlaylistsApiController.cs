@@ -45,25 +45,25 @@ public class ChannelPlaylistsApiController : ControllerBase
         _userContext = userContext;
         _logger = logger;
     }
-    
+
     private async Task<bool> UserHasAccessToChannel(int channelId)
     {
         if (_userContext.IsAdministrator())
         {
             return true;
         }
-        
-        var userId = _userContext.GetCurrentUserId();
+
+        string? userId = _userContext.GetCurrentUserId();
         if (string.IsNullOrEmpty(userId))
         {
             return false;
         }
-        
+
         var userChannel = await _userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
         {
             Query = uc => uc.UserId == userId && uc.ChannelId == channelId
         });
-        
+
         return userChannel != null;
     }
 
@@ -82,7 +82,7 @@ public class ChannelPlaylistsApiController : ControllerBase
             {
                 return Forbid();
             }
-            
+
             var channel = await _channelRepository.FindOneAsync(channelId);
             if (channel == null)
             {
@@ -151,7 +151,7 @@ public class ChannelPlaylistsApiController : ControllerBase
             {
                 return Forbid();
             }
-            
+
             if (request.PlaylistIds == null || request.PlaylistIds.Count == 0)
             {
                 return BadRequest(new { message = "No playlist IDs provided" });
@@ -162,11 +162,11 @@ public class ChannelPlaylistsApiController : ControllerBase
             {
                 return NotFound(new { message = "Channel not found" });
             }
-            
-            var userId = _userContext.GetCurrentUserId();
 
-            var subscribedCount = 0;
-            foreach (var playlistId in request.PlaylistIds)
+            string? userId = _userContext.GetCurrentUserId();
+
+            int subscribedCount = 0;
+            foreach (int playlistId in request.PlaylistIds)
             {
                 var playlist = await _playlistRepository.FindOneAsync(playlistId);
                 if (playlist != null && playlist.ChannelId == channelId)
@@ -177,13 +177,13 @@ public class ChannelPlaylistsApiController : ControllerBase
                         playlist.SubscribedAt = DateTime.UtcNow;
                         await _playlistRepository.UpdateAsync(playlist);
                     }
-                    
+
                     // Check if user already subscribed
                     var existingSubscription = await _userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
                     {
                         Query = up => up.UserId == userId && up.PlaylistId == playlistId
                     });
-                    
+
                     if (existingSubscription == null)
                     {
                         // Create user subscription
@@ -194,7 +194,7 @@ public class ChannelPlaylistsApiController : ControllerBase
                             SubscribedAt = DateTime.UtcNow
                         });
                     }
-                    
+
                     // Queue sync job for the playlist
                     _backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
                         job.ExecuteAsync(playlist.Id, CancellationToken.None));
@@ -228,9 +228,9 @@ public class ChannelPlaylistsApiController : ControllerBase
             {
                 return Forbid();
             }
-            
-            var userId = _userContext.GetCurrentUserId();
-            
+
+            string? userId = _userContext.GetCurrentUserId();
+
             var playlists = await _playlistRepository.FindAsync(new SearchOptions<Playlist>
             {
                 Query = p => p.ChannelId == channelId && !p.IsIgnored
@@ -249,13 +249,13 @@ public class ChannelPlaylistsApiController : ControllerBase
                     playlist.SubscribedAt = DateTime.UtcNow;
                     await _playlistRepository.UpdateAsync(playlist);
                 }
-                
+
                 // Check if user already subscribed
                 var existingSubscription = await _userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
                 {
                     Query = up => up.UserId == userId && up.PlaylistId == playlist.Id
                 });
-                
+
                 if (existingSubscription == null)
                 {
                     // Create user subscription
@@ -266,7 +266,7 @@ public class ChannelPlaylistsApiController : ControllerBase
                         SubscribedAt = DateTime.UtcNow
                     });
                 }
-                
+
                 _backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
                     job.ExecuteAsync(playlist.Id, CancellationToken.None));
             }
@@ -297,7 +297,7 @@ public class ChannelPlaylistsApiController : ControllerBase
             {
                 return Forbid();
             }
-            
+
             var playlist = await _playlistRepository.FindOneAsync(new SearchOptions<Playlist>
             {
                 Query = p => p.Id == playlistId && p.ChannelId == channelId
@@ -337,7 +337,7 @@ public class ChannelPlaylistsApiController : ControllerBase
             {
                 return Forbid();
             }
-            
+
             var channel = await _channelRepository.FindOneAsync(channelId);
             if (channel == null)
             {
@@ -353,10 +353,10 @@ public class ChannelPlaylistsApiController : ControllerBase
 
             // Fetch playlists from YouTube
             var playlistMetadataList = await provider.GetChannelPlaylistsAsync(channel.Url);
-            
+
             _logger.LogInformation("Found {Count} playlists for channel {ChannelId}", playlistMetadataList.Count, channelId);
 
-            var newPlaylistsCount = 0;
+            int newPlaylistsCount = 0;
             var existingPlaylists = await _playlistRepository.FindAsync(new SearchOptions<Playlist>
             {
                 Query = p => p.ChannelId == channelId

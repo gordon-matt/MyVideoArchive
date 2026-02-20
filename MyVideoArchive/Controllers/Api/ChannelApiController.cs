@@ -1,4 +1,3 @@
-using Extenso.AspNetCore.OData;
 using Extenso.Data.Entity;
 using Hangfire;
 using Microsoft.AspNetCore.Authorization;
@@ -39,13 +38,13 @@ public class ChannelApiController : ODataController
     {
         try
         {
-            var userId = _userContext.GetCurrentUserId();
+            string? userId = _userContext.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
-            var isAdmin = _userContext.IsAdministrator();
+            bool isAdmin = _userContext.IsAdministrator();
 
             if (isAdmin)
             {
@@ -82,13 +81,13 @@ public class ChannelApiController : ODataController
     {
         try
         {
-            var userId = _userContext.GetCurrentUserId();
+            string? userId = _userContext.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
-            var isAdmin = _userContext.IsAdministrator();
+            bool isAdmin = _userContext.IsAdministrator();
             var channel = await _channelRepository.FindOneAsync(key);
 
             if (channel == null)
@@ -124,7 +123,7 @@ public class ChannelApiController : ODataController
     {
         try
         {
-            var userId = _userContext.GetCurrentUserId();
+            string? userId = _userContext.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -197,13 +196,13 @@ public class ChannelApiController : ODataController
     {
         try
         {
-            var userId = _userContext.GetCurrentUserId();
+            string? userId = _userContext.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
-            var isAdmin = _userContext.IsAdministrator();
+            bool isAdmin = _userContext.IsAdministrator();
 
             // Find the user's subscription
             var userChannel = await _userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>

@@ -2,7 +2,6 @@ using System.Runtime.Serialization;
 using Extenso.Data.Entity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using MyVideoArchive.Data;
 
 namespace MyVideoArchive.Data.Entities;
 
@@ -12,20 +11,20 @@ namespace MyVideoArchive.Data.Entities;
 public class UserVideoOrder : IEntity
 {
     public required string UserId { get; set; }
-    
+
     public int PlaylistId { get; set; }
-    
+
     public int VideoId { get; set; }
-    
+
     /// <summary>
     /// Custom order position set by the user (1-based)
     /// </summary>
     public int CustomOrder { get; set; }
 
     public ApplicationUser User { get; set; } = null!;
-    
+
     public Playlist Playlist { get; set; } = null!;
-    
+
     public Video Video { get; set; } = null!;
 
     [IgnoreDataMember]
@@ -51,7 +50,7 @@ public class UserVideoOrderMap : IEntityTypeConfiguration<UserVideoOrder>
             .WithMany()
             .HasForeignKey(uvo => uvo.PlaylistId)
             .OnDelete(DeleteBehavior.ClientNoAction);
-            
+
         builder.HasOne(uvo => uvo.Video)
             .WithMany()
             .HasForeignKey(uvo => uvo.VideoId)

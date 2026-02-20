@@ -38,13 +38,13 @@ public class YoutubeDLInitializer
             _logger.LogInformation("Initializing YoutubeDL...");
 
             // Get paths from configuration or use defaults
-            var ytDlpPath = _configuration.GetValue<string>("YoutubeDL:ExecutablePath") 
+            string ytDlpPath = _configuration.GetValue<string>("YoutubeDL:ExecutablePath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "yt-dlp.exe");
-            
-            var ffmpegPath = _configuration.GetValue<string>("YoutubeDL:FFmpegPath") 
+
+            string ffmpegPath = _configuration.GetValue<string>("YoutubeDL:FFmpegPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
 
-            var downloadPath = _configuration.GetValue<string>("VideoDownload:OutputPath") 
+            string downloadPath = _configuration.GetValue<string>("VideoDownload:OutputPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
             // Download yt-dlp and ffmpeg if not already present

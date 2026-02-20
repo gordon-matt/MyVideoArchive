@@ -20,13 +20,7 @@ public class UserContextService : IUserContextService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public string? GetCurrentUserId()
-    {
-        return _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-    }
+    public string? GetCurrentUserId() => _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    public bool IsAdministrator()
-    {
-        return _httpContextAccessor.HttpContext?.User?.IsInRole("Administrator") ?? false;
-    }
+    public bool IsAdministrator() => _httpContextAccessor.HttpContext?.User?.IsInRole("Administrator") ?? false;
 }

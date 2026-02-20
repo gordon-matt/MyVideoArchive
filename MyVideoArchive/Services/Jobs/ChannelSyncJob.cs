@@ -77,7 +77,7 @@ public class ChannelSyncJob
 
             // Process each video
             var existingVideoIds = channel.Videos.Select(v => v.VideoId).ToHashSet();
-            var newVideosCount = 0;
+            int newVideosCount = 0;
 
             foreach (var videoMetadata in videoMetadataList)
             {

@@ -32,7 +32,7 @@ public class VideoDownloaderFactory
 
     public IVideoDownloader? GetDownloaderByPlatform(string platform)
     {
-        var downloader = _downloaders.FirstOrDefault(d => 
+        var downloader = _downloaders.FirstOrDefault(d =>
             d.PlatformName.Equals(platform, StringComparison.OrdinalIgnoreCase));
 
         if (downloader == null)

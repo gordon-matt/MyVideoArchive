@@ -2,7 +2,6 @@ using System.Runtime.Serialization;
 using Extenso.Data.Entity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using MyVideoArchive.Data;
 
 namespace MyVideoArchive.Data.Entities;
 
@@ -45,7 +44,7 @@ public class UserChannelMap : IEntityTypeConfiguration<UserChannel>
             .WithMany()
             .HasForeignKey(uc => uc.ChannelId)
             .OnDelete(DeleteBehavior.ClientNoAction);
-        
+
         // Default value for SubscribedAt
         builder.Property(uc => uc.SubscribedAt)
             .HasDefaultValueSql("GETUTCDATE()");

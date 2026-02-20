@@ -14,7 +14,6 @@ using MyVideoArchive.Services;
 using MyVideoArchive.Services.Abstractions;
 using MyVideoArchive.Services.Jobs;
 using MyVideoArchive.Services.Providers;
-using YoutubeDLSharp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,7 +21,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 
 // Add services to the container.
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 if (string.IsNullOrEmpty(connectionString))
 {
@@ -37,10 +36,7 @@ else
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
-{
-    options.SignIn.RequireConfirmedAccount = true;
-})
+builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options => options.SignIn.RequireConfirmedAccount = true)
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders()
 .AddDefaultUI();

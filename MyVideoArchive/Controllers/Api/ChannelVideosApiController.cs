@@ -39,25 +39,25 @@ public class ChannelVideosApiController : ControllerBase
         _userContext = userContext;
         _logger = logger;
     }
-    
+
     private async Task<bool> UserHasAccessToChannel(int channelId)
     {
         if (_userContext.IsAdministrator())
         {
             return true;
         }
-        
-        var userId = _userContext.GetCurrentUserId();
+
+        string? userId = _userContext.GetCurrentUserId();
         if (string.IsNullOrEmpty(userId))
         {
             return false;
         }
-        
+
         var userChannel = await _userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
         {
             Query = uc => uc.UserId == userId && uc.ChannelId == channelId
         });
-        
+
         return userChannel != null;
     }
 
@@ -78,7 +78,7 @@ public class ChannelVideosApiController : ControllerBase
             {
                 return Forbid();
             }
-            
+
             var channel = await _channelRepository.FindOneAsync(channelId);
             if (channel == null)
             {
@@ -106,7 +106,7 @@ public class ChannelVideosApiController : ControllerBase
             };
 
             // Get total count for pagination
-            var totalCount = await _videoRepository.CountAsync(options);
+            int totalCount = await _videoRepository.CountAsync(options);
 
             // Apply pagination
             var videos = await _videoRepository.FindAsync(options, v => new
@@ -158,7 +158,7 @@ public class ChannelVideosApiController : ControllerBase
             {
                 return Forbid();
             }
-            
+
             if (request.VideoIds == null || request.VideoIds.Count == 0)
             {
                 return BadRequest(new { message = "No video IDs provided" });
@@ -174,7 +174,7 @@ public class ChannelVideosApiController : ControllerBase
                 return NotFound(new { message = "No videos found" });
             }
 
-            var queuedCount = 0;
+            int queuedCount = 0;
             foreach (var video in videos)
             {
                 // Only queue if not already downloaded and not already queued
@@ -182,7 +182,7 @@ public class ChannelVideosApiController : ControllerBase
                 {
                     video.IsQueued = true;
                     await _videoRepository.UpdateAsync(video);
-                    
+
                     _backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
                         job.ExecuteAsync(video.Id, CancellationToken.None));
                     queuedCount++;
@@ -215,11 +215,11 @@ public class ChannelVideosApiController : ControllerBase
             {
                 return Forbid();
             }
-            
+
             var videos = await _videoRepository.FindAsync(new SearchOptions<Video>
             {
-                Query = v => v.ChannelId == channelId 
-                    && v.DownloadedAt == null 
+                Query = v => v.ChannelId == channelId
+                    && v.DownloadedAt == null
                     && !v.IsIgnored
                     && !v.IsQueued
             });
@@ -233,7 +233,7 @@ public class ChannelVideosApiController : ControllerBase
             {
                 video.IsQueued = true;
                 await _videoRepository.UpdateAsync(video);
-                
+
                 _backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
                     job.ExecuteAsync(video.Id, CancellationToken.None));
             }
@@ -264,7 +264,7 @@ public class ChannelVideosApiController : ControllerBase
             {
                 return Forbid();
             }
-            
+
             var video = await _videoRepository.FindOneAsync(new SearchOptions<Video>
             {
                 Query = v => v.Id == videoId && v.ChannelId == channelId

@@ -6,10 +6,7 @@ namespace MyVideoArchive.Controllers;
 public class ChannelsController : Controller
 {
     [Route("")]
-    public IActionResult Index()
-    {
-        return View();
-    }
+    public IActionResult Index() => View();
 
     [Route("{id}")]
     public IActionResult Details(int id)

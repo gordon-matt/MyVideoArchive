@@ -28,7 +28,7 @@ public static class DbInitializer
     {
         string[] roleNames = { "Administrator", "User" };
 
-        foreach (var roleName in roleNames)
+        foreach (string roleName in roleNames)
         {
             if (!await roleManager.RoleExistsAsync(roleName))
             {
