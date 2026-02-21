@@ -29,7 +29,7 @@ public class PlaylistVideoMap : IEntityTypeConfiguration<PlaylistVideo>
 {
     public void Configure(EntityTypeBuilder<PlaylistVideo> builder)
     {
-        builder.ToTable("PlaylistVideos");
+        builder.ToTable("PlaylistVideos", "app");
 
         // Composite primary key
         builder.HasKey(vp => new { vp.PlaylistId, vp.VideoId });

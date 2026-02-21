@@ -35,7 +35,7 @@ public class PlaylistMap : IEntityTypeConfiguration<Playlist>
 {
     public void Configure(EntityTypeBuilder<Playlist> builder)
     {
-        builder.ToTable("Playlists");
+        builder.ToTable("Playlists", "app");
         builder.HasKey(m => m.Id);
         builder.Property(m => m.PlaylistId).IsRequired().HasMaxLength(128);
         builder.Property(m => m.Name).IsRequired().HasMaxLength(256).IsUnicode(true);

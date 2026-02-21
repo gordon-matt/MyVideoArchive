@@ -45,7 +45,7 @@ public class VideoMap : IEntityTypeConfiguration<Video>
 {
     public void Configure(EntityTypeBuilder<Video> builder)
     {
-        builder.ToTable("Videos");
+        builder.ToTable("Videos", "app");
         builder.HasKey(m => m.Id);
         builder.Property(m => m.VideoId).IsRequired().HasMaxLength(128);
         builder.Property(m => m.Title).IsRequired().HasMaxLength(512).IsUnicode(true);

@@ -27,7 +27,7 @@ public class UserChannelMap : IEntityTypeConfiguration<UserChannel>
 {
     public void Configure(EntityTypeBuilder<UserChannel> builder)
     {
-        builder.ToTable("UserChannels");
+        builder.ToTable("UserChannels", "app");
 
         // Composite primary key
         builder.HasKey(uc => new { uc.UserId, uc.ChannelId });
@@ -45,6 +45,6 @@ public class UserChannelMap : IEntityTypeConfiguration<UserChannel>
 
         // Default value for SubscribedAt
         builder.Property(uc => uc.SubscribedAt)
-            .HasDefaultValueSql("GETUTCDATE()");
+            .HasDefaultValueSql("NOW()");
     }
 }

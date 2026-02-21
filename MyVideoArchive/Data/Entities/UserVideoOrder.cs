@@ -33,7 +33,7 @@ public class UserVideoOrderMap : IEntityTypeConfiguration<UserVideoOrder>
 {
     public void Configure(EntityTypeBuilder<UserVideoOrder> builder)
     {
-        builder.ToTable("UserVideoOrders");
+        builder.ToTable("UserVideoOrders", "app");
 
         // Composite primary key
         builder.HasKey(uvo => new { uvo.UserId, uvo.PlaylistId, uvo.VideoId });

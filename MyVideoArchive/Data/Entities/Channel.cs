@@ -33,7 +33,7 @@ public class ChannelMap : IEntityTypeConfiguration<Channel>
 {
     public void Configure(EntityTypeBuilder<Channel> builder)
     {
-        builder.ToTable("Channels");
+        builder.ToTable("Channels", "app");
         builder.HasKey(m => m.Id);
         builder.Property(m => m.ChannelId).IsRequired().HasMaxLength(128);
         builder.Property(m => m.Name).IsRequired().HasMaxLength(256).IsUnicode(true);

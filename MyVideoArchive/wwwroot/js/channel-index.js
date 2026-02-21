@@ -32,6 +32,7 @@ class ChannelsViewModel {
         var channelId = this.extractChannelId(url);
 
         var newChannel = {
+            Platform: 'YouTube',
             ChannelId: channelId,
             Name: 'Loading...',
             Url: url,

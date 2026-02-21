@@ -1,6 +1,6 @@
 namespace MyVideoArchive.Data;
 
-public class ApplicationDbContextFactory(IConfiguration configuration) : IDbContextFactory
+public class ApplicationDbContextFactory(ISecretsManager secretsManager) : IDbContextFactory
 {
     private DbContextOptions<ApplicationDbContext> Options
     {
@@ -9,7 +9,7 @@ public class ApplicationDbContextFactory(IConfiguration configuration) : IDbCont
             if (field is null)
             {
                 var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-                string? connectionString = configuration.GetConnectionString("DefaultConnection");
+                string? connectionString = secretsManager.GetSecret("DefaultConnection");
 
                 if (string.IsNullOrEmpty(connectionString))
                 {
@@ -17,7 +17,7 @@ public class ApplicationDbContextFactory(IConfiguration configuration) : IDbCont
                 }
                 else
                 {
-                    optionsBuilder.UseSqlServer(connectionString);
+                    optionsBuilder.UseNpgsql(connectionString);
                 }
 
                 field = optionsBuilder.Options;
@@ -38,7 +38,7 @@ public class ApplicationDbContextFactory(IConfiguration configuration) : IDbCont
         }
         else
         {
-            optionsBuilder.UseSqlServer(connectionString);
+            optionsBuilder.UseNpgsql(connectionString);
         }
 
         return new ApplicationDbContext(optionsBuilder.Options);

@@ -2,7 +2,7 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Extenso.AspNetCore.OData;
 using Hangfire;
-using Hangfire.SqlServer;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OData;
 using MyVideoArchive.Data;
@@ -16,7 +16,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 
 // Add services to the container.
-string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var secretsManager = new SecretsManager(builder.Configuration.GetValue<string>("SecretsPath")!);
+string? connectionString = secretsManager.GetSecret("DefaultConnection");
 
 if (string.IsNullOrEmpty(connectionString))
 {
@@ -26,7 +27,7 @@ if (string.IsNullOrEmpty(connectionString))
 else
 {
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlServer(connectionString));
+        options.UseNpgsql(connectionString));
 }
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -54,20 +55,20 @@ builder.Services.AddEntityFrameworkRepository();
 // Configure Hangfire (requires SQL Server)
 if (string.IsNullOrEmpty(connectionString))
 {
-    throw new InvalidOperationException("Hangfire requires a SQL Server connection string. Please configure 'DefaultConnection' in appsettings.json.");
+    throw new InvalidOperationException("Hangfire requires a SQL Server connection string. Please configure 'DefaultConnection' in your secrets file.");
 }
 
 builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
-    .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+    .UsePostgreSqlStorage(options =>
     {
-        CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-        SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-        QueuePollInterval = TimeSpan.Zero,
-        UseRecommendedIsolationLevel = true,
-        DisableGlobalLocks = true
+        options.UseNpgsqlConnection(connectionString);
+    },
+    new PostgreSqlStorageOptions
+    {
+        QueuePollInterval = TimeSpan.FromSeconds(15)
     }));
 
 builder.Services.AddHangfireServer();
@@ -102,6 +103,8 @@ builder.Services.AddScoped<IUserContextService, UserContextService>();
 // Configure Autofac
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 {
+    containerBuilder.RegisterType<SecretsManager>().As<ISecretsManager>().SingleInstance();
+
     containerBuilder.RegisterType<ApplicationDbContextFactory>().As<IDbContextFactory>().SingleInstance();
 
     containerBuilder.RegisterGeneric(typeof(EntityFrameworkRepository<>))

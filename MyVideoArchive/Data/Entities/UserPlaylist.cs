@@ -27,7 +27,7 @@ public class UserPlaylistMap : IEntityTypeConfiguration<UserPlaylist>
 {
     public void Configure(EntityTypeBuilder<UserPlaylist> builder)
     {
-        builder.ToTable("UserPlaylists");
+        builder.ToTable("UserPlaylists", "app");
 
         // Composite primary key
         builder.HasKey(up => new { up.UserId, up.PlaylistId });
@@ -45,6 +45,6 @@ public class UserPlaylistMap : IEntityTypeConfiguration<UserPlaylist>
 
         // Default value for SubscribedAt
         builder.Property(up => up.SubscribedAt)
-            .HasDefaultValueSql("GETUTCDATE()");
+            .HasDefaultValueSql("NOW()");
     }
 }
