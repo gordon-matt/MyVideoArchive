@@ -36,12 +36,12 @@ public class PlaylistVideoMap : IEntityTypeConfiguration<PlaylistVideo>
 
         // Relationships
         builder.HasOne(vp => vp.Playlist)
-            .WithMany(vp => vp.VideoPlaylists)
+            .WithMany(vp => vp.PlaylistVideos)
             .HasForeignKey(vp => vp.PlaylistId)
             .OnDelete(DeleteBehavior.ClientNoAction);
 
         builder.HasOne(vp => vp.Video)
-            .WithMany(vp => vp.VideoPlaylists)
+            .WithMany(vp => vp.PlaylistVideos)
             .HasForeignKey(vp => vp.VideoId)
             .OnDelete(DeleteBehavior.ClientNoAction);
     }

@@ -47,7 +47,7 @@ public class PlaylistSyncJob
                 Query = x => x.Id == playlistId,
 
                 Include = query => query
-                    .Include(x => x.VideoPlaylists)
+                    .Include(x => x.PlaylistVideos)
                     .Include(x => x.Channel)
             });
 
@@ -85,13 +85,13 @@ public class PlaylistSyncJob
                 logger.LogInformation("Found {Count} videos for playlist {PlaylistId}", videoMetadataList.Count, playlistId);
 
                 // Process each video
-                var existingPlaylistVideoIds = playlist.VideoPlaylists.Select(vp => vp.VideoId).ToHashSet();
+                var existingPlaylistVideoIds = playlist.PlaylistVideos.Select(vp => vp.VideoId).ToHashSet();
                 int newVideosCount = 0;
                 int videoOrder = 0; // Track the order of videos as they appear in the playlist
 
                 var videoUpdates = new List<Video>();
                 var videoInserts = new List<Video>();
-                var videoPlaylistInserts = new List<PlaylistVideo>();
+                var playlistVideoInserts = new List<PlaylistVideo>();
 
                 foreach (var videoMetadata in videoMetadataList)
                 {
@@ -149,7 +149,7 @@ public class PlaylistSyncJob
                     // Associate video with this playlist if not already associated
                     if (!existingPlaylistVideoIds.Contains(videoId))
                     {
-                        var videoPlaylist = new PlaylistVideo
+                        var playlistVideo = new PlaylistVideo
                         {
                             PlaylistId = playlistId,
                             VideoId = videoId,
@@ -158,14 +158,14 @@ public class PlaylistSyncJob
 
                         if (await playlistVideoRepository.CountAsync(x => x.PlaylistId == playlistId && x.VideoId == videoId) == 0)
                         {
-                            videoPlaylistInserts.Add(videoPlaylist);
+                            playlistVideoInserts.Add(playlistVideo);
                         }
                     }
                 }
 
                 await videoRepository.InsertAsync(videoInserts, ContextOptions.ForCancellationToken(cancellationToken));
                 await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
-                await playlistVideoRepository.InsertAsync(videoPlaylistInserts, ContextOptions.ForCancellationToken(cancellationToken));
+                await playlistVideoRepository.InsertAsync(playlistVideoInserts, ContextOptions.ForCancellationToken(cancellationToken));
             }
 
             // Update last checked timestamp

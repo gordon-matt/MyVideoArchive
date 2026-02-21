@@ -190,7 +190,7 @@ public class PlaylistOperationsApiController : ControllerBase
                 return Unauthorized();
             }
 
-            // Get all VideoPlaylist records to get original order
+            // Get all PlaylistVideo records to get original order
             IEnumerable<PlaylistVideo> playlistVideos = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
             {
                 Query = x => x.PlaylistId == playlistId,
