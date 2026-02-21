@@ -1,8 +1,12 @@
-﻿class ChannelsViewModel {
+﻿import { formatDate } from './utils.js';
+
+class ChannelsViewModel {
     constructor() {
         this.channels = ko.observableArray([]);
         this.loading = ko.observable(true);
         this.newChannelUrl = ko.observable('');
+
+        this.formatDate = formatDate;
     }
 
     loadChannels = async () => {
@@ -71,15 +75,15 @@
     };
 
     viewChannel = (channel) => {
-        window.location.href = '/channels/' + channel.Id;
+        window.location.href = `/channels/${channel.Id}`;
     };
 
     deleteChannel = async (channel) => {
-        if (!confirm('Are you sure you want to unsubscribe from ' + channel.Name + '?')) {
+        if (!confirm(`Are you sure you want to unsubscribe from ${channel.Name}?`)) {
             return;
         }
 
-        await fetch('/odata/ChannelOData(' + channel.Id + ')', {
+        await fetch(`/odata/ChannelOData(${channel.Id})`, {
             method: 'DELETE'
         })
         .then(response => {
@@ -93,12 +97,6 @@
             console.error('Error deleting channel:', error);
             alert('Failed to delete channel.');
         });
-    };
-
-    formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        var date = new Date(dateString);
-        return date.toLocaleDateString();
     };
 }
 

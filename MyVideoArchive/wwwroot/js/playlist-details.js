@@ -1,4 +1,6 @@
-﻿class PlaylistDetailsViewModel {
+﻿import { formatDate, formatDuration, formatNumber } from './utils.js';
+
+class PlaylistDetailsViewModel {
     constructor(playlistId) {
         this.playlistId = playlistId;
         this.playlist = ko.observable(null);
@@ -9,11 +11,15 @@
         this.loadingVideos = ko.observable(false);
         this.useCustomOrder = ko.observable(false);
         this.sortableInstance = null;
+
+        this.formatDate = formatDate;
+        this.formatDuration = formatDuration;
+        this.formatNumber = formatNumber;
     }
 
     loadPlaylist = async () => {
         try {
-            const response = await fetch('/odata/PlaylistOData(' + this.playlistId + ')?$expand=Channel');
+            const response = await fetch(`/odata/PlaylistOData(${this.playlistId})?$expand=Channel`);
 
             if (!response.ok) {
                 throw new Error('Playlist not found');
@@ -33,7 +39,7 @@
         this.loadingVideos(true);
 
         // Load playlist
-        await fetch('/odata/PlaylistOData(' + this.playlistId + ')?$expand=Channel')
+        await fetch(`/odata/PlaylistOData(${this.playlistId})?$expand=Channel`)
             .then(response => response.json())
             .then(playlistData => {
                 this.playlist(playlistData);
@@ -74,7 +80,7 @@
         }
 
         this.currentVideo(video);
-        this.currentVideoUrl('/api/videos/' + video.id + '/stream');
+        this.currentVideoUrl(`/api/videos/${video.id}/stream`);
 
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -88,12 +94,12 @@
             return;
         }
 
-        if (!confirm('Queue "' + video.title + '" for download?')) {
+        if (!confirm(`Queue "${video.title}" for download?`)) {
             return;
         }
 
         try {
-            const response = await fetch('/api/channels/' + video.channelId + '/videos/download', {
+            const response = await fetch(`/api/channels/${video.channelId}/videos/download`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ videoIds: [video.id] })
@@ -127,7 +133,7 @@
 
     enableCustomOrder = async () => {
         try {
-            const response = await fetch('/api/playlists/' + this.playlistId + '/order-setting');
+            const response = await fetch(`/api/playlists/${this.playlistId}/order-setting`);
 
             const data = await response.json();
 
@@ -200,7 +206,7 @@
         }
 
         try {
-            const response = await fetch('/api/playlists/' + this.playlistId + '/reorder', {
+            const response = await fetch(`/api/playlists/${this.playlistId}/reorder`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -230,50 +236,6 @@
             console.error('Error saving order:', error);
             alert('Error saving custom order: ' + error.message);
         }
-    };
-
-    formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        var date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-    };
-
-    formatDuration = (duration) => {
-        if (!duration) return 'N/A';
-
-        // Parse ISO 8601 duration format (e.g., PT10M13S)
-        if (duration.startsWith('PT')) {
-            var hours = 0, minutes = 0, seconds = 0;
-
-            var match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-            if (match) {
-                hours = parseInt(match[1]) || 0;
-                minutes = parseInt(match[2]) || 0;
-                seconds = parseInt(match[3]) || 0;
-            }
-
-            if (hours > 0) {
-                return hours + ':' + minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
-            } else {
-                return minutes + ':' + seconds.toString().padStart(2, '0');
-            }
-        }
-
-        // If it's already in HH:MM:SS format
-        if (duration.includes(':')) {
-            return duration.substring(0, 8);
-        }
-
-        return duration;
-    };
-
-    formatNumber = (num) => {
-        if (!num) return '0';
-        return num.toLocaleString();
     };
 }
 

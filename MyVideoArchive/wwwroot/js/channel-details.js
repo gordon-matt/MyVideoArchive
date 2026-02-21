@@ -1,4 +1,6 @@
-﻿class ChannelDetailsViewModel {
+﻿import { formatDate, formatDuration } from './utils.js';
+
+class ChannelDetailsViewModel {
     constructor(channelId) {
         this.channelId = channelId;
         this.channel = ko.observable(null);
@@ -38,10 +40,13 @@
 
             return pages;
         });
+
+        this.formatDate = formatDate;
+        this.formatDuration = formatDuration;
     }
 
     loadChannel = async () => {
-        await fetch('/odata/ChannelOData(' + this.channelId + ')')
+        await fetch(`/odata/ChannelOData(${this.channelId})`)
             .then(response => response.json())
             .then(data => {
                 this.channel(data);
@@ -52,7 +57,7 @@
     };
 
     loadVideos = async () => {
-        await fetch('/odata/VideoOData?$filter=ChannelId eq ' + this.channelId + ' and DownloadedAt ne null&$orderby=UploadDate desc')
+        await fetch(`/odata/VideoOData?$filter=ChannelId eq ${this.channelId} and DownloadedAt ne null&$orderby=UploadDate desc`)
             .then(response => response.json())
             .then(data => {
                 this.videos(data.value || []);
@@ -66,10 +71,7 @@
 
     loadAvailableVideos = async () => {
         this.availableLoading(true);
-        var url = '/api/channels/' + this.channelId + '/videos/available?page=' + this.currentPage() +
-            '&pageSize=' + this.pageSize + '&showIgnored=' + this.showIgnored();
-
-        await fetch(url)
+        await fetch(`/api/channels/${this.channelId}/videos/available?page=${this.currentPage()}&pageSize=${this.pageSize}&showIgnored=${this.showIgnored()}`)
             .then(response => response.json())
             .then(data => {
                 var videos = data.videos.map(function (v) {
@@ -90,9 +92,7 @@
 
     loadPlaylists = async () => {
         this.playlistsLoading(true);
-        var url = '/api/channels/' + this.channelId + '/playlists/available?showIgnored=' + this.showIgnoredPlaylists();
-
-        await fetch(url)
+        await fetch(`/api/channels/${this.channelId}/playlists/available?showIgnored=${this.showIgnoredPlaylists()}`)
             .then(response => response.json())
             .then(data => {
                 var playlists = data.playlists.map(function (p) {
@@ -131,7 +131,7 @@
             return;
         }
 
-        await fetch('/api/channels/' + this.channelId + '/playlists/subscribe', {
+        await fetch(`/api/channels/${this.channelId}/playlists/subscribe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ playlistIds: selectedIds })
@@ -172,7 +172,7 @@
 
     ignorePlaylist = async (playlist) => {
         try {
-            const response = await fetch('/api/channels/' + this.channelId + '/playlists/' + playlist.id + '/ignore', {
+            const response = await fetch(`/api/channels/${this.channelId}/playlists/${playlist.id}/ignore`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isIgnored: !playlist.isIgnored })
@@ -200,7 +200,7 @@
         this.refreshingPlaylists(true);
 
         try {
-            const response = await fetch('/api/channels/' + this.channelId + '/playlists/refresh', {
+            const response = await fetch(`/api/channels/${this.channelId}/playlists/refresh`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -261,7 +261,7 @@
             return;
         }
 
-        await fetch('/api/channels/' + this.channelId + '/videos/download', {
+        await fetch(`/api/channels/${this.channelId}/videos/download`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ videoIds: selectedIds })
@@ -288,7 +288,7 @@
             return;
         }
 
-        await fetch('/api/channels/' + this.channelId + '/videos/download-all', {
+        await fetch(`/api/channels/${this.channelId}/videos/download-all`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         })
@@ -307,7 +307,7 @@
     // Ignore Video
     ignoreVideo = async (video) => {
         try {
-            const response = await fetch('/api/channels/' + this.channelId + '/videos/' + video.id + '/ignore', {
+            const response = await fetch(`/api/channels/${this.channelId}/videos/${video.id}/ignore`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isIgnored: !video.isIgnored })
@@ -327,41 +327,6 @@
         this.currentPage(1);
         await this.loadAvailableVideos();
         return true; // Allow default checkbox behavior
-    };
-
-    formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        var date = new Date(dateString);
-        return date.toLocaleDateString();
-    };
-
-    formatDuration = (duration) => {
-        if (!duration) return 'N/A';
-
-        // Parse ISO 8601 duration format (e.g., PT10M13S)
-        if (duration.startsWith('PT')) {
-            var hours = 0, minutes = 0, seconds = 0;
-
-            var match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-            if (match) {
-                hours = parseInt(match[1]) || 0;
-                minutes = parseInt(match[2]) || 0;
-                seconds = parseInt(match[3]) || 0;
-            }
-
-            if (hours > 0) {
-                return hours + ':' + minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
-            } else {
-                return minutes + ':' + seconds.toString().padStart(2, '0');
-            }
-        }
-
-        // If it's already in HH:MM:SS format
-        if (duration.includes(':')) {
-            return duration.substring(0, 8);
-        }
-
-        return duration;
     };
 }
 
