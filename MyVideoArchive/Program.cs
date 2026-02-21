@@ -1,18 +1,13 @@
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Extenso.AspNetCore.OData;
-using Extenso.Data.Entity;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OData;
-using Microsoft.EntityFrameworkCore;
 using MyVideoArchive.Data;
-using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Infrastructure;
-using MyVideoArchive.Services;
 using MyVideoArchive.Services.Abstractions;
-using MyVideoArchive.Services.Jobs;
 using MyVideoArchive.Services.Providers;
 
 var builder = WebApplication.CreateBuilder(args);

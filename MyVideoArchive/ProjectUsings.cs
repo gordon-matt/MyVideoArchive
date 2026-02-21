@@ -1,0 +1,9 @@
+﻿global using Extenso.Collections;
+global using Extenso.Data.Entity;
+global using LinqKit;
+global using Microsoft.AspNetCore.Authorization;
+global using Microsoft.AspNetCore.Mvc;
+global using Microsoft.EntityFrameworkCore;
+global using MyVideoArchive.Data.Entities;
+global using MyVideoArchive.Services;
+global using MyVideoArchive.Services.Jobs;

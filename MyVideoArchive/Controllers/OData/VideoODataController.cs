@@ -1,7 +1,4 @@
 using Extenso.AspNetCore.OData;
-using Extenso.Data.Entity;
-using Microsoft.AspNetCore.Authorization;
-using MyVideoArchive.Data.Entities;
 
 namespace MyVideoArchive.Controllers.OData;
 

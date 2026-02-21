@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using MyVideoArchive.Data.Entities;
 
 namespace MyVideoArchive.Data;
 

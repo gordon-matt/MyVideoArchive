@@ -1,5 +1,3 @@
-using Extenso.Data.Entity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace MyVideoArchive.Data.Entities;

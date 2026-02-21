@@ -1,12 +1,6 @@
-using Extenso.Data.Entity;
 using Hangfire;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OData.Query;
 using Microsoft.AspNetCore.OData.Routing.Controllers;
-using MyVideoArchive.Data.Entities;
-using MyVideoArchive.Services;
-using MyVideoArchive.Services.Jobs;
 
 namespace MyVideoArchive.Controllers.OData;
 

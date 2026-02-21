@@ -1,10 +1,3 @@
-using Extenso.Data.Entity;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using MyVideoArchive.Data.Entities;
-using MyVideoArchive.Services;
-
 namespace MyVideoArchive.Controllers.Api;
 
 /// <summary>

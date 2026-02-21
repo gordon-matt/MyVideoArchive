@@ -1,7 +1,6 @@
 using Extenso.AspNetCore.OData;
 using Microsoft.AspNetCore.OData;
 using Microsoft.OData.ModelBuilder;
-using MyVideoArchive.Data.Entities;
 
 namespace MyVideoArchive.Infrastructure;
 

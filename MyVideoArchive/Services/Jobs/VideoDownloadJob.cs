@@ -1,6 +1,3 @@
-using Extenso.Data.Entity;
-using Microsoft.EntityFrameworkCore;
-using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Infrastructure;
 
 namespace MyVideoArchive.Services.Jobs;

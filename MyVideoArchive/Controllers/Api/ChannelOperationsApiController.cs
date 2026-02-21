@@ -1,6 +1,4 @@
 using Hangfire;
-using Microsoft.AspNetCore.Mvc;
-using MyVideoArchive.Services.Jobs;
 
 namespace MyVideoArchive.Controllers.Api;
 

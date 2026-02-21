@@ -1,6 +1,3 @@
-using Extenso.Data.Entity;
-using Microsoft.EntityFrameworkCore;
-
 namespace MyVideoArchive.Data;
 
 public class ApplicationDbContextFactory(IConfiguration configuration) : IDbContextFactory

@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
-
 namespace MyVideoArchive.Controllers;
 
 [Route("channels")]
