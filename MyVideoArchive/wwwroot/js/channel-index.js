@@ -1,31 +1,31 @@
-﻿function ChannelsViewModel() {
-    var self = this;
+﻿class ChannelsViewModel {
+    constructor() {
+        this.channels = ko.observableArray([]);
+        this.loading = ko.observable(true);
+        this.newChannelUrl = ko.observable('');
+    }
 
-    self.channels = ko.observableArray([]);
-    self.loading = ko.observable(true);
-    self.newChannelUrl = ko.observable('');
+    loadChannels = async () => {
+        this.loading(true);
 
-    self.loadChannels = function () {
-        self.loading(true);
-
-        fetch('/odata/ChannelOData?$orderby=Name')
+        await fetch('/odata/ChannelOData?$orderby=Name')
             .then(response => response.json())
             .then(data => {
-                self.channels(data.value || []);
-                self.loading(false);
+                this.channels(data.value || []);
+                this.loading(false);
             })
             .catch(error => {
                 console.error('Error loading channels:', error);
-                self.loading(false);
+                this.loading(false);
             });
     };
 
-    self.addChannel = function () {
-        var url = self.newChannelUrl();
+    addChannel = async () => {
+        var url = this.newChannelUrl();
         if (!url) return;
 
         // Extract channel ID from URL
-        var channelId = self.extractChannelId(url);
+        var channelId = this.extractChannelId(url);
 
         var newChannel = {
             ChannelId: channelId,
@@ -34,26 +34,26 @@
             SubscribedAt: new Date().toISOString()
         };
 
-        fetch('/odata/ChannelOData', {
+        await fetch('/odata/ChannelOData', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(newChannel)
         })
-            .then(response => response.json())
-            .then(data => {
-                self.channels.push(data);
-                self.newChannelUrl('');
-                bootstrap.Modal.getInstance(document.getElementById('addChannelModal')).hide();
-            })
-            .catch(error => {
-                console.error('Error adding channel:', error);
-                alert('Failed to add channel. Please try again.');
-            });
+        .then(response => response.json())
+        .then(data => {
+            this.channels.push(data);
+            this.newChannelUrl('');
+            bootstrap.Modal.getInstance(document.getElementById('addChannelModal')).hide();
+        })
+        .catch(error => {
+            console.error('Error adding channel:', error);
+            alert('Failed to add channel. Please try again.');
+        });
     };
 
-    self.extractChannelId = function (url) {
+    extractChannelId = (url) => {
         // Simple extraction - in production, you'd want to use yt-dlp to get proper channel info
         var match = url.match(/channel\/([^\/\?]+)/);
         if (match) return match[1];
@@ -70,32 +70,32 @@
         return url;
     };
 
-    self.viewChannel = function (channel) {
+    viewChannel = (channel) => {
         window.location.href = '/channels/' + channel.Id;
     };
 
-    self.deleteChannel = function (channel) {
+    deleteChannel = async (channel) => {
         if (!confirm('Are you sure you want to unsubscribe from ' + channel.Name + '?')) {
             return;
         }
 
-        fetch('/odata/ChannelOData(' + channel.Id + ')', {
+        await fetch('/odata/ChannelOData(' + channel.Id + ')', {
             method: 'DELETE'
         })
-            .then(response => {
-                if (response.ok) {
-                    self.channels.remove(channel);
-                } else {
-                    alert('Failed to delete channel.');
-                }
-            })
-            .catch(error => {
-                console.error('Error deleting channel:', error);
+        .then(response => {
+            if (response.ok) {
+                this.channels.remove(channel);
+            } else {
                 alert('Failed to delete channel.');
-            });
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting channel:', error);
+            alert('Failed to delete channel.');
+        });
     };
 
-    self.formatDate = function (dateString) {
+    formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         var date = new Date(dateString);
         return date.toLocaleDateString();
@@ -104,8 +104,8 @@
 
 var viewModel;
 
-$(document).ready(function () {
+document.addEventListener("DOMContentLoaded", async () => {
     viewModel = new ChannelsViewModel();
     ko.applyBindings(viewModel);
-    viewModel.loadChannels();
+    await viewModel.loadChannels();
 });

@@ -1,331 +1,341 @@
-﻿function ChannelDetailsViewModel(channelId) {
-    var self = this;
+﻿class ChannelDetailsViewModel {
+    constructor(channelId) {
+        this.channelId = channelId;
+        this.channel = ko.observable(null);
+        this.videos = ko.observableArray([]);
+        this.availableVideos = ko.observableArray([]);
+        this.playlists = ko.observableArray([]);
+        this.loading = ko.observable(true);
+        this.availableLoading = ko.observable(false);
+        this.playlistsLoading = ko.observable(false);
+        this.refreshingPlaylists = ko.observable(false);
 
-    self.channelId = channelId;
-    self.channel = ko.observable(null);
-    self.videos = ko.observableArray([]);
-    self.availableVideos = ko.observableArray([]);
-    self.playlists = ko.observableArray([]);
-    self.loading = ko.observable(true);
-    self.availableLoading = ko.observable(false);
-    self.playlistsLoading = ko.observable(false);
-    self.refreshingPlaylists = ko.observable(false);
+        // Available videos state
+        this.currentPage = ko.observable(1);
+        this.pageSize = 20;
+        this.totalPages = ko.observable(1);
+        this.totalCount = ko.observable(0);
+        this.showIgnored = ko.observable(false);
+        this.selectAll = ko.observable(false);
 
-    // Available videos state
-    self.currentPage = ko.observable(1);
-    self.pageSize = 20;
-    self.totalPages = ko.observable(1);
-    self.totalCount = ko.observable(0);
-    self.showIgnored = ko.observable(false);
-    self.selectAll = ko.observable(false);
+        // Playlists state
+        this.showIgnoredPlaylists = ko.observable(false);
+        this.selectAllPlaylists = ko.observable(false);
 
-    // Playlists state
-    self.showIgnoredPlaylists = ko.observable(false);
-    self.selectAllPlaylists = ko.observable(false);
+        this.pageNumbers = ko.computed(() => {
+            const pages = [];
+            const current = this.currentPage();
+            const total = this.totalPages();
 
-    self.loadChannel = function () {
-        fetch('/odata/ChannelOData(' + self.channelId + ')')
+            // Show max 5 page numbers
+            let start = Math.max(1, current - 2);
+            let end = Math.min(total, start + 4);
+            start = Math.max(1, end - 4);
+
+            for (let i = start; i <= end; i++) {
+                pages.push(i);
+            }
+
+            return pages;
+        });
+    }
+
+    loadChannel = async () => {
+        await fetch('/odata/ChannelOData(' + this.channelId + ')')
             .then(response => response.json())
             .then(data => {
-                self.channel(data);
+                this.channel(data);
             })
             .catch(error => {
                 console.error('Error loading channel:', error);
             });
     };
 
-    self.loadVideos = function () {
-        fetch('/odata/VideoOData?$filter=ChannelId eq ' + self.channelId + ' and DownloadedAt ne null&$orderby=UploadDate desc')
+    loadVideos = async () => {
+        await fetch('/odata/VideoOData?$filter=ChannelId eq ' + this.channelId + ' and DownloadedAt ne null&$orderby=UploadDate desc')
             .then(response => response.json())
             .then(data => {
-                self.videos(data.value || []);
-                self.loading(false);
+                this.videos(data.value || []);
+                this.loading(false);
             })
             .catch(error => {
                 console.error('Error loading videos:', error);
-                self.loading(false);
+                this.loading(false);
             });
     };
 
-    self.loadAvailableVideos = function () {
-        self.availableLoading(true);
-        var url = '/api/channels/' + self.channelId + '/videos/available?page=' + self.currentPage() +
-            '&pageSize=' + self.pageSize + '&showIgnored=' + self.showIgnored();
+    loadAvailableVideos = async () => {
+        this.availableLoading(true);
+        var url = '/api/channels/' + this.channelId + '/videos/available?page=' + this.currentPage() +
+            '&pageSize=' + this.pageSize + '&showIgnored=' + this.showIgnored();
 
-        fetch(url)
+        await fetch(url)
             .then(response => response.json())
             .then(data => {
                 var videos = data.videos.map(function (v) {
                     v.selected = ko.observable(false);
                     return v;
                 });
-                self.availableVideos(videos);
-                self.totalPages(data.pagination.totalPages);
-                self.totalCount(data.pagination.totalCount);
-                self.availableLoading(false);
-                self.selectAll(false);
+                this.availableVideos(videos);
+                this.totalPages(data.pagination.totalPages);
+                this.totalCount(data.pagination.totalCount);
+                this.availableLoading(false);
+                this.selectAll(false);
             })
             .catch(error => {
                 console.error('Error loading available videos:', error);
-                self.availableLoading(false);
+                this.availableLoading(false);
             });
     };
 
-    self.loadPlaylists = function () {
-        self.playlistsLoading(true);
-        var url = '/api/channels/' + self.channelId + '/playlists/available?showIgnored=' + self.showIgnoredPlaylists();
+    loadPlaylists = async () => {
+        this.playlistsLoading(true);
+        var url = '/api/channels/' + this.channelId + '/playlists/available?showIgnored=' + this.showIgnoredPlaylists();
 
-        fetch(url)
+        await fetch(url)
             .then(response => response.json())
             .then(data => {
                 var playlists = data.playlists.map(function (p) {
                     p.selected = ko.observable(false);
                     return p;
                 });
-                self.playlists(playlists);
-                self.playlistsLoading(false);
-                self.selectAllPlaylists(false);
+                this.playlists(playlists);
+                this.playlistsLoading(false);
+                this.selectAllPlaylists(false);
             })
             .catch(error => {
                 console.error('Error loading playlists:', error);
-                self.playlistsLoading(false);
+                this.playlistsLoading(false);
             });
     };
 
     // Playlist functions
-    self.toggleSelectAllPlaylists = function () {
-        var selected = self.selectAllPlaylists();
-        self.playlists().forEach(function (playlist) {
+    toggleSelectAllPlaylists = () => {
+        var selected = this.selectAllPlaylists();
+        this.playlists().forEach(function (playlist) {
             playlist.selected(selected);
         });
     };
 
-    self.subscribeSelectedPlaylists = function () {
-        var selectedPlaylists = self.playlists()
-            .filter(function (p) { return p.selected(); });
+    subscribeSelectedPlaylists = async () => {
+        var selectedPlaylists = this.playlists().filter(function (p) {
+            return p.selected();
+        });
 
-        var selectedIds = selectedPlaylists.map(function (p) { return p.id; });
+        var selectedIds = selectedPlaylists.map(function (p) {
+            return p.id;
+        });
 
         if (selectedIds.length === 0) {
             alert('Please select at least one playlist to subscribe.');
             return;
         }
 
-        fetch('/api/channels/' + self.channelId + '/playlists/subscribe', {
+        await fetch('/api/channels/' + this.channelId + '/playlists/subscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ playlistIds: selectedIds })
         })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                self.loadPlaylists();
-            })
-            .catch(error => {
-                console.error('Error subscribing to playlists:', error);
-                alert('Error subscribing to playlists. Please try again.');
-            });
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            this.loadPlaylists();
+        })
+        .catch(error => {
+            console.error('Error subscribing to playlists:', error);
+            alert('Error subscribing to playlists. Please try again.');
+        });
     };
 
-    self.subscribeAllPlaylists = function () {
+    subscribeAllPlaylists = async () => {
         if (!confirm('Are you sure you want to subscribe to all playlists for this channel?')) {
             return;
         }
 
-        fetch('/api/channels/' + self.channelId + '/playlists/subscribe-all', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                self.loadPlaylists();
-            })
-            .catch(error => {
-                console.error('Error subscribing to all playlists:', error);
-                alert('Error subscribing to playlists. Please try again.');
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/playlists/subscribe-all`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
             });
+
+            const data = await response.json();
+
+            alert(data.message);
+
+            await this.loadPlaylists();
+
+        } catch (error) {
+            console.error('Error subscribing to all playlists:', error);
+            alert('Error subscribing to playlists. Please try again.');
+        }
     };
 
-    self.ignorePlaylist = function (playlist) {
-        fetch('/api/channels/' + self.channelId + '/playlists/' + playlist.id + '/ignore', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isIgnored: !playlist.isIgnored })
-        })
-            .then(response => response.json())
-            .then(data => {
-                self.loadPlaylists();
-            })
-            .catch(error => {
-                console.error('Error ignoring playlist:', error);
-                alert('Error updating playlist status. Please try again.');
+    ignorePlaylist = async (playlist) => {
+        try {
+            const response = await fetch('/api/channels/' + this.channelId + '/playlists/' + playlist.id + '/ignore', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isIgnored: !playlist.isIgnored })
             });
+
+            const data = await response.json();
+            await this.loadPlaylists();
+        } catch (error) {
+            console.error('Error ignoring playlist:', error);
+            alert('Error updating playlist status. Please try again.');
+        }
     };
 
-    self.toggleShowIgnoredPlaylists = function () {
+    toggleShowIgnoredPlaylists = async () => {
         // The checked binding already toggles the value, so just reload
-        self.loadPlaylists();
+        await this.loadPlaylists();
         return true; // Allow default checkbox behavior
     };
 
-    self.refreshPlaylists = function () {
+    refreshPlaylists = async () => {
         if (!confirm('This will fetch the latest playlists from YouTube. Continue?')) {
             return;
         }
 
-        self.refreshingPlaylists(true);
+        this.refreshingPlaylists(true);
 
-        fetch('/api/channels/' + self.channelId + '/playlists/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        })
-            .then(response => response.json())
-            .then(data => {
-                self.refreshingPlaylists(false);
-                alert(data.message);
-                self.loadPlaylists();
-            })
-            .catch(error => {
-                console.error('Error refreshing playlists:', error);
-                self.refreshingPlaylists(false);
-                alert('Error refreshing playlists from YouTube. Please try again.');
+        try {
+            const response = await fetch('/api/channels/' + this.channelId + '/playlists/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
             });
+
+            const data = await response.json();
+            this.refreshingPlaylists(false);
+            alert(data.message);
+            await this.loadPlaylists();
+        } catch (error) {
+            console.error('Error refreshing playlists:', error);
+            this.refreshingPlaylists(false);
+            alert('Error refreshing playlists from YouTube. Please try again.');
+        }
     };
 
     // Pagination
-    self.goToPage = function (page) {
-        if (page >= 1 && page <= self.totalPages()) {
-            self.currentPage(page);
-            self.loadAvailableVideos();
+    goToPage = async (page) => {
+        if (page >= 1 && page <= this.totalPages()) {
+            this.currentPage(page);
+            await this.loadAvailableVideos();
         }
     };
 
-    self.previousPage = function () {
-        if (self.currentPage() > 1) {
-            self.currentPage(self.currentPage() - 1);
-            self.loadAvailableVideos();
+    previousPage = async () => {
+        if (this.currentPage() > 1) {
+            this.currentPage(this.currentPage() - 1);
+            await this.loadAvailableVideos();
         }
     };
 
-    self.nextPage = function () {
-        if (self.currentPage() < self.totalPages()) {
-            self.currentPage(self.currentPage() + 1);
-            self.loadAvailableVideos();
+    nextPage = async () => {
+        if (this.currentPage() < this.totalPages()) {
+            this.currentPage(this.currentPage() + 1);
+            await this.loadAvailableVideos();
         }
     };
-
-    self.pageNumbers = ko.computed(function () {
-        var pages = [];
-        var current = self.currentPage();
-        var total = self.totalPages();
-
-        // Show max 5 page numbers
-        var start = Math.max(1, current - 2);
-        var end = Math.min(total, start + 4);
-        start = Math.max(1, end - 4);
-
-        for (var i = start; i <= end; i++) {
-            pages.push(i);
-        }
-        return pages;
-    });
 
     // Select All
-    self.toggleSelectAll = function () {
-        var selected = self.selectAll();
-        self.availableVideos().forEach(function (video) {
+    toggleSelectAll = () => {
+        var selected = this.selectAll();
+        this.availableVideos().forEach(function (video) {
             video.selected(selected);
         });
     };
 
     // Download Selected
-    self.downloadSelected = function () {
-        var selectedVideos = self.availableVideos()
-            .filter(function (v) { return v.selected(); });
+    downloadSelected = async () => {
+        var selectedVideos = this.availableVideos().filter(function (v) {
+            return v.selected();
+        });
 
-        var selectedIds = selectedVideos.map(function (v) { return v.id; });
+        var selectedIds = selectedVideos.map(function (v) {
+            return v.id;
+        });
 
         if (selectedIds.length === 0) {
             alert('Please select at least one video to download.');
             return;
         }
 
-        fetch('/api/channels/' + self.channelId + '/videos/download', {
+        await fetch('/api/channels/' + this.channelId + '/videos/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ videoIds: selectedIds })
         })
-            .then(response => response.json())
-            .then(data => {
-                // Remove downloaded videos from the UI immediately
-                selectedVideos.forEach(function (video) {
-                    self.availableVideos.remove(video);
-                });
-                self.selectAll(false);
-
-                alert(data.message);
-            })
-            .catch(error => {
-                console.error('Error downloading videos:', error);
-                alert('Error queueing downloads. Please try again.');
+        .then(response => response.json())
+        .then(data => {
+            // Remove downloaded videos from the UI immediately
+            selectedVideos.forEach((video) => {
+                this.availableVideos.remove(video);
             });
+            this.selectAll(false);
+
+            alert(data.message);
+        })
+        .catch(error => {
+            console.error('Error downloading videos:', error);
+            alert('Error queueing downloads. Please try again.');
+        });
     };
 
     // Download All
-    self.downloadAll = function () {
+    downloadAll = async () => {
         if (!confirm('Are you sure you want to download all available videos for this channel?')) {
             return;
         }
 
-        fetch('/api/channels/' + self.channelId + '/videos/download-all', {
+        await fetch('/api/channels/' + this.channelId + '/videos/download-all', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         })
-            .then(response => response.json())
-            .then(data => {
-                // Clear all videos from the available list
-                self.availableVideos([]);
-                alert(data.message);
-            })
-            .catch(error => {
-                console.error('Error downloading all videos:', error);
-                alert('Error queueing downloads. Please try again.');
-            });
+        .then(response => response.json())
+        .then(data => {
+            // Clear all videos from the available list
+            this.availableVideos([]);
+            alert(data.message);
+        })
+        .catch(error => {
+            console.error('Error downloading all videos:', error);
+            alert('Error queueing downloads. Please try again.');
+        });
     };
 
     // Ignore Video
-    self.ignoreVideo = function (video) {
-        fetch('/api/channels/' + self.channelId + '/videos/' + video.id + '/ignore', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isIgnored: !video.isIgnored })
-        })
-            .then(response => response.json())
-            .then(data => {
-                self.loadAvailableVideos();
-            })
-            .catch(error => {
-                console.error('Error ignoring video:', error);
-                alert('Error updating video status. Please try again.');
+    ignoreVideo = async (video) => {
+        try {
+            const response = await fetch('/api/channels/' + this.channelId + '/videos/' + video.id + '/ignore', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isIgnored: !video.isIgnored })
             });
+
+            const data = await response.json();
+            await this.loadAvailableVideos();
+        } catch (error) {
+            console.error('Error ignoring video:', error);
+            alert('Error updating video status. Please try again.');
+        }
     };
 
     // Toggle show ignored
-    self.toggleShowIgnored = function () {
+    toggleShowIgnored = async () => {
         // The checked binding already toggles the value, so just reload
-        self.currentPage(1);
-        self.loadAvailableVideos();
+        this.currentPage(1);
+        await this.loadAvailableVideos();
         return true; // Allow default checkbox behavior
     };
 
-    self.formatDate = function (dateString) {
+    formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         var date = new Date(dateString);
         return date.toLocaleDateString();
     };
 
-    self.formatDuration = function (duration) {
+    formatDuration = (duration) => {
         if (!duration) return 'N/A';
 
         // Parse ISO 8601 duration format (e.g., PT10M13S)
@@ -357,12 +367,12 @@
 
 var viewModel;
 
-$(document).ready(function () {
+document.addEventListener("DOMContentLoaded", async () => {
     viewModel = new ChannelDetailsViewModel(channelId);
     ko.applyBindings(viewModel);
-    viewModel.loadChannel();
-    viewModel.loadVideos();
-    viewModel.loadPlaylists();
+    await viewModel.loadChannel();
+    await viewModel.loadVideos();
+    await viewModel.loadPlaylists();
 
     // Load available videos when the tab is clicked
     $('#available-tab').on('shown.bs.tab', function () {

@@ -1,13 +1,13 @@
-﻿function VideoPlayerViewModel(videoId) {
-    var self = this;
+﻿class VideoPlayerViewModel {
+    constructor(videoId) {
+        this.videoId = videoId;
+        this.video = ko.observable(null);
+        this.loading = ko.observable(true);
+        this.videoUrl = ko.observable(null);
+    }
 
-    self.videoId = videoId;
-    self.video = ko.observable(null);
-    self.loading = ko.observable(true);
-    self.videoUrl = ko.observable(null);
-
-    self.loadVideo = function () {
-        fetch('/odata/VideoOData(' + self.videoId + ')?$expand=Channel')
+    loadVideo = function () {
+        fetch('/odata/VideoOData(' + this.videoId + ')?$expand=Channel')
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Video not found');
@@ -15,22 +15,22 @@
                 return response.json();
             })
             .then(data => {
-                self.video(data);
+                this.video(data);
 
                 // Set up video URL for streaming
                 if (data.Id) {
-                    self.videoUrl('/api/videos/' + data.Id + '/stream');
+                    this.videoUrl('/api/videos/' + data.Id + '/stream');
                 }
 
-                self.loading(false);
+                this.loading(false);
             })
             .catch(error => {
                 console.error('Error loading video:', error);
-                self.loading(false);
+                this.loading(false);
             });
     };
 
-    self.formatDate = function (dateString) {
+    formatDate = function (dateString) {
         if (!dateString) return 'N/A';
         var date = new Date(dateString);
         return date.toLocaleDateString('en-US', {
@@ -40,7 +40,7 @@
         });
     };
 
-    self.formatDuration = function (duration) {
+    formatDuration = function (duration) {
         if (!duration) return 'N/A';
 
         // Parse ISO 8601 duration format (e.g., PT10M13S)
@@ -69,12 +69,12 @@
         return duration;
     };
 
-    self.formatNumber = function (num) {
+    formatNumber = function (num) {
         if (!num) return '0';
         return num.toLocaleString();
     };
 
-    self.formatFileSize = function (bytes) {
+    formatFileSize = function (bytes) {
         if (!bytes) return 'N/A';
         var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
         if (bytes == 0) return '0 Byte';
@@ -85,7 +85,7 @@
 
 var viewModel;
 
-$(document).ready(function () {
+document.addEventListener("DOMContentLoaded", () => {
     viewModel = new VideoPlayerViewModel(videoId);
     ko.applyBindings(viewModel);
     viewModel.loadVideo();

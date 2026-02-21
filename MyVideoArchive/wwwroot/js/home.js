@@ -1,31 +1,31 @@
-﻿function VideoViewModel() {
-    var self = this;
+﻿class VideoViewModel {
+    constructor() {
+        this.videos = ko.observableArray([]);
+        this.loading = ko.observable(true);
+    }
 
-    self.videos = ko.observableArray([]);
-    self.loading = ko.observable(true);
+    loadVideos = async () => {
+        this.loading(true);
 
-    self.loadVideos = function () {
-        self.loading(true);
-
-        fetch('/odata/VideoOData?$filter=DownloadedAt ne null&$orderby=DownloadedAt desc&$top=20&$expand=Channel')
+        await fetch('/odata/VideoOData?$filter=DownloadedAt ne null&$orderby=DownloadedAt desc&$top=20&$expand=Channel')
             .then(response => response.json())
             .then(data => {
-                self.videos(data.value || []);
-                self.loading(false);
+                this.videos(data.value || []);
+                this.loading(false);
             })
             .catch(error => {
                 console.error('Error loading videos:', error);
-                self.loading(false);
+                this.loading(false);
             });
     };
 
-    self.formatDate = function (dateString) {
+    formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         var date = new Date(dateString);
         return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
     };
 
-    self.formatDuration = function (duration) {
+    formatDuration = (duration) => {
         if (!duration) return 'N/A';
 
         // Parse ISO 8601 duration format (e.g., PT10M13S)
@@ -54,7 +54,7 @@
         return duration;
     };
 
-    self.formatFileSize = function (bytes) {
+    formatFileSize = function (bytes) {
         if (!bytes) return 'N/A';
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
@@ -65,8 +65,8 @@
 
 var viewModel;
 
-$(document).ready(function () {
+document.addEventListener("DOMContentLoaded", async () => {
     viewModel = new VideoViewModel();
     ko.applyBindings(viewModel);
-    viewModel.loadVideos();
+    await viewModel.loadVideos();
 });

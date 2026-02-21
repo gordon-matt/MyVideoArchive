@@ -1,87 +1,86 @@
-﻿function PlaylistDetailsViewModel(playlistId) {
-    var self = this;
+﻿class PlaylistDetailsViewModel {
+    constructor(playlistId) {
+        this.playlistId = playlistId;
+        this.playlist = ko.observable(null);
+        this.playlistVideos = ko.observableArray([]);
+        this.currentVideo = ko.observable(null);
+        this.currentVideoUrl = ko.observable(null);
+        this.loading = ko.observable(true);
+        this.loadingVideos = ko.observable(false);
+        this.useCustomOrder = ko.observable(false);
+        this.sortableInstance = null;
+    }
 
-    self.playlistId = playlistId;
-    self.playlist = ko.observable(null);
-    self.playlistVideos = ko.observableArray([]);
-    self.currentVideo = ko.observable(null);
-    self.currentVideoUrl = ko.observable(null);
-    self.loading = ko.observable(true);
-    self.loadingVideos = ko.observable(false);
-    self.useCustomOrder = ko.observable(false);
-    self.sortableInstance = null;
+    loadPlaylist = async () => {
+        try {
+            const response = await fetch('/odata/PlaylistOData(' + this.playlistId + ')?$expand=Channel');
 
-    self.loadPlaylist = function () {
-        fetch('/odata/PlaylistOData(' + self.playlistId + ')?$expand=Channel')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Playlist not found');
-                }
-                return response.json();
-            })
-            .then(data => {
-                self.playlist(data);
-                self.loading(false);
-                self.loadPlaylistVideos();
-            })
-            .catch(error => {
-                console.error('Error loading playlist:', error);
-                self.loading(false);
-            });
+            if (!response.ok) {
+                throw new Error('Playlist not found');
+            }
+
+            const data = await response.json();
+            this.playlist(data);
+            this.loading(false);
+            await this.loadPlaylistVideos();
+        } catch (error) {
+            console.error('Error loading playlist:', error);
+            this.loading(false);
+        }
     };
 
-    self.loadPlaylistVideos = function () {
-        self.loadingVideos(true);
+    loadPlaylistVideos = async () => {
+        this.loadingVideos(true);
 
         // Load playlist
-        fetch('/odata/PlaylistOData(' + self.playlistId + ')?$expand=Channel')
+        await fetch('/odata/PlaylistOData(' + this.playlistId + ')?$expand=Channel')
             .then(response => response.json())
             .then(playlistData => {
-                self.playlist(playlistData);
+                this.playlist(playlistData);
             })
             .catch(error => {
                 console.error('Error loading playlist:', error);
             });
 
         // Load videos with proper ordering
-        fetch(`/api/playlists/${self.playlistId}/videos?useCustomOrder=${self.useCustomOrder()}`)
+        await fetch(`/api/playlists/${this.playlistId}/videos?useCustomOrder=${this.useCustomOrder()}`)
             .then(response => response.json())
             .then(data => {
-                self.playlistVideos(data.videos || []);
-                self.loadingVideos(false);
+                this.playlistVideos(data.videos || []);
+                this.loadingVideos(false);
 
                 // Initialize drag-drop after data is loaded
-                setTimeout(function () {
-                    self.initializeSortable();
+                setTimeout(() => {
+                    this.initializeSortable();
                 }, 100);
 
                 // Auto-play first downloaded video
-                if (self.playlistVideos().length > 0) {
-                    var firstDownloaded = self.playlistVideos().find(function (v) { return v.downloadedAt; });
+                if (this.playlistVideos().length > 0) {
+                    var firstDownloaded = this.playlistVideos().find(function (v) { return v.downloadedAt; });
                     if (firstDownloaded) {
-                        self.playVideo(firstDownloaded);
+                        this.playVideo(firstDownloaded);
                     }
                 }
             })
             .catch(error => {
                 console.error('Error loading playlist videos:', error);
-                self.loadingVideos(false);
+                this.loadingVideos(false);
             });
     };
 
-    self.playVideo = function (video) {
+    playVideo = (video) => {
         if (!video.downloadedAt) {
             return; // Just don't play if not downloaded, don't show alert
         }
 
-        self.currentVideo(video);
-        self.currentVideoUrl('/api/videos/' + video.id + '/stream');
+        this.currentVideo(video);
+        this.currentVideoUrl('/api/videos/' + video.id + '/stream');
 
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    self.downloadVideo = function (video, event) {
+    downloadVideo = async (video, event) => {
         event.stopPropagation(); // Prevent triggering playVideo
 
         if (video.isQueued) {
@@ -93,106 +92,106 @@
             return;
         }
 
-        fetch('/api/channels/' + video.channelId + '/videos/download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ videoIds: [video.id] })
-        })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                self.loadPlaylistVideos();
-            })
-            .catch(error => {
-                console.error('Error queueing video:', error);
-                alert('Error queueing video for download. Please try again.');
+        try {
+            const response = await fetch('/api/channels/' + video.channelId + '/videos/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoIds: [video.id] })
             });
+
+            const data = await response.json();
+            alert(data.message);
+            await this.loadPlaylistVideos();
+        } catch (error) {
+            console.error('Error queueing video:', error);
+            alert('Error queueing video for download. Please try again.');
+        }
     };
 
-    self.toggleOrderMode = function () {
+    toggleOrderMode = () => {
         // The checked binding already toggles the value
-        var isNowCustomOrder = self.useCustomOrder(); // Get the NEW value (after toggle)
+        var isNowCustomOrder = this.useCustomOrder(); // Get the NEW value (after toggle)
 
         if (!isNowCustomOrder) {
             // Switching FROM custom TO original - delete custom orders and reload
-            self.clearCustomOrder();
+            this.clearCustomOrder();
         } else {
             // Switching FROM original TO custom
             // If there's no saved custom order, create one with current order
             // Otherwise, just reload to get the saved custom order
-            self.enableCustomOrder();
+            this.enableCustomOrder();
         }
 
         return true;
     };
 
-    self.enableCustomOrder = function () {
-        // Check if custom order already exists, if not, save current order as custom
-        fetch('/api/playlists/' + self.playlistId + '/order-setting')
-            .then(response => response.json())
-            .then(data => {
-                if (!data.useCustomOrder) {
-                    // No custom order exists, save current order
-                    self.saveCustomOrder(true);
-                } else {
-                    // Custom order exists, reload to show it
-                    self.loadPlaylistVideos();
-                }
-            })
-            .catch(error => {
-                console.error('Error checking custom order:', error);
-                // Just save current order as fallback
-                self.saveCustomOrder(true);
-            });
+    enableCustomOrder = async () => {
+        try {
+            const response = await fetch('/api/playlists/' + this.playlistId + '/order-setting');
+
+            const data = await response.json();
+
+            if (!data.useCustomOrder) {
+                // No custom order exists, save current order
+                await this.saveCustomOrder(true);
+            } else {
+                // Custom order exists, reload to show it
+                await this.loadPlaylistVideos();
+            }
+        } catch (error) {
+            console.error('Error checking custom order:', error);
+            // Just save current order as fallback
+            await this.saveCustomOrder(true);
+        }
     };
 
-    self.clearCustomOrder = function () {
+    clearCustomOrder = async () => {
         // Delete custom orders by saving with useCustomOrder: false
-        self.saveCustomOrder(true);
+        await this.saveCustomOrder(true);
     };
 
-    self.initializeSortable = function () {
+    initializeSortable = () => {
         var container = document.getElementById('videoListContainer');
         if (!container) return;
 
         // Destroy existing instance if any
-        if (self.sortableInstance) {
-            self.sortableInstance.destroy();
+        if (this.sortableInstance) {
+            this.sortableInstance.destroy();
         }
 
         // Create new Sortable instance
-        self.sortableInstance = new Sortable(container, {
+        this.sortableInstance = new Sortable(container, {
             handle: '.drag-handle',
             animation: 150,
-            disabled: !self.useCustomOrder(),
-            onEnd: function (evt) {
+            disabled: !this.useCustomOrder(),
+            onEnd: async (evt) => {
                 // Get the new order from the DOM
                 var items = container.querySelectorAll('.playlist-video-item');
                 var newOrder = [];
 
-                items.forEach(function (item) {
+                items.forEach((item) => {
                     var videoId = parseInt(item.getAttribute('data-video-id'));
-                    var video = self.playlistVideos().find(function (v) { return v.id === videoId; });
+                    var video = this.playlistVideos().find(function (v) { return v.id === videoId; });
                     if (video) {
                         newOrder.push(video);
                     }
                 });
 
                 // Update the observable array with the new order
-                self.playlistVideos(newOrder);
+                this.playlistVideos(newOrder);
 
                 // Save the new order
-                self.saveCustomOrder();
+                await this.saveCustomOrder();
             }
         });
     };
 
-    self.saveCustomOrder = function (reloadAfterSave) {
+    saveCustomOrder = async (reloadAfterSave) => {
         var videoOrders = [];
 
-        if (self.useCustomOrder()) {
+        if (this.useCustomOrder()) {
             // Build the order array
-            videoOrders = self.playlistVideos().map(function (video, index) {
+            videoOrders = this.playlistVideos().map(function (video, index) {
                 return {
                     videoId: video.id,
                     order: index + 1
@@ -200,40 +199,40 @@
             });
         }
 
-        fetch('/api/playlists/' + self.playlistId + '/reorder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                useCustomOrder: self.useCustomOrder(),
-                videoOrders: videoOrders
-            })
-        })
-            .then(response => {
-                if (!response.ok) {
-                    return response.text().then(text => {
-                        throw new Error('Server error: ' + text);
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Update sortable state
-                if (self.sortableInstance) {
-                    self.sortableInstance.option('disabled', !self.useCustomOrder());
-                }
-
-                // Reload videos if requested (when toggling order mode)
-                if (reloadAfterSave) {
-                    self.loadPlaylistVideos();
-                }
-            })
-            .catch(error => {
-                console.error('Error saving order:', error);
-                alert('Error saving custom order: ' + error.message);
+        try {
+            const response = await fetch('/api/playlists/' + this.playlistId + '/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    useCustomOrder: this.useCustomOrder(),
+                    videoOrders: videoOrders
+                })
             });
+
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error('Server error: ' + text);
+                });
+            }
+
+            const data = await response.json();
+
+            // Update sortable state
+            if (this.sortableInstance) {
+                this.sortableInstance.option('disabled', !this.useCustomOrder());
+            }
+
+            // Reload videos if requested (when toggling order mode)
+            if (reloadAfterSave) {
+                await this.loadPlaylistVideos();
+            }
+        } catch (error) {
+            console.error('Error saving order:', error);
+            alert('Error saving custom order: ' + error.message);
+        }
     };
 
-    self.formatDate = function (dateString) {
+    formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         var date = new Date(dateString);
         return date.toLocaleDateString('en-US', {
@@ -243,7 +242,7 @@
         });
     };
 
-    self.formatDuration = function (duration) {
+    formatDuration = (duration) => {
         if (!duration) return 'N/A';
 
         // Parse ISO 8601 duration format (e.g., PT10M13S)
@@ -272,7 +271,7 @@
         return duration;
     };
 
-    self.formatNumber = function (num) {
+    formatNumber = (num) => {
         if (!num) return '0';
         return num.toLocaleString();
     };
@@ -280,8 +279,8 @@
 
 var viewModel;
 
-$(document).ready(function () {
+document.addEventListener("DOMContentLoaded", async () => {
     viewModel = new PlaylistDetailsViewModel(playlistId);
     ko.applyBindings(viewModel);
-    viewModel.loadPlaylist();
+    await viewModel.loadPlaylist();
 });

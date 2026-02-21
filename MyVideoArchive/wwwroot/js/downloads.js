@@ -1,77 +1,77 @@
-﻿function DownloadsViewModel() {
-    var self = this;
+﻿class DownloadsViewModel {
+    constructor() {
+        this.videos = ko.observableArray([]);
+        this.channels = ko.observableArray([]);
+        this.selectedChannelId = ko.observable('');
+        this.statusFilter = ko.observable('all');
+        this.loading = ko.observable(true);
+        this.checking = ko.observable(false);
 
-    self.videos = ko.observableArray([]);
-    self.channels = ko.observableArray([]);
-    self.selectedChannelId = ko.observable('');
-    self.statusFilter = ko.observable('all');
-    self.loading = ko.observable(true);
-    self.checking = ko.observable(false);
+        // Pagination
+        this.currentPage = ko.observable(1);
+        this.pageSize = 25;
+        this.totalPages = ko.observable(1);
+        this.totalCount = ko.observable(0);
 
-    // Pagination
-    self.currentPage = ko.observable(1);
-    self.pageSize = 25;
-    self.totalPages = ko.observable(1);
-    self.totalCount = ko.observable(0);
+        this.pageNumbers = ko.computed(() => {
+            var pages = [];
+            var current = this.currentPage();
+            var total = this.totalPages();
 
-    self.pageNumbers = ko.computed(function () {
-        var pages = [];
-        var current = self.currentPage();
-        var total = self.totalPages();
+            // Show max 5 page numbers
+            var start = Math.max(1, current - 2);
+            var end = Math.min(total, start + 4);
+            start = Math.max(1, end - 4);
 
-        // Show max 5 page numbers
-        var start = Math.max(1, current - 2);
-        var end = Math.min(total, start + 4);
-        start = Math.max(1, end - 4);
+            for (var i = start; i <= end; i++) {
+                pages.push(i);
+            }
+            return pages;
+        });
+    }
 
-        for (var i = start; i <= end; i++) {
-            pages.push(i);
-        }
-        return pages;
-    });
-
-    self.loadChannels = function () {
-        fetch('/odata/ChannelOData?$orderby=Name')
+    loadChannels = async () => {
+        await fetch('/odata/ChannelOData?$orderby=Name')
             .then(response => response.json())
             .then(data => {
-                self.channels(data.value || []);
+                this.channels(data.value || []);
             })
             .catch(error => {
                 console.error('Error loading channels:', error);
             });
     };
 
-    self.loadVideos = function () {
-        self.loading(true);
-        self.currentPage(1);
-        self.fetchVideos();
+    loadVideos = async () => {
+        this.loading(true);
+        this.currentPage(1);
+        await this.fetchVideos();
     };
 
-    self.fetchVideos = function () {
-        self.loading(true);
+    fetchVideos = async () => {
+        this.loading(true);
 
         var filter = 'DownloadedAt eq null';
 
         // Add status filter
-        if (self.statusFilter() === 'available') {
+        if (this.statusFilter() === 'available') {
             filter += ' and IsQueued eq false';
-        } else if (self.statusFilter() === 'queued') {
+        } else if (this.statusFilter() === 'queued') {
             filter += ' and IsQueued eq true';
         }
 
         // Add channel filter
-        if (self.selectedChannelId()) {
-            filter += ' and ChannelId eq ' + self.selectedChannelId();
+        if (this.selectedChannelId()) {
+            filter += ' and ChannelId eq ' + this.selectedChannelId();
         }
 
         var url = '/odata/VideoOData?$filter=' + filter +
             '&$expand=Channel' +
             '&$orderby=UploadDate desc' +
-            '&$skip=' + ((self.currentPage() - 1) * self.pageSize) +
-            '&$top=' + self.pageSize +
+            '&$skip=' + ((this.currentPage() - 1) * this.pageSize) +
+            '&$top=' + this.pageSize +
             '&$count=true';
 
-        fetch(url)
+        await fetch(url)
             .then(response => response.json())
             .then(data => {
                 var videos = (data.value || []).map(function (v) {
@@ -92,61 +92,62 @@
                     };
                 });
 
-                self.videos(videos);
-                self.totalCount(data['@@odata.count'] || 0);
-                self.totalPages(Math.ceil(self.totalCount() / self.pageSize));
-                self.loading(false);
+                this.videos(videos);
+                this.totalCount(data['@@odata.count'] || 0);
+                this.totalPages(Math.ceil(this.totalCount() / this.pageSize));
+                this.loading(false);
             })
             .catch(error => {
                 console.error('Error loading videos:', error);
-                self.loading(false);
+                this.loading(false);
             });
     };
 
-    self.goToPage = function (page) {
-        if (page >= 1 && page <= self.totalPages()) {
-            self.currentPage(page);
-            self.fetchVideos();
+    goToPage = async (page) => {
+        if (page >= 1 && page <= this.totalPages()) {
+            this.currentPage(page);
+            await this.fetchVideos();
         }
     };
 
-    self.previousPage = function () {
-        if (self.currentPage() > 1) {
-            self.currentPage(self.currentPage() - 1);
-            self.fetchVideos();
+    previousPage = async () => {
+        if (this.currentPage() > 1) {
+            this.currentPage(this.currentPage() - 1);
+            await this.fetchVideos();
         }
     };
 
-    self.nextPage = function () {
-        if (self.currentPage() < self.totalPages()) {
-            self.currentPage(self.currentPage() + 1);
-            self.fetchVideos();
+    nextPage = async () => {
+        if (this.currentPage() < this.totalPages()) {
+            this.currentPage(this.currentPage() + 1);
+            await this.fetchVideos();
         }
     };
 
-    self.checkForNewVideos = function () {
-        self.checking(true);
+    checkForNewVideos = async () => {
+        this.checking(true);
 
-        fetch('/api/channels/sync-all', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        })
-            .then(response => response.json())
-            .then(data => {
-                self.checking(false);
-                alert(data.message || 'Sync job queued successfully!');
-                setTimeout(function () {
-                    self.loadVideos();
-                }, 2000);
-            })
-            .catch(error => {
-                console.error('Error syncing channels:', error);
-                self.checking(false);
-                alert('Error syncing channels. Please try again.');
+        try {
+            const response = await fetch('/api/channels/sync-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
             });
+
+            const data = await response.json();
+
+            this.checking(false);
+            alert(data.message || 'Sync job queued successfully!');
+
+            await delay(2000);
+            await this.loadVideos();
+        } catch (error) {
+            console.error('Error syncing channels:', error);
+            this.checking(false);
+            alert('Error syncing channels. Please try again.');
+        }
     };
 
-    self.downloadVideo = function (video) {
+    downloadVideo = async (video) => {
         if (video.isQueued) {
             alert('This video is already queued for download.');
             return;
@@ -156,31 +157,31 @@
             return;
         }
 
-        fetch('/api/channels/' + video.channelId + '/videos/download', {
+        await fetch('/api/channels/' + video.channelId + '/videos/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ videoIds: [video.id] })
         })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-                // Remove from UI or mark as queued
-                video.isQueued = true;
-                self.videos.remove(video);
-            })
-            .catch(error => {
-                console.error('Error queueing video:', error);
-                alert('Error queueing video for download. Please try again.');
-            });
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            // Remove from UI or mark as queued
+            video.isQueued = true;
+            this.videos.remove(video);
+        })
+        .catch(error => {
+            console.error('Error queueing video:', error);
+            alert('Error queueing video for download. Please try again.');
+        });
     };
 
-    self.formatDate = function (dateString) {
+    formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         var date = new Date(dateString);
         return date.toLocaleDateString();
     };
 
-    self.formatDuration = function (duration) {
+    formatDuration = (duration) => {
         if (!duration) return 'N/A';
 
         // Parse ISO 8601 duration format (e.g., PT10M13S)
@@ -212,9 +213,9 @@
 
 var viewModel;
 
-$(document).ready(function () {
+document.addEventListener("DOMContentLoaded", async () => {
     viewModel = new DownloadsViewModel();
     ko.applyBindings(viewModel);
-    viewModel.loadChannels();
-    viewModel.loadVideos();
+    await viewModel.loadChannels();
+    await viewModel.loadVideos();
 });
