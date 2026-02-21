@@ -7,24 +7,24 @@ namespace MyVideoArchive.Services;
 /// </summary>
 public class VideoDownloaderFactory
 {
-    private readonly IEnumerable<IVideoDownloader> _downloaders;
-    private readonly ILogger<VideoDownloaderFactory> _logger;
+    private readonly IEnumerable<IVideoDownloader> downloaders;
+    private readonly ILogger<VideoDownloaderFactory> logger;
 
     public VideoDownloaderFactory(
         IEnumerable<IVideoDownloader> downloaders,
         ILogger<VideoDownloaderFactory> logger)
     {
-        _downloaders = downloaders;
-        _logger = logger;
+        this.downloaders = downloaders;
+        this.logger = logger;
     }
 
     public IVideoDownloader? GetDownloader(string url)
     {
-        var downloader = _downloaders.FirstOrDefault(d => d.CanHandle(url));
+        var downloader = downloaders.FirstOrDefault(d => d.CanHandle(url));
 
         if (downloader == null)
         {
-            _logger.LogWarning("No downloader found for URL: {Url}", url);
+            logger.LogWarning("No downloader found for URL: {Url}", url);
         }
 
         return downloader;
@@ -32,12 +32,12 @@ public class VideoDownloaderFactory
 
     public IVideoDownloader? GetDownloaderByPlatform(string platform)
     {
-        var downloader = _downloaders.FirstOrDefault(d =>
+        var downloader = downloaders.FirstOrDefault(d =>
             d.PlatformName.Equals(platform, StringComparison.OrdinalIgnoreCase));
 
         if (downloader == null)
         {
-            _logger.LogWarning("No downloader found for platform: {Platform}", platform);
+            logger.LogWarning("No downloader found for platform: {Platform}", platform);
         }
 
         return downloader;

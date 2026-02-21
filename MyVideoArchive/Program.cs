@@ -147,7 +147,7 @@ app.UseAuthorization();
 // Configure Hangfire Dashboard
 app.MapHangfireDashboard("/hangfire", new DashboardOptions
 {
-    Authorization = new[] { new HangfireAuthorizationFilter() }
+    Authorization = [new HangfireAuthorizationFilter()]
 });
 
 app.MapStaticAssets();
@@ -170,7 +170,6 @@ RecurringJob.AddOrUpdate<PlaylistSyncJob>(
     "sync-all-playlists",
     job => job.SyncAllPlaylistsAsync(CancellationToken.None),
     Cron.Daily); // Check for new playlist videos every day
-
 
 if (app.Environment.IsDevelopment())
 {

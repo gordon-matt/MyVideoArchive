@@ -11,15 +11,15 @@ namespace MyVideoArchive.Controllers.Api;
 [Route("api/videos")]
 public class VideosApiController : ControllerBase
 {
-    private readonly IRepository<Video> _videoRepository;
-    private readonly ILogger<VideosApiController> _logger;
+    private readonly ILogger<VideosApiController> logger;
+    private readonly IRepository<Video> videoRepository;
 
     public VideosApiController(
-        IRepository<Video> videoRepository,
-        ILogger<VideosApiController> logger)
+        ILogger<VideosApiController> logger,
+        IRepository<Video> videoRepository)
     {
-        _videoRepository = videoRepository;
-        _logger = logger;
+        this.logger = logger;
+        this.videoRepository = videoRepository;
     }
 
     /// <summary>
@@ -30,17 +30,17 @@ public class VideosApiController : ControllerBase
     {
         try
         {
-            var video = await _videoRepository.FindOneAsync(videoId);
+            var video = await videoRepository.FindOneAsync(videoId);
 
-            if (video == null)
+            if (video is null)
             {
-                _logger.LogWarning("Video with ID {VideoId} not found", videoId);
+                logger.LogWarning("Video with ID {VideoId} not found", videoId);
                 return NotFound(new { message = "Video not found" });
             }
 
             if (string.IsNullOrEmpty(video.FilePath) || !System.IO.File.Exists(video.FilePath))
             {
-                _logger.LogWarning("Video file not found for video ID {VideoId} at path {FilePath}", videoId, video.FilePath);
+                logger.LogWarning("Video file not found for video ID {VideoId} at path {FilePath}", videoId, video.FilePath);
                 return NotFound(new { message = "Video file not found" });
             }
 
@@ -59,14 +59,14 @@ public class VideosApiController : ControllerBase
                 _ => "application/octet-stream"
             };
 
-            _logger.LogInformation("Streaming video {VideoId} from {FilePath}", videoId, video.FilePath);
+            logger.LogInformation("Streaming video {VideoId} from {FilePath}", videoId, video.FilePath);
 
             // Enable range requests for seeking support
             return File(fileStream, contentType, enableRangeProcessing: true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error streaming video {VideoId}", videoId);
+            logger.LogError(ex, "Error streaming video {VideoId}", videoId);
             return StatusCode(500, new { message = "An error occurred while streaming the video" });
         }
     }

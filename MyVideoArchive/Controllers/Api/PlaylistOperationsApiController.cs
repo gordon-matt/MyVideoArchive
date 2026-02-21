@@ -15,24 +15,24 @@ namespace MyVideoArchive.Controllers.Api;
 [Route("api/playlists")]
 public class PlaylistOperationsApiController : ControllerBase
 {
-    private readonly IRepository<UserPlaylist> _userPlaylistRepository;
-    private readonly IRepository<UserVideoOrder> _userVideoOrderRepository;
-    private readonly IRepository<PlaylistVideo> _videoPlaylistRepository;
-    private readonly IUserContextService _userContext;
-    private readonly ILogger<PlaylistOperationsApiController> _logger;
+    private readonly ILogger<PlaylistOperationsApiController> logger;
+    private readonly IUserContextService userContextService;
+    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
+    private readonly IRepository<UserPlaylist> userPlaylistRepository;
+    private readonly IRepository<UserVideoOrder> userVideoOrderRepository;
 
     public PlaylistOperationsApiController(
-        IRepository<UserPlaylist> userPlaylistRepository,
-        IRepository<UserVideoOrder> userVideoOrderRepository,
-        IUserContextService userContext,
         ILogger<PlaylistOperationsApiController> logger,
-        IRepository<PlaylistVideo> videoPlaylistRepository)
+        IUserContextService userContextService,
+        IRepository<PlaylistVideo> playlistVideoRepository,
+        IRepository<UserPlaylist> userPlaylistRepository,
+        IRepository<UserVideoOrder> userVideoOrderRepository)
     {
-        _userPlaylistRepository = userPlaylistRepository;
-        _userVideoOrderRepository = userVideoOrderRepository;
-        _userContext = userContext;
-        _logger = logger;
-        _videoPlaylistRepository = videoPlaylistRepository;
+        this.logger = logger;
+        this.userContextService = userContextService;
+        this.playlistVideoRepository = playlistVideoRepository;
+        this.userPlaylistRepository = userPlaylistRepository;
+        this.userVideoOrderRepository = userVideoOrderRepository;
     }
 
     /// <summary>
@@ -43,54 +43,58 @@ public class PlaylistOperationsApiController : ControllerBase
     {
         try
         {
-            string? userId = _userContext.GetCurrentUserId();
+            string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
             // Check if user has access to this playlist
-            var userPlaylist = await _userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
+            var userPlaylist = await userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
             {
-                Query = up => up.UserId == userId && up.PlaylistId == playlistId
+                Query = x =>
+                    x.UserId == userId &&
+                    x.PlaylistId == playlistId
             });
 
-            if (userPlaylist == null && !_userContext.IsAdministrator())
+            if (userPlaylist is null)
             {
-                return Forbid();
-            }
+                if (!userContextService.IsAdministrator())
+                {
+                    return Forbid();
+                }
 
-            // If no UserPlaylist exists, create one
-            if (userPlaylist == null)
-            {
+                // If no UserPlaylist exists, create one
                 userPlaylist = new UserPlaylist
                 {
                     UserId = userId,
                     PlaylistId = playlistId,
                     SubscribedAt = DateTime.UtcNow
                 };
-                await _userPlaylistRepository.InsertAsync(userPlaylist);
+                await userPlaylistRepository.InsertAsync(userPlaylist);
             }
 
             // Save the custom order setting
             // If using custom order, save the video orders
-            if (request.UseCustomOrder && request.VideoOrders != null)
+            if (request.UseCustomOrder && request.VideoOrders is not null)
             {
                 // Delete existing custom orders for this user/playlist
-                var existingOrders = await _userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>
+                var existingOrders = await userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>
                 {
-                    Query = uvo => uvo.UserId == userId && uvo.PlaylistId == playlistId
+                    Query = x =>
+                        x.UserId == userId &&
+                        x.PlaylistId == playlistId
                 });
 
                 foreach (var existingOrder in existingOrders)
                 {
-                    await _userVideoOrderRepository.DeleteAsync(existingOrder);
+                    await userVideoOrderRepository.DeleteAsync(existingOrder);
                 }
 
                 // Insert new custom orders
                 foreach (var videoOrder in request.VideoOrders)
                 {
-                    await _userVideoOrderRepository.InsertAsync(new UserVideoOrder
+                    await userVideoOrderRepository.InsertAsync(new UserVideoOrder
                     {
                         UserId = userId,
                         PlaylistId = playlistId,
@@ -104,7 +108,7 @@ public class PlaylistOperationsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error saving custom order for playlist {PlaylistId}", playlistId);
+            logger.LogError(ex, "Error saving custom order for playlist {PlaylistId}", playlistId);
             return StatusCode(500, new { message = "An error occurred while saving custom order" });
         }
     }
@@ -117,16 +121,18 @@ public class PlaylistOperationsApiController : ControllerBase
     {
         try
         {
-            string? userId = _userContext.GetCurrentUserId();
+            string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
             // Check if user has custom order by seeing if UserVideoOrder records exist
-            var customOrders = await _userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>
+            var customOrders = await userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>
             {
-                Query = uvo => uvo.UserId == userId && uvo.PlaylistId == playlistId
+                Query = x =>
+                    x.UserId == userId &&
+                    x.PlaylistId == playlistId
             });
 
             bool useCustomOrder = customOrders.Count > 0;
@@ -135,7 +141,7 @@ public class PlaylistOperationsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting order setting for playlist {PlaylistId}", playlistId);
+            logger.LogError(ex, "Error getting order setting for playlist {PlaylistId}", playlistId);
             return StatusCode(500, new { message = "An error occurred while getting order setting" });
         }
     }
@@ -148,25 +154,31 @@ public class PlaylistOperationsApiController : ControllerBase
     {
         try
         {
-            string? userId = _userContext.GetCurrentUserId();
+            string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
-            var customOrders = await _userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>
+            var videoOrders = (await userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>
             {
-                Query = uvo => uvo.UserId == userId && uvo.PlaylistId == playlistId,
-                OrderBy = q => q.OrderBy(uvo => uvo.CustomOrder)
-            });
+                Query = x =>
+                    x.UserId == userId &&
+                    x.PlaylistId == playlistId,
 
-            var videoOrders = customOrders.Select(co => new { videoId = co.VideoId, order = co.CustomOrder }).ToList();
+                OrderBy = query => query
+                    .OrderBy(x => x.CustomOrder)
+            }, x => new
+            {
+                videoId = x.VideoId,
+                order = x.CustomOrder
+            })).ToList();
 
             return Ok(new { videoOrders });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting custom order for playlist {PlaylistId}", playlistId);
+            logger.LogError(ex, "Error getting custom order for playlist {PlaylistId}", playlistId);
             return StatusCode(500, new { message = "An error occurred while getting custom order" });
         }
     }
@@ -179,57 +191,65 @@ public class PlaylistOperationsApiController : ControllerBase
     {
         try
         {
-            string? userId = _userContext.GetCurrentUserId();
+            string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
             // Get all VideoPlaylist records to get original order
-            IEnumerable<PlaylistVideo> videoPlaylists = await _videoPlaylistRepository.FindAsync(new SearchOptions<PlaylistVideo>
+            IEnumerable<PlaylistVideo> playlistVideos = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
             {
-                Query = vp => vp.PlaylistId == playlistId,
-                Include = query => query.Include(vp => vp.Video).ThenInclude(v => v.Channel),
-                OrderBy = query => query.OrderBy(vp => vp.Order)
+                Query = x => x.PlaylistId == playlistId,
+
+                Include = query => query
+                    .Include(x => x.Video)
+                        .ThenInclude(x => x.Channel),
+
+                OrderBy = query => query
+                    .OrderBy(x => x.Order)
             });
 
             // Check if user has custom order
-            var customOrders = await _userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>
+            var customOrders = await userVideoOrderRepository.FindAsync(new SearchOptions<UserVideoOrder>
             {
-                Query = uvo => uvo.UserId == userId && uvo.PlaylistId == playlistId
+                Query = x =>
+                    x.UserId == userId &&
+                    x.PlaylistId == playlistId
             });
 
             bool hasCustomOrder = customOrders.Count > 0;
             if (useCustomOrder && hasCustomOrder)
             {
                 // Sort by custom order
-                var orderMap = customOrders.ToDictionary(co => co.VideoId, co => co.CustomOrder);
-                videoPlaylists = videoPlaylists
-                    .OrderBy(vp => orderMap.ContainsKey(vp.VideoId) ? orderMap[vp.VideoId] : 999999)
+                var orderMap = customOrders.ToDictionary(key => key.VideoId, val => val.CustomOrder);
+
+                playlistVideos = playlistVideos
+                    .OrderBy(x => orderMap.ContainsKey(x.VideoId) ? orderMap[x.VideoId] : 999999)
                     .ToList();
             }
 
             // Project to anonymous objects to avoid circular reference
-            var videos = videoPlaylists.Select(vp => new
+            var videos = playlistVideos.Select(x => new
             {
-                vp.Video.Id,
-                vp.Video.VideoId,
-                vp.Video.Title,
-                vp.Video.Description,
-                vp.Video.Url,
-                vp.Video.ThumbnailUrl,
-                vp.Video.Duration,
-                vp.Video.UploadDate,
-                vp.Video.ViewCount,
-                vp.Video.LikeCount,
-                vp.Video.DownloadedAt,
-                vp.Video.IsIgnored,
-                vp.Video.IsQueued,
-                vp.Video.ChannelId,
+                x.Video.Id,
+                x.Video.VideoId,
+                x.Video.Title,
+                x.Video.Description,
+                x.Video.Url,
+                x.Video.ThumbnailUrl,
+                x.Video.Duration,
+                x.Video.UploadDate,
+                x.Video.ViewCount,
+                x.Video.LikeCount,
+                x.Video.DownloadedAt,
+                x.Video.IsIgnored,
+                x.Video.IsQueued,
+                x.Video.ChannelId,
                 Channel = new
                 {
-                    vp.Video.Channel.Id,
-                    vp.Video.Channel.Name
+                    x.Video.Channel.Id,
+                    x.Video.Channel.Name
                 }
             }).ToList();
 
@@ -237,7 +257,7 @@ public class PlaylistOperationsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting videos for playlist {PlaylistId}", playlistId);
+            logger.LogError(ex, "Error getting videos for playlist {PlaylistId}", playlistId);
             return StatusCode(500, new { message = "An error occurred while getting playlist videos" });
         }
     }

@@ -10,20 +10,23 @@ namespace MyVideoArchive.Services.Providers;
 /// </summary>
 public partial class YouTubeDownloader : IVideoDownloader
 {
-    private readonly ILogger<YouTubeDownloader> _logger;
-    private readonly YoutubeDL _ytdl;
-    private readonly IConfiguration _configuration;
+    private readonly ILogger<YouTubeDownloader> logger;
+    private readonly IConfiguration configuration;
+    private readonly YoutubeDL ytdl;
 
     public string PlatformName => "YouTube";
 
     [GeneratedRegex(@"(youtube\.com|youtu\.be)", RegexOptions.IgnoreCase)]
     private static partial Regex YouTubeUrlRegex();
 
-    public YouTubeDownloader(ILogger<YouTubeDownloader> logger, YoutubeDL youtubeDL, IConfiguration configuration)
+    public YouTubeDownloader(
+        ILogger<YouTubeDownloader> logger,
+        IConfiguration configuration,
+        YoutubeDL ytdl)
     {
-        _logger = logger;
-        _ytdl = youtubeDL;
-        _configuration = configuration;
+        this.logger = logger;
+        this.configuration = configuration;
+        this.ytdl = ytdl;
     }
 
     public bool CanHandle(string url) => YouTubeUrlRegex().IsMatch(url);
@@ -36,7 +39,7 @@ public partial class YouTubeDownloader : IVideoDownloader
     {
         try
         {
-            _logger.LogInformation("Downloading video from: {Url}", videoUrl);
+            logger.LogInformation("Downloading video from: {Url}", videoUrl);
 
             // Ensure output directory exists
             if (!Directory.Exists(outputPath))
@@ -45,7 +48,7 @@ public partial class YouTubeDownloader : IVideoDownloader
             }
 
             // Get video quality from configuration
-            string videoQuality = _configuration.GetValue<string>("VideoDownload:VideoQuality")
+            string videoQuality = configuration.GetValue<string>("VideoDownload:VideoQuality")
                 ?? "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
 
             // Configure download options
@@ -64,12 +67,12 @@ public partial class YouTubeDownloader : IVideoDownloader
             // Note: Progress reporting via OutputReceived is not available in this version of YoutubeDLSharp
             // Progress will be logged but not reported via IProgress
 
-            var result = await _ytdl.RunVideoDownload(videoUrl, overrideOptions: options, ct: cancellationToken);
+            var result = await ytdl.RunVideoDownload(videoUrl, overrideOptions: options, ct: cancellationToken);
 
             if (!result.Success)
             {
                 string errorMessage = string.Join(", ", result.ErrorOutput);
-                _logger.LogError("Failed to download video from {Url}: {Error}", videoUrl, errorMessage);
+                logger.LogError("Failed to download video from {Url}: {Error}", videoUrl, errorMessage);
                 throw new InvalidOperationException($"Failed to download video: {errorMessage}");
             }
 
@@ -80,14 +83,14 @@ public partial class YouTubeDownloader : IVideoDownloader
                 throw new InvalidOperationException("Downloaded file not found");
             }
 
-            _logger.LogInformation("Successfully downloaded video to: {FilePath}", downloadedFile);
+            logger.LogInformation("Successfully downloaded video to: {FilePath}", downloadedFile);
             progress?.Report(1.0);
 
             return downloadedFile;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error downloading video from {Url}", videoUrl);
+            logger.LogError(ex, "Error downloading video from {Url}", videoUrl);
             throw;
         }
     }

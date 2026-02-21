@@ -7,84 +7,85 @@ namespace MyVideoArchive.Services;
 /// </summary>
 public class YoutubeDLInitializer
 {
-    private readonly ILogger<YoutubeDLInitializer> _logger;
-    private readonly IConfiguration _configuration;
-    private static YoutubeDL? _instance;
-    private static readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly ILogger<YoutubeDLInitializer> logger;
+    private readonly IConfiguration configuration;
+    private static YoutubeDL? ytdl;
+    private static readonly SemaphoreSlim initLock = new(1, 1);
 
     public YoutubeDLInitializer(
         ILogger<YoutubeDLInitializer> logger,
         IConfiguration configuration)
     {
-        _logger = logger;
-        _configuration = configuration;
+        this.logger = logger;
+        this.configuration = configuration;
     }
 
     public async Task<YoutubeDL> GetInstanceAsync()
     {
-        if (_instance != null)
+        if (ytdl != null)
         {
-            return _instance;
+            return ytdl;
         }
 
-        await _initLock.WaitAsync();
+        await initLock.WaitAsync();
+
         try
         {
-            if (_instance != null)
+            if (ytdl != null)
             {
-                return _instance;
+                return ytdl;
             }
 
-            _logger.LogInformation("Initializing YoutubeDL...");
+            logger.LogInformation("Initializing YoutubeDL...");
 
             // Get paths from configuration or use defaults
-            string ytDlpPath = _configuration.GetValue<string>("YoutubeDL:ExecutablePath")
+            string ytDlpPath = configuration.GetValue<string>("YoutubeDL:ExecutablePath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "yt-dlp.exe");
 
-            string ffmpegPath = _configuration.GetValue<string>("YoutubeDL:FFmpegPath")
+            string ffmpegPath = configuration.GetValue<string>("YoutubeDL:FFmpegPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
 
-            string downloadPath = _configuration.GetValue<string>("VideoDownload:OutputPath")
+            string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
             // Download yt-dlp and ffmpeg if not already present
             if (!File.Exists(ytDlpPath))
             {
-                _logger.LogInformation("Downloading yt-dlp...");
-                await YoutubeDLSharp.Utils.DownloadYtDlp();
+                logger.LogInformation("Downloading yt-dlp...");
+                await Utils.DownloadYtDlp();
             }
 
             if (!File.Exists(ffmpegPath))
             {
-                _logger.LogInformation("Downloading ffmpeg...");
-                await YoutubeDLSharp.Utils.DownloadFFmpeg();
+                logger.LogInformation("Downloading ffmpeg...");
+                await Utils.DownloadFFmpeg();
             }
 
             // Create downloads folder if it doesn't exist
             if (!Directory.Exists(downloadPath))
             {
                 Directory.CreateDirectory(downloadPath);
-                _logger.LogInformation("Created downloads directory: {Path}", downloadPath);
+                logger.LogInformation("Created downloads directory: {Path}", downloadPath);
             }
 
-            _instance = new YoutubeDL
+            ytdl = new YoutubeDL
             {
                 YoutubeDLPath = ytDlpPath,
                 FFmpegPath = ffmpegPath,
                 OutputFolder = downloadPath
             };
 
-            _logger.LogInformation("YoutubeDL initialized successfully");
-            return _instance;
+            logger.LogInformation("YoutubeDL initialized successfully");
+            return ytdl;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize YoutubeDL");
+            logger.LogError(ex, "Failed to initialize YoutubeDL");
             throw;
         }
         finally
         {
-            _initLock.Release();
+            initLock.Release();
         }
     }
 }

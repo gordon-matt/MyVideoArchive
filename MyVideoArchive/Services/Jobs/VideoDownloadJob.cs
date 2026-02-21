@@ -11,24 +11,23 @@ namespace MyVideoArchive.Services.Jobs;
 public class VideoDownloadJob
 {
     private readonly ILogger<VideoDownloadJob> logger;
-    private readonly VideoDownloaderFactory downloaderFactory;
     private readonly IConfiguration configuration;
+    private readonly VideoDownloaderFactory downloaderFactory;
     private readonly IRepository<Video> videoRepository;
 
     public VideoDownloadJob(
         ILogger<VideoDownloadJob> logger,
-        VideoDownloaderFactory downloaderFactory,
         IConfiguration configuration,
+        VideoDownloaderFactory downloaderFactory,
         IRepository<Video> videoRepository)
     {
         this.logger = logger;
-        this.downloaderFactory = downloaderFactory;
         this.configuration = configuration;
+        this.downloaderFactory = downloaderFactory;
         this.videoRepository = videoRepository;
     }
 
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
-    //[DisableConcurrentExecution(timeoutInSeconds: 7200)] // 2 hours timeout
     public async Task ExecuteAsync(int videoId, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Starting video download job for video ID: {VideoId}", videoId);
@@ -42,7 +41,7 @@ public class VideoDownloadJob
                 Include = query => query.Include(x => x.Channel)
             });
 
-            if (video == null)
+            if (video is null)
             {
                 logger.LogWarning("Video with ID {VideoId} not found", videoId);
                 return;
@@ -57,7 +56,7 @@ public class VideoDownloadJob
 
             // Get the appropriate downloader
             var downloader = downloaderFactory.GetDownloaderByPlatform(video.Platform);
-            if (downloader == null)
+            if (downloader is null)
             {
                 logger.LogError("No downloader found for platform: {Platform}", video.Platform);
                 return;
@@ -97,7 +96,7 @@ public class VideoDownloadJob
             try
             {
                 var video = await videoRepository.FindOneAsync(videoId);
-                if (video != null && video.IsQueued)
+                if (video is not null && video.IsQueued)
                 {
                     video.IsQueued = false;
                     await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));

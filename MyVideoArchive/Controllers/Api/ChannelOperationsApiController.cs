@@ -11,15 +11,15 @@ namespace MyVideoArchive.Controllers.Api;
 [Route("api/channels")]
 public class ChannelOperationsApiController : ControllerBase
 {
-    private readonly IBackgroundJobClient _backgroundJobClient;
-    private readonly ILogger<ChannelOperationsApiController> _logger;
+    private readonly ILogger<ChannelOperationsApiController> logger;
+    private readonly IBackgroundJobClient backgroundJobClient;
 
     public ChannelOperationsApiController(
-        IBackgroundJobClient backgroundJobClient,
-        ILogger<ChannelOperationsApiController> logger)
+        ILogger<ChannelOperationsApiController> logger,
+        IBackgroundJobClient backgroundJobClient)
     {
-        _backgroundJobClient = backgroundJobClient;
-        _logger = logger;
+        this.logger = logger;
+        this.backgroundJobClient = backgroundJobClient;
     }
 
     /// <summary>
@@ -30,10 +30,10 @@ public class ChannelOperationsApiController : ControllerBase
     {
         try
         {
-            _backgroundJobClient.Enqueue<ChannelSyncJob>(job =>
+            backgroundJobClient.Enqueue<ChannelSyncJob>(job =>
                 job.SyncAllChannelsAsync(CancellationToken.None));
 
-            _logger.LogInformation("Queued sync job for all channels");
+            logger.LogInformation("Queued sync job for all channels");
 
             return Ok(new
             {
@@ -42,7 +42,7 @@ public class ChannelOperationsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error queueing sync job for all channels");
+            logger.LogError(ex, "Error queueing sync job for all channels");
             return StatusCode(500, new { message = "An error occurred while queueing sync job" });
         }
     }

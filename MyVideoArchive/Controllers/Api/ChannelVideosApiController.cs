@@ -1,9 +1,9 @@
+using Extenso.Collections;
 using Extenso.Data.Entity;
 using Hangfire;
 using LinqKit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Services;
 using MyVideoArchive.Services.Jobs;
@@ -18,48 +18,50 @@ namespace MyVideoArchive.Controllers.Api;
 [Route("api/channels/{channelId}/videos")]
 public class ChannelVideosApiController : ControllerBase
 {
-    private readonly IRepository<Video> _videoRepository;
-    private readonly IRepository<Channel> _channelRepository;
-    private readonly IRepository<UserChannel> _userChannelRepository;
-    private readonly IBackgroundJobClient _backgroundJobClient;
-    private readonly IUserContextService _userContext;
-    private readonly ILogger<ChannelVideosApiController> _logger;
+    private readonly ILogger<ChannelVideosApiController> logger;
+    private readonly IUserContextService userContextService;
+    private readonly IBackgroundJobClient backgroundJobClient;
+    private readonly IRepository<Channel> channelRepository;
+    private readonly IRepository<UserChannel> userChannelRepository;
+    private readonly IRepository<Video> videoRepository;
 
     public ChannelVideosApiController(
-        IRepository<Video> videoRepository,
+        ILogger<ChannelVideosApiController> logger,
+        IUserContextService userContextService,
+        IBackgroundJobClient backgroundJobClient,
         IRepository<Channel> channelRepository,
         IRepository<UserChannel> userChannelRepository,
-        IBackgroundJobClient backgroundJobClient,
-        IUserContextService userContext,
-        ILogger<ChannelVideosApiController> logger)
+        IRepository<Video> videoRepository)
     {
-        _videoRepository = videoRepository;
-        _channelRepository = channelRepository;
-        _userChannelRepository = userChannelRepository;
-        _backgroundJobClient = backgroundJobClient;
-        _userContext = userContext;
-        _logger = logger;
+        this.videoRepository = videoRepository;
+        this.channelRepository = channelRepository;
+        this.userChannelRepository = userChannelRepository;
+        this.backgroundJobClient = backgroundJobClient;
+        this.userContextService = userContextService;
+        this.logger = logger;
     }
 
     private async Task<bool> UserHasAccessToChannel(int channelId)
     {
-        if (_userContext.IsAdministrator())
+        if (userContextService.IsAdministrator())
         {
             return true;
         }
 
-        string? userId = _userContext.GetCurrentUserId();
+        string? userId = userContextService.GetCurrentUserId();
         if (string.IsNullOrEmpty(userId))
         {
             return false;
         }
 
-        var userChannel = await _userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
+        var userChannel = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
         {
-            Query = uc => uc.UserId == userId && uc.ChannelId == channelId
+            Query = x =>
+                x.UserId == userId &&
+                x.ChannelId == channelId
         });
 
-        return userChannel != null;
+        return userChannel is not null;
     }
 
     /// <summary>
@@ -80,51 +82,51 @@ public class ChannelVideosApiController : ControllerBase
                 return Forbid();
             }
 
-            var channel = await _channelRepository.FindOneAsync(channelId);
-            if (channel == null)
+            var channel = await channelRepository.FindOneAsync(channelId);
+            if (channel is null)
             {
                 return NotFound(new { message = "Channel not found" });
             }
 
-            var predicate = PredicateBuilder.New<Video>(v => v.ChannelId == channelId);
+            var predicate = PredicateBuilder.New<Video>(x => x.ChannelId == channelId);
 
             // Only show videos that haven't been downloaded yet and aren't queued
-            predicate = predicate.And(v => v.DownloadedAt == null && !v.IsQueued);
+            predicate = predicate.And(x => x.DownloadedAt == null && !x.IsQueued);
 
             // Filter based on showIgnored flag
             if (!showIgnored)
             {
-                predicate = predicate.And(v => !v.IsIgnored);
+                predicate = predicate.And(x => !x.IsIgnored);
             }
 
             var options = new SearchOptions<Video>
             {
                 CancellationToken = HttpContext.RequestAborted,
                 Query = predicate,
-                OrderBy = query => query.OrderByDescending(v => v.UploadDate),
+                OrderBy = query => query.OrderByDescending(x => x.UploadDate),
                 PageNumber = page,
                 PageSize = pageSize
             };
 
             // Get total count for pagination
-            int totalCount = await _videoRepository.CountAsync(options);
+            int totalCount = await videoRepository.CountAsync(options);
 
             // Apply pagination
-            var videos = await _videoRepository.FindAsync(options, v => new
+            var videos = await videoRepository.FindAsync(options, x => new
             {
-                v.Id,
-                v.VideoId,
-                v.Title,
-                v.Description,
-                v.Url,
-                v.ThumbnailUrl,
-                v.Duration,
-                v.UploadDate,
-                v.ViewCount,
-                v.LikeCount,
-                v.DownloadedAt,
-                v.IsIgnored,
-                IsDownloaded = v.DownloadedAt != null
+                x.Id,
+                x.VideoId,
+                x.Title,
+                x.Description,
+                x.Url,
+                x.ThumbnailUrl,
+                x.Duration,
+                x.UploadDate,
+                x.ViewCount,
+                x.LikeCount,
+                x.DownloadedAt,
+                x.IsIgnored,
+                IsDownloaded = x.DownloadedAt != null
             });
 
             return Ok(new
@@ -141,7 +143,7 @@ public class ChannelVideosApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving available videos for channel {ChannelId}", channelId);
+            logger.LogError(ex, "Error retrieving available videos for channel {ChannelId}", channelId);
             return StatusCode(500, new { message = "An error occurred while retrieving videos" });
         }
     }
@@ -160,14 +162,16 @@ public class ChannelVideosApiController : ControllerBase
                 return Forbid();
             }
 
-            if (request.VideoIds == null || request.VideoIds.Count == 0)
+            if (request.VideoIds.IsNullOrEmpty())
             {
                 return BadRequest(new { message = "No video IDs provided" });
             }
 
-            var videos = await _videoRepository.FindAsync(new SearchOptions<Video>
+            var videos = await videoRepository.FindAsync(new SearchOptions<Video>
             {
-                Query = v => v.ChannelId == channelId && request.VideoIds.Contains(v.Id)
+                Query = x =>
+                    x.ChannelId == channelId &&
+                    request.VideoIds.Contains(x.Id)
             });
 
             if (videos.Count == 0)
@@ -180,18 +184,18 @@ public class ChannelVideosApiController : ControllerBase
             foreach (var video in videos)
             {
                 // Only queue if not already downloaded and not already queued
-                if (video.DownloadedAt == null && !video.IsQueued)
+                if (video.DownloadedAt is null && !video.IsQueued)
                 {
                     video.IsQueued = true;
                     videoUpdates.Add(video);
 
-                    _backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
+                    backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
                         job.ExecuteAsync(video.Id, CancellationToken.None));
                     queuedCount++;
                 }
             }
 
-            await _videoRepository.UpdateAsync(videoUpdates);
+            await videoRepository.UpdateAsync(videoUpdates);
 
             return Ok(new
             {
@@ -201,7 +205,7 @@ public class ChannelVideosApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error queueing video downloads for channel {ChannelId}", channelId);
+            logger.LogError(ex, "Error queueing video downloads for channel {ChannelId}", channelId);
             return StatusCode(500, new { message = "An error occurred while queueing downloads" });
         }
     }
@@ -220,12 +224,13 @@ public class ChannelVideosApiController : ControllerBase
                 return Forbid();
             }
 
-            var videos = await _videoRepository.FindAsync(new SearchOptions<Video>
+            var videos = await videoRepository.FindAsync(new SearchOptions<Video>
             {
-                Query = v => v.ChannelId == channelId
-                    && v.DownloadedAt == null
-                    && !v.IsIgnored
-                    && !v.IsQueued
+                Query = x =>
+                    x.ChannelId == channelId &&
+                    x.DownloadedAt == null &&
+                    !x.IsIgnored &&
+                    !x.IsQueued
             });
 
             if (videos.Count == 0)
@@ -239,11 +244,11 @@ public class ChannelVideosApiController : ControllerBase
                 video.IsQueued = true;
                 videoUpdates.Add(video);
 
-                _backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
+                backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
                     job.ExecuteAsync(video.Id, CancellationToken.None));
             }
 
-            await _videoRepository.UpdateAsync(videoUpdates);
+            await videoRepository.UpdateAsync(videoUpdates);
 
             return Ok(new
             {
@@ -253,7 +258,7 @@ public class ChannelVideosApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error queueing all video downloads for channel {ChannelId}", channelId);
+            logger.LogError(ex, "Error queueing all video downloads for channel {ChannelId}", channelId);
             return StatusCode(500, new { message = "An error occurred while queueing downloads" });
         }
     }
@@ -272,18 +277,20 @@ public class ChannelVideosApiController : ControllerBase
                 return Forbid();
             }
 
-            var video = await _videoRepository.FindOneAsync(new SearchOptions<Video>
+            var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
             {
-                Query = v => v.Id == videoId && v.ChannelId == channelId
+                Query = x =>
+                    x.Id == videoId &&
+                    x.ChannelId == channelId
             });
 
-            if (video == null)
+            if (video is null)
             {
                 return NotFound(new { message = "Video not found" });
             }
 
             video.IsIgnored = request.IsIgnored;
-            await _videoRepository.UpdateAsync(video);
+            await videoRepository.UpdateAsync(video);
 
             return Ok(new
             {
@@ -293,7 +300,7 @@ public class ChannelVideosApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error toggling ignore status for video {VideoId}", videoId);
+            logger.LogError(ex, "Error toggling ignore status for video {VideoId}", videoId);
             return StatusCode(500, new { message = "An error occurred while updating video status" });
         }
     }

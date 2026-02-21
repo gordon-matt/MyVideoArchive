@@ -13,24 +13,24 @@ namespace MyVideoArchive.Controllers.OData;
 [Authorize]
 public class ChannelODataController : ODataController
 {
-    private readonly IRepository<Channel> _channelRepository;
-    private readonly IRepository<UserChannel> _userChannelRepository;
-    private readonly IUserContextService _userContext;
-    private readonly IBackgroundJobClient _backgroundJobClient;
-    private readonly ILogger<ChannelODataController> _logger;
+    private readonly ILogger<ChannelODataController> logger;
+    private readonly IUserContextService userContextService;
+    private readonly IBackgroundJobClient backgroundJobClient;
+    private readonly IRepository<Channel> channelRepository;
+    private readonly IRepository<UserChannel> userChannelRepository;
 
     public ChannelODataController(
-        IRepository<Channel> channelRepository,
-        IRepository<UserChannel> userChannelRepository,
-        IUserContextService userContext,
+        ILogger<ChannelODataController> logger,
+        IUserContextService userContextService,
         IBackgroundJobClient backgroundJobClient,
-        ILogger<ChannelODataController> logger)
+        IRepository<Channel> channelRepository,
+        IRepository<UserChannel> userChannelRepository)
     {
-        _channelRepository = channelRepository;
-        _userChannelRepository = userChannelRepository;
-        _userContext = userContext;
-        _backgroundJobClient = backgroundJobClient;
-        _logger = logger;
+        this.logger = logger;
+        this.userContextService = userContextService;
+        this.backgroundJobClient = backgroundJobClient;
+        this.channelRepository = channelRepository;
+        this.userChannelRepository = userChannelRepository;
     }
 
     [EnableQuery]
@@ -38,32 +38,31 @@ public class ChannelODataController : ODataController
     {
         try
         {
-            string? userId = _userContext.GetCurrentUserId();
+            string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
-            bool isAdmin = _userContext.IsAdministrator();
+            bool isAdmin = userContextService.IsAdministrator();
 
             if (isAdmin)
             {
                 // Admins see all channels
-                var allChannels = await _channelRepository.FindAsync(new SearchOptions<Channel>());
+                var allChannels = await channelRepository.FindAsync(new SearchOptions<Channel>());
                 return Ok(allChannels);
             }
             else
             {
                 // Regular users only see their subscribed channels
-                var userChannels = await _userChannelRepository.FindAsync(new SearchOptions<UserChannel>
+                var channelIds = (await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
                 {
-                    Query = uc => uc.UserId == userId
-                });
+                    Query = x => x.UserId == userId
+                }, x => x.ChannelId)).ToList();
 
-                var channelIds = userChannels.Select(uc => uc.ChannelId).ToList();
-                var channels = await _channelRepository.FindAsync(new SearchOptions<Channel>
+                var channels = await channelRepository.FindAsync(new SearchOptions<Channel>
                 {
-                    Query = c => channelIds.Contains(c.Id)
+                    Query = x => channelIds.Contains(x.Id)
                 });
 
                 return Ok(channels);
@@ -71,7 +70,7 @@ public class ChannelODataController : ODataController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving channels");
+            logger.LogError(ex, "Error retrieving channels");
             return StatusCode(500, "An error occurred while retrieving channels");
         }
     }
@@ -81,16 +80,16 @@ public class ChannelODataController : ODataController
     {
         try
         {
-            string? userId = _userContext.GetCurrentUserId();
+            string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
-            bool isAdmin = _userContext.IsAdministrator();
-            var channel = await _channelRepository.FindOneAsync(key);
+            bool isAdmin = userContextService.IsAdministrator();
+            var channel = await channelRepository.FindOneAsync(key);
 
-            if (channel == null)
+            if (channel is null)
             {
                 return NotFound();
             }
@@ -98,12 +97,14 @@ public class ChannelODataController : ODataController
             // Check if user has access to this channel
             if (!isAdmin)
             {
-                var userChannel = await _userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
+                var userChannel = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
                 {
-                    Query = uc => uc.UserId == userId && uc.ChannelId == key
+                    Query = x =>
+                        x.UserId == userId &&
+                        x.ChannelId == key
                 });
 
-                if (userChannel == null)
+                if (userChannel is null)
                 {
                     return Forbid();
                 }
@@ -113,7 +114,7 @@ public class ChannelODataController : ODataController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving channel {ChannelId}", key);
+            logger.LogError(ex, "Error retrieving channel {ChannelId}", key);
             return StatusCode(500, "An error occurred while retrieving the channel");
         }
     }
@@ -123,7 +124,7 @@ public class ChannelODataController : ODataController
     {
         try
         {
-            string? userId = _userContext.GetCurrentUserId();
+            string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -135,58 +136,60 @@ public class ChannelODataController : ODataController
             }
 
             // Check if channel already exists by ChannelId
-            var existingChannel = await _channelRepository.FindOneAsync(new SearchOptions<Channel>
+            var existingChannel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
             {
-                Query = c => c.ChannelId == channel.ChannelId
+                Query = x => x.ChannelId == channel.ChannelId
             });
 
             int channelDbId;
 
-            if (existingChannel != null)
+            if (existingChannel is not null)
             {
                 // Channel exists, just subscribe the user
                 channelDbId = existingChannel.Id;
-                _logger.LogInformation("Channel {ChannelId} already exists, subscribing user {UserId}", channel.ChannelId, userId);
+                logger.LogInformation("Channel {ChannelId} already exists, subscribing user {UserId}", channel.ChannelId, userId);
             }
             else
             {
                 // Create new channel
                 channel.SubscribedAt = DateTime.UtcNow;
                 channel.Platform = "YouTube"; // Default platform
-                await _channelRepository.InsertAsync(channel);
+                await channelRepository.InsertAsync(channel);
                 channelDbId = channel.Id;
-                _logger.LogInformation("Created new channel {ChannelId} for user {UserId}", channel.ChannelId, userId);
+                logger.LogInformation("Created new channel {ChannelId} for user {UserId}", channel.ChannelId, userId);
             }
 
             // Check if user already subscribed
-            var existingSubscription = await _userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
+            var existingSubscription = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
             {
-                Query = uc => uc.UserId == userId && uc.ChannelId == channelDbId
+                Query = x =>
+                    x.UserId == userId &&
+                    x.ChannelId == channelDbId
             });
 
-            if (existingSubscription == null)
+            if (existingSubscription is null)
             {
                 // Create subscription
-                await _userChannelRepository.InsertAsync(new UserChannel
+                await userChannelRepository.InsertAsync(new UserChannel
                 {
                     UserId = userId,
                     ChannelId = channelDbId,
                     SubscribedAt = DateTime.UtcNow
                 });
 
-                _logger.LogInformation("User {UserId} subscribed to channel {ChannelId}", userId, channelDbId);
+                logger.LogInformation("User {UserId} subscribed to channel {ChannelId}", userId, channelDbId);
             }
 
             // Queue sync job for the channel
-            _backgroundJobClient.Enqueue<ChannelSyncJob>(job => job.ExecuteAsync(channelDbId, CancellationToken.None));
+            backgroundJobClient.Enqueue<ChannelSyncJob>(job => job.ExecuteAsync(channelDbId, CancellationToken.None));
 
             // Return the channel (either existing or new)
-            var resultChannel = await _channelRepository.FindOneAsync(channelDbId);
+            var resultChannel = await channelRepository.FindOneAsync(channelDbId);
             return Created(resultChannel);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating/subscribing to channel");
+            logger.LogError(ex, "Error creating/subscribing to channel");
             return StatusCode(500, "An error occurred while subscribing to the channel");
         }
     }
@@ -196,47 +199,49 @@ public class ChannelODataController : ODataController
     {
         try
         {
-            string? userId = _userContext.GetCurrentUserId();
+            string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
 
-            bool isAdmin = _userContext.IsAdministrator();
+            bool isAdmin = userContextService.IsAdministrator();
 
             // Find the user's subscription
-            var userChannel = await _userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
+            var userChannel = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
             {
-                Query = uc => uc.UserId == userId && uc.ChannelId == key
+                Query = x =>
+                    x.UserId == userId &&
+                    x.ChannelId == key
             });
 
-            if (userChannel == null && !isAdmin)
+            if (userChannel is null && !isAdmin)
             {
                 return NotFound();
             }
 
-            if (userChannel != null)
+            if (userChannel is not null)
             {
                 // Remove user's subscription
-                await _userChannelRepository.DeleteAsync(userChannel);
-                _logger.LogInformation("User {UserId} unsubscribed from channel {ChannelId}", userId, key);
+                await userChannelRepository.DeleteAsync(userChannel);
+                logger.LogInformation("User {UserId} unsubscribed from channel {ChannelId}", userId, key);
             }
 
             // Optionally: If no users are subscribed to this channel, delete it
             // (Only if admin or if this was the last subscription)
-            var remainingSubscriptions = await _userChannelRepository.FindAsync(new SearchOptions<UserChannel>
+            int remainingSubscriptions = await userChannelRepository.CountAsync(new SearchOptions<UserChannel>
             {
-                Query = uc => uc.ChannelId == key
+                Query = x => x.ChannelId == key
             });
 
-            if (remainingSubscriptions.Count == 0)
+            if (remainingSubscriptions == 0)
             {
                 // No one is subscribed, delete the channel
-                var channel = await _channelRepository.FindOneAsync(key);
-                if (channel != null)
+                var channel = await channelRepository.FindOneAsync(key);
+                if (channel is not null)
                 {
-                    await _channelRepository.DeleteAsync(channel);
-                    _logger.LogInformation("Deleted channel {ChannelId} as no users are subscribed", key);
+                    await channelRepository.DeleteAsync(channel);
+                    logger.LogInformation("Deleted channel {ChannelId} as no users are subscribed", key);
                 }
             }
 
@@ -244,7 +249,7 @@ public class ChannelODataController : ODataController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting channel subscription {ChannelId}", key);
+            logger.LogError(ex, "Error deleting channel subscription {ChannelId}", key);
             return StatusCode(500, "An error occurred while unsubscribing from the channel");
         }
     }

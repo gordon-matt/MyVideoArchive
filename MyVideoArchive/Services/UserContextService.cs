@@ -8,19 +8,20 @@ namespace MyVideoArchive.Services;
 public interface IUserContextService
 {
     string? GetCurrentUserId();
+
     bool IsAdministrator();
 }
 
 public class UserContextService : IUserContextService
 {
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IHttpContextAccessor httpContextAccessor;
 
     public UserContextService(IHttpContextAccessor httpContextAccessor)
     {
-        _httpContextAccessor = httpContextAccessor;
+        this.httpContextAccessor = httpContextAccessor;
     }
 
-    public string? GetCurrentUserId() => _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+    public string? GetCurrentUserId() => httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    public bool IsAdministrator() => _httpContextAccessor.HttpContext?.User?.IsInRole("Administrator") ?? false;
+    public bool IsAdministrator() => httpContextAccessor.HttpContext?.User?.IsInRole("Administrator") ?? false;
 }

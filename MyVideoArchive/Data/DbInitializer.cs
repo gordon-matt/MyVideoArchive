@@ -26,7 +26,7 @@ public static class DbInitializer
 
     private static async Task SeedRolesAsync(RoleManager<ApplicationRole> roleManager)
     {
-        string[] roleNames = { "Administrator", "User" };
+        string[] roleNames = { Constants.Roles.Administrator, "User" };
 
         foreach (string roleName in roleNames)
         {
@@ -57,15 +57,15 @@ public static class DbInitializer
 
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(adminUser, "Administrator");
+                await userManager.AddToRoleAsync(adminUser, Constants.Roles.Administrator);
             }
         }
         else
         {
             // Ensure existing admin user has the Administrator role
-            if (!await userManager.IsInRoleAsync(adminUser, "Administrator"))
+            if (!await userManager.IsInRoleAsync(adminUser, Constants.Roles.Administrator))
             {
-                await userManager.AddToRoleAsync(adminUser, "Administrator");
+                await userManager.AddToRoleAsync(adminUser, Constants.Roles.Administrator);
             }
         }
     }

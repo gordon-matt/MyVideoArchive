@@ -32,7 +32,6 @@ public class ChannelSyncJob
     }
 
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
-    //[DisableConcurrentExecution(timeoutInSeconds: 3600)] // 1 hour timeout
     public async Task ExecuteAsync(int channelId, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Starting channel sync job for channel ID: {ChannelId}", channelId);
@@ -46,7 +45,7 @@ public class ChannelSyncJob
                 Include = query => query.Include(x => x.Videos)
             });
 
-            if (channel == null)
+            if (channel is null)
             {
                 logger.LogWarning("Channel with ID {ChannelId} not found", channelId);
                 return;
@@ -54,7 +53,7 @@ public class ChannelSyncJob
 
             // Get the appropriate metadata provider
             var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
-            if (provider == null)
+            if (provider is null)
             {
                 logger.LogError("No metadata provider found for platform: {Platform}", channel.Platform);
                 return;
@@ -62,7 +61,7 @@ public class ChannelSyncJob
 
             // Update channel metadata
             var channelMetadata = await provider.GetChannelMetadataAsync(channel.Url, cancellationToken);
-            if (channelMetadata != null)
+            if (channelMetadata is not null)
             {
                 channel.Name = channelMetadata.Name;
                 channel.Description = channelMetadata.Description;
@@ -98,7 +97,7 @@ public class ChannelSyncJob
                 else
                 {
                     // Create new video entry (without auto-downloading)
-                    var newVideo = new Video
+                    videoInserts.Add(new Video
                     {
                         VideoId = videoMetadata.VideoId,
                         Title = videoMetadata.Title,
@@ -112,12 +111,10 @@ public class ChannelSyncJob
                         LikeCount = videoMetadata.LikeCount,
                         ChannelId = channelId,
                         IsIgnored = false
-                    };
-
-                    videoInserts.Add(newVideo);
+                    });
                     newVideosCount++;
 
-                    // Note: Videos are no longer auto-downloaded. 
+                    // Note: Videos are no longer auto-downloaded.
                     // Users must select videos to download from the Available tab.
                 }
             }
@@ -141,7 +138,6 @@ public class ChannelSyncJob
     }
 
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
-    //[DisableConcurrentExecution(timeoutInSeconds: 600)] // 10 minutes timeout
     public async Task SyncAllChannelsAsync(CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Starting sync for all channels");
