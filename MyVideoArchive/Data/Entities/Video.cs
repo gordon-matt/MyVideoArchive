@@ -34,6 +34,10 @@ public class Video : BaseEntity<int>
 
     public bool IsQueued { get; set; }
 
+    public bool IsManuallyImported { get; set; }
+
+    public bool NeedsMetadataReview { get; set; }
+
     public int ChannelId { get; set; }
 
     public Channel Channel { get; set; } = null!;
@@ -54,6 +58,9 @@ public class VideoMap : IEntityTypeConfiguration<Video>
         builder.Property(m => m.ThumbnailUrl).HasMaxLength(512);
         builder.Property(m => m.Platform).IsRequired().HasMaxLength(64);
         builder.Property(m => m.FilePath).HasMaxLength(1024);
+
+        builder.Property(m => m.IsManuallyImported).IsRequired().HasDefaultValue(false);
+        builder.Property(m => m.NeedsMetadataReview).IsRequired().HasDefaultValue(false);
 
         builder.HasIndex(m => new { m.Platform, m.VideoId }).IsUnique();
 

@@ -3,10 +3,25 @@ namespace MyVideoArchive.Controllers;
 [Route("videos")]
 public class VideosController : Controller
 {
-    [Route("{id}")]
-    public IActionResult Details(int id)
+    private readonly IRepository<Video> videoRepository;
+
+    public VideosController(IRepository<Video> videoRepository)
     {
+        this.videoRepository = videoRepository;
+    }
+
+    [Route("{id}")]
+    public async Task<IActionResult> Details(int id)
+    {
+        var video = await videoRepository.FindOneAsync(id);
+
+        if (video is null)
+        {
+            return NotFound();
+        }
+
         ViewBag.VideoId = id;
-        return View();
+
+        return video.Platform == "Custom" ? View("DetailsCustom") : View();
     }
 }

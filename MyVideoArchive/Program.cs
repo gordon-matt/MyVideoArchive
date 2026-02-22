@@ -62,10 +62,7 @@ builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
-    .UsePostgreSqlStorage(options =>
-    {
-        options.UseNpgsqlConnection(connectionString);
-    },
+    .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString),
     new PostgreSqlStorageOptions
     {
         QueuePollInterval = TimeSpan.FromSeconds(15)
@@ -95,6 +92,7 @@ builder.Services.AddSingleton<VideoDownloaderFactory>();
 builder.Services.AddTransient<VideoDownloadJob>();
 builder.Services.AddTransient<ChannelSyncJob>();
 builder.Services.AddTransient<PlaylistSyncJob>();
+builder.Services.AddTransient<FileSystemScanJob>();
 
 // Register user context service
 builder.Services.AddHttpContextAccessor();
@@ -149,6 +147,10 @@ app.MapHangfireDashboard("/hangfire", new DashboardOptions
 });
 
 app.MapStaticAssets();
+
+app.MapControllerRoute(
+    name: "areas",
+    pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 
 app.MapControllerRoute(
     name: "default",

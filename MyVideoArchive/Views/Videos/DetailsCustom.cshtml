@@ -1,0 +1,153 @@
+@{
+    ViewData["Title"] = "Video";
+    var videoId = ViewBag.VideoId;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/video-details.css" />
+}
+
+<div class="container-fluid px-0">
+    <div class="row g-0">
+        <div class="col-12">
+            <div id="video-player-container" class="bg-dark" style="min-height: 400px;">
+                <div class="text-center text-white py-5" data-bind="visible: loading">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Loading video...</p>
+                </div>
+
+                <div data-bind="visible: !loading() && video() && hasFile()">
+                    <video id="videoPlayer" class="w-100" controls data-bind="attr: { src: videoUrl }">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+
+                <div data-bind="visible: !loading() && video() && !hasFile()" class="text-center text-white py-5">
+                    <i class="bi bi-file-earmark-play fs-1 opacity-50"></i>
+                    <h4 class="mt-3">No video file linked yet</h4>
+                    <p class="opacity-75">Use the edit form below to link a file on disk to this video.</p>
+                </div>
+
+                <div data-bind="visible: !loading() && !video()" class="text-center text-white py-5">
+                    <h3>Video not found</h3>
+                    <a href="/channels" class="btn btn-outline-light">Back to Channels</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4" data-bind="visible: video()">
+        <div class="col-12 col-lg-8">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h2 class="card-title" data-bind="text: video() && video().Title"></h2>
+                    <div class="d-flex align-items-center mb-3 text-muted">
+                        <span data-bind="if: video() && video().UploadDate">
+                            <i class="bi bi-calendar"></i>
+                            <span data-bind="text: formatDate(video().UploadDate)"></span>
+                        </span>
+                        <span class="badge bg-secondary ms-2">Custom</span>
+                    </div>
+                    <div class="mb-3">
+                        <a data-bind="attr: { href: '/channels/' + (video() && video().ChannelId) }" class="text-decoration-none">
+                            <strong><i class="bi bi-person-circle"></i>
+                            <span data-bind="text: video() && video().Channel && video().Channel.Name"></span></strong>
+                        </a>
+                    </div>
+                    <div class="description-box p-3 bg-light rounded" data-bind="if: video() && video().Description">
+                        <p class="mb-0" data-bind="text: video().Description" style="white-space: pre-wrap;"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Metadata Card -->
+            <div class="card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h5 class="mb-0"><i class="bi bi-pencil"></i> Edit Metadata</h5>
+                    <button class="btn btn-sm btn-link" data-bind="click: toggleEditForm">
+                        <span data-bind="text: showEditForm() ? 'Hide' : 'Show'"></span>
+                    </button>
+                </div>
+                <div class="card-body" data-bind="visible: showEditForm">
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" data-bind="value: editTitle" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" rows="4" data-bind="value: editDescription"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Upload Date</label>
+                            <input type="date" class="form-control" data-bind="value: editUploadDate" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Duration (HH:MM:SS)</label>
+                            <input type="text" class="form-control" data-bind="value: editDuration" placeholder="00:00:00" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Thumbnail URL</label>
+                        <input type="text" class="form-control" data-bind="value: editThumbnailUrl" placeholder="https://..." />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">File Path</label>
+                        <input type="text" class="form-control" data-bind="value: editFilePath"
+                               placeholder="C:\Videos\my-video.mp4" />
+                        <div class="form-text">Absolute path to the video file on disk.</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary" data-bind="click: saveMetadata, enable: editTitle().length > 0">
+                            <i class="bi bi-save"></i> Save
+                        </button>
+                        <button class="btn btn-outline-secondary" data-bind="click: resetEditForm">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-4 mt-4 mt-lg-0">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Video Information</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr data-bind="if: video() && video().Duration">
+                                <th>Duration</th>
+                                <td data-bind="text: formatDuration(video().Duration)"></td>
+                            </tr>
+                            <tr>
+                                <th>Platform</th>
+                                <td><span class="badge bg-secondary">Custom</span></td>
+                            </tr>
+                            <tr data-bind="if: video() && video().DownloadedAt">
+                                <th>Imported</th>
+                                <td data-bind="text: formatDate(video().DownloadedAt)"></td>
+                            </tr>
+                            <tr data-bind="if: video() && video().FileSize">
+                                <th>File Size</th>
+                                <td data-bind="text: formatFileSize(video().FileSize)"></td>
+                            </tr>
+                            <tr data-bind="if: video() && video().FilePath">
+                                <th>File</th>
+                                <td><small class="text-muted text-break" data-bind="text: video().FilePath"></small></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script type="text/javascript">
+        const videoId = @videoId;
+    </script>
+    <script type="module" src="~/js/video-details-custom.js"></script>
+}

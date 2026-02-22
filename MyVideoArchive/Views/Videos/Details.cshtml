@@ -35,6 +35,23 @@
     
     <div class="row mt-4" data-bind="visible: video()">
         <div class="col-12 col-lg-8">
+            <!-- Manual import warning -->
+            <div class="alert alert-danger d-flex align-items-center justify-content-between mb-3"
+                 data-bind="visible: video() && video().NeedsMetadataReview">
+                <div>
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Manually imported.</strong> Unable to find metadata from the source platform.
+                    The title and other details may be incomplete.
+                </div>
+                <button class="btn btn-sm btn-outline-danger ms-3"
+                        data-bind="click: retryMetadata, enable: !retrying()">
+                    <span data-bind="visible: !retrying()"><i class="bi bi-arrow-repeat"></i> Retry</span>
+                    <span data-bind="visible: retrying()">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    </span>
+                </button>
+            </div>
+
             <div class="card">
                 <div class="card-body">
                     <h2 class="card-title" data-bind="text: video() && video().Title"></h2>

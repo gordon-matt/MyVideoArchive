@@ -35,15 +35,50 @@
             <div class="modal-body">
                 <form id="addChannelForm">
                     <div class="mb-3">
-                        <label for="channelUrl" class="form-label">Channel URL</label>
-                        <input type="text" class="form-control" id="channelUrl" data-bind="value: newChannelUrl" placeholder="https://www.youtube.com/channel/..." required>
-                        <div class="form-text">Enter a YouTube channel URL</div>
+                        <label for="platformSelect" class="form-label">Platform</label>
+                        <select class="form-select" id="platformSelect" data-bind="value: selectedPlatform">
+                            <option value="YouTube">YouTube</option>
+                            <option value="Custom">Custom (archive videos from any source)</option>
+                        </select>
+                    </div>
+
+                    <!-- YouTube fields -->
+                    <div data-bind="visible: selectedPlatform() === 'YouTube'">
+                        <div class="mb-3">
+                            <label for="channelUrl" class="form-label">Channel URL</label>
+                            <input type="text" class="form-control" id="channelUrl" data-bind="value: newChannelUrl"
+                                   placeholder="https://www.youtube.com/channel/..." />
+                            <div class="form-text">Enter a YouTube channel URL. Metadata will be fetched automatically.</div>
+                        </div>
+                    </div>
+
+                    <!-- Custom channel fields -->
+                    <div data-bind="visible: selectedPlatform() === 'Custom'">
+                        <div class="mb-3">
+                            <label for="customChannelName" class="form-label">Channel Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="customChannelName" data-bind="value: customChannelName"
+                                   placeholder="My Custom Channel" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="customChannelDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="customChannelDescription" rows="3"
+                                      data-bind="value: customChannelDescription"
+                                      placeholder="Optional description"></textarea>
+                        </div>
+                        <div class="form-text text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            Custom channels let you organise videos from platforms not supported by the automatic downloader.
+                            You can add metadata and upload files from the channel details page.
+                        </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" data-bind="click: addChannel, enable: newChannelUrl().length > 0">Add Channel</button>
+                <button type="button" class="btn btn-primary"
+                        data-bind="click: addChannel, enable: canSubmit()">
+                    Add Channel
+                </button>
             </div>
         </div>
     </div>
@@ -68,6 +103,7 @@
                 <div class="channel-name" data-bind="text: Name"></div>
                 <div class="channel-url" data-bind="text: Url"></div>
                 <div class="channel-meta">
+                    <span data-bind="if: Platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
                     Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span>
                 </div>
             </div>

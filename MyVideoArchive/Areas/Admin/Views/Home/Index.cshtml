@@ -1,0 +1,77 @@
+@{
+    ViewData["Title"] = "Admin";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin-index.css" asp-append-version="true" />
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-gear-fill"></i> Admin</h2>
+        <p class="text-muted">Administrative tools and utilities</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-folder-symlink"></i> File System</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text text-muted">
+                    Scan the configured downloads folder for video files that are present on disk but not yet tracked in the database.
+                    For files from supported platforms (e.g. YouTube), the app will attempt to fetch metadata using the filename as the video ID.
+                    Files that cannot be identified will be imported with basic file metadata and flagged for review.
+                </p>
+                <div id="scanStatus" class="alert d-none" role="alert"></div>
+                <button id="btnScanFileSystem" class="btn btn-primary" data-bind="click: scanFileSystem, enable: !scanning()">
+                    <span data-bind="visible: !scanning()">
+                        <i class="bi bi-search"></i> Scan File System
+                    </span>
+                    <span data-bind="visible: scanning()" class="d-none">
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        Scanning...
+                    </span>
+                </button>
+                <div data-bind="visible: scanResult()" class="mt-3">
+                    <div class="card bg-light">
+                        <div class="card-body py-2">
+                            <small>
+                                <strong>Scan complete.</strong>
+                                Found <span data-bind="text: scanResult() && scanResult().newVideos"></span> new video(s),
+                                <span data-bind="text: scanResult() && scanResult().updatedVideos"></span> updated,
+                                <span data-bind="text: scanResult() && scanResult().flaggedForReview"></span> flagged for review.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-arrow-repeat"></i> Channel Sync</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text text-muted">
+                    Manually trigger a sync of all channels and playlists with their source platforms to discover new content.
+                </p>
+                <button class="btn btn-outline-primary me-2" data-bind="click: syncAllChannels, enable: !syncing()">
+                    <i class="bi bi-broadcast"></i> Sync All Channels
+                </button>
+                <button class="btn btn-outline-secondary" data-bind="click: syncAllPlaylists, enable: !syncing()">
+                    <i class="bi bi-collection-play"></i> Sync All Playlists
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/admin-index.js"></script>
+}

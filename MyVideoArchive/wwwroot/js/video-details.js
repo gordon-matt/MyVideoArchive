@@ -1,10 +1,11 @@
-﻿import { formatDate, formatDuration, formatFileSize, formatNumber } from './utils.js';
+import { formatDate, formatDuration, formatFileSize, formatNumber } from './utils.js';
 
 class VideoPlayerViewModel {
     constructor(videoId) {
         this.videoId = videoId;
         this.video = ko.observable(null);
         this.loading = ko.observable(true);
+        this.retrying = ko.observable(false);
         this.videoUrl = ko.observable(null);
 
         this.formatDate = formatDate;
@@ -24,7 +25,6 @@ class VideoPlayerViewModel {
             .then(data => {
                 this.video(data);
 
-                // Set up video URL for streaming
                 if (data.Id) {
                     this.videoUrl(`/api/videos/${data.Id}/stream`);
                 }
@@ -35,6 +35,24 @@ class VideoPlayerViewModel {
                 console.error('Error loading video:', error);
                 this.loading(false);
             });
+    };
+
+    retryMetadata = async () => {
+        this.retrying(true);
+        try {
+            const response = await fetch(`/api/admin/videos/${this.videoId}/retry-metadata`, { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                await this.loadVideo();
+            } else {
+                alert(data.message || 'Metadata still unavailable from the platform. Please try again later.');
+            }
+        } catch (error) {
+            console.error('Error retrying metadata:', error);
+            alert('An error occurred while retrying. Please try again.');
+        } finally {
+            this.retrying(false);
+        }
     };
 }
 

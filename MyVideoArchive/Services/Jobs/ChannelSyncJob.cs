@@ -174,7 +174,7 @@ public class ChannelSyncJob
                 CancellationToken = cancellationToken
             }, x => x.Id);
 
-            foreach (var channelId in channelIds)
+            foreach (int channelId in channelIds)
             {
                 // Queue individual channel sync jobs
                 backgroundJobClient.Enqueue<ChannelSyncJob>(job =>

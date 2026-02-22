@@ -1,0 +1,175 @@
+@{
+    ViewData["Title"] = "Custom Channel";
+    var channelId = ViewBag.ChannelId;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/channel-details.css" />
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <a href="/channels" class="btn btn-outline-secondary btn-sm mb-3">
+            &larr; Back to Channels
+        </a>
+
+        <div data-bind="with: channel">
+            <div class="channel-header-card">
+                <div class="d-flex align-items-center">
+                    <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/100?text=Custom', alt: Name }"
+                         style="width: 100px; height: 100px; border-radius: 50%; margin-right: 20px;" />
+                    <div style="flex: 1;">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <h2 data-bind="text: Name" class="mb-0"></h2>
+                            <span class="badge bg-secondary">Custom</span>
+                        </div>
+                        <p data-bind="text: Description" style="opacity: 0.9;"></p>
+                        <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+                    </div>
+                    <div class="ms-auto">
+                        <button class="btn btn-outline-light btn-sm" data-bind="click: $parent.openEditChannel">
+                            <i class="bi bi-pencil"></i> Edit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="channelTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos" type="button" role="tab">
+            Videos
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="playlists-tab" data-bs-toggle="tab" data-bs-target="#playlists" type="button" role="tab">
+            Playlists
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="channelTabsContent">
+    <!-- Videos tab -->
+    <div class="tab-pane fade show active" id="videos" role="tabpanel">
+        <div data-bind="visible: loading" class="text-center">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+        </div>
+        <div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+            <p>No videos yet. Copy video files into the channel's download folder and use <a href="/admin">Admin &rsaquo; Scan File System</a> to import them, or add them manually.</p>
+        </div>
+        <div data-bind="visible: !loading() && videos().length > 0, foreach: videos">
+            <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
+                <div class="video-item">
+                    <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }"
+                         class="video-thumbnail-small" />
+                    <div style="flex: 1;">
+                        <h6 data-bind="text: Title"></h6>
+                        <small class="text-muted">
+                            <span data-bind="if: UploadDate">Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span></span>
+                        </small>
+                        <span data-bind="if: NeedsMetadataReview" class="badge bg-danger ms-2">Needs Review</span>
+                    </div>
+                    <div class="ms-auto">
+                        <i class="bi bi-play-circle fs-3 text-primary"></i>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Playlists tab -->
+    <div class="tab-pane fade" id="playlists" role="tabpanel">
+        <div class="mb-3">
+            <button class="btn btn-primary" data-bind="click: openCreatePlaylist">
+                <i class="bi bi-plus-circle"></i> Create Playlist
+            </button>
+        </div>
+        <div data-bind="visible: playlistsLoading" class="text-center">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+        </div>
+        <div data-bind="visible: !playlistsLoading() && playlists().length === 0" class="alert alert-info">
+            <p>No playlists yet. Click "Create Playlist" to get started.</p>
+        </div>
+        <div data-bind="visible: !playlistsLoading() && playlists().length > 0" class="row">
+            <!-- ko foreach: playlists -->
+            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
+                <div class="card h-100">
+                    <a data-bind="attr: { href: '/playlists/' + Id }">
+                        <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/320x180?text=No+Thumbnail', alt: Name }"
+                             class="card-img-top" style="height: 120px; object-fit: cover;" />
+                    </a>
+                    <div class="card-body p-2">
+                        <h6 class="card-title mb-0" data-bind="text: Name"></h6>
+                    </div>
+                </div>
+            </div>
+            <!-- /ko -->
+        </div>
+    </div>
+</div>
+
+<!-- Edit Channel Modal -->
+<div class="modal fade" id="editChannelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Channel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" data-bind="value: editName" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="3" data-bind="value: editDescription"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Thumbnail URL</label>
+                    <input type="text" class="form-control" data-bind="value: editThumbnailUrl"
+                           placeholder="https://..." />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" data-bind="click: saveChannel, enable: editName().length > 0">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Playlist Modal -->
+<div class="modal fade" id="createPlaylistModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Playlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" data-bind="value: newPlaylistName" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="3" data-bind="value: newPlaylistDescription"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" data-bind="click: createPlaylist, enable: newPlaylistName().length > 0">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script type="text/javascript">
+        const channelId = @channelId;
+    </script>
+    <script type="module" src="~/js/channel-details-custom.js"></script>
+}
