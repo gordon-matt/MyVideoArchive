@@ -1,4 +1,5 @@
 using Hangfire;
+using MyVideoArchive.Models.Api;
 
 namespace MyVideoArchive.Controllers.Api;
 
@@ -135,7 +136,11 @@ public class ChannelVideosApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving available videos for channel {ChannelId}", channelId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving available videos for channel {ChannelId}", channelId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while retrieving videos" });
         }
     }
@@ -197,7 +202,11 @@ public class ChannelVideosApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error queueing video downloads for channel {ChannelId}", channelId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error queueing video downloads for channel {ChannelId}", channelId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while queueing downloads" });
         }
     }
@@ -250,7 +259,11 @@ public class ChannelVideosApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error queueing all video downloads for channel {ChannelId}", channelId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error queueing all video downloads for channel {ChannelId}", channelId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while queueing downloads" });
         }
     }
@@ -292,18 +305,12 @@ public class ChannelVideosApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error toggling ignore status for video {VideoId}", videoId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error toggling ignore status for video {VideoId}", videoId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while updating video status" });
         }
     }
-}
-
-public class DownloadVideosRequest
-{
-    public List<int> VideoIds { get; set; } = [];
-}
-
-public class IgnoreVideoRequest
-{
-    public bool IsIgnored { get; set; }
 }

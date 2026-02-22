@@ -1,3 +1,5 @@
+using MyVideoArchive.Services.Abstractions;
+
 namespace MyVideoArchive.Data;
 
 public class ApplicationDbContextFactory(ISecretsManager secretsManager) : IDbContextFactory

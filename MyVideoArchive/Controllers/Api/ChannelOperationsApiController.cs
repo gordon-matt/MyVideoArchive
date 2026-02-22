@@ -31,7 +31,10 @@ public class ChannelOperationsApiController : ControllerBase
             backgroundJobClient.Enqueue<ChannelSyncJob>(job =>
                 job.SyncAllChannelsAsync(CancellationToken.None));
 
-            logger.LogInformation("Queued sync job for all channels");
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Queued sync job for all channels");
+            }
 
             return Ok(new
             {
@@ -40,7 +43,11 @@ public class ChannelOperationsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error queueing sync job for all channels");
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error queueing sync job for all channels");
+            }
+
             return StatusCode(500, new { message = "An error occurred while queueing sync job" });
         }
     }

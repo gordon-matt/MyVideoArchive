@@ -32,13 +32,20 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
     {
         try
         {
-            logger.LogInformation("Fetching channel metadata for: {Url}", channelUrl);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Fetching channel metadata for: {Url}", channelUrl);
+            }
 
             var result = await ytdl.RunVideoDataFetch(channelUrl);
 
             if (!result.Success || result.Data is null)
             {
-                logger.LogWarning("Failed to fetch channel metadata for {Url}: {Error}", channelUrl, string.Join(", ", result.ErrorOutput));
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Failed to fetch channel metadata for {Url}: {Error}", channelUrl, string.Join(", ", result.ErrorOutput));
+                }
+
                 return null;
             }
 
@@ -57,7 +64,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error fetching channel metadata for {Url}", channelUrl);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error fetching channel metadata for {Url}", channelUrl);
+            }
             return null;
         }
     }
@@ -66,13 +76,20 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
     {
         try
         {
-            logger.LogInformation("Fetching video metadata for: {Url}", videoUrl);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Fetching video metadata for: {Url}", videoUrl);
+            }
 
             var result = await ytdl.RunVideoDataFetch(videoUrl);
 
             if (!result.Success || result.Data is null)
             {
-                logger.LogWarning("Failed to fetch video metadata for {Url}: {Error}", videoUrl, string.Join(", ", result.ErrorOutput));
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Failed to fetch video metadata for {Url}: {Error}", videoUrl, string.Join(", ", result.ErrorOutput));
+                }
+
                 return null;
             }
 
@@ -97,7 +114,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error fetching video metadata for {Url}", videoUrl);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error fetching video metadata for {Url}", videoUrl);
+            }
             return null;
         }
     }
@@ -106,7 +126,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
     {
         try
         {
-            logger.LogInformation("Fetching playlist metadata for: {Url}", playlistUrl);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Fetching playlist metadata for: {Url}", playlistUrl);
+            }
 
             var options = new OptionSet
             {
@@ -118,7 +141,11 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
 
             if (!result.Success || result.Data is null)
             {
-                logger.LogWarning("Failed to fetch playlist metadata for {Url}: {Error}", playlistUrl, string.Join(", ", result.ErrorOutput));
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Failed to fetch playlist metadata for {Url}: {Error}", playlistUrl, string.Join(", ", result.ErrorOutput));
+                }
+
                 return null;
             }
 
@@ -139,7 +166,11 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error fetching playlist metadata for {Url}", playlistUrl);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error fetching playlist metadata for {Url}", playlistUrl);
+            }
+
             return null;
         }
     }
@@ -148,7 +179,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
     {
         try
         {
-            logger.LogInformation("Fetching channel videos for: {Url}", channelUrl);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Fetching channel videos for: {Url}", channelUrl);
+            }
 
             // Append /videos to ensure we get all videos
             string videosUrl = channelUrl.TrimEnd('/') + "/videos";
@@ -163,7 +197,11 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
 
             if (!result.Success || result.Data is null)
             {
-                logger.LogWarning("Failed to fetch channel videos for {Url}: {Error}", channelUrl, string.Join(", ", result.ErrorOutput));
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Failed to fetch channel videos for {Url}: {Error}", channelUrl, string.Join(", ", result.ErrorOutput));
+                }
+
                 return [];
             }
 
@@ -188,7 +226,11 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error fetching channel videos for {Url}", channelUrl);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error fetching channel videos for {Url}", channelUrl);
+            }
+
             return [];
         }
     }
@@ -197,7 +239,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
     {
         try
         {
-            logger.LogInformation("Fetching playlist videos for: {Url}", playlistUrl);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Fetching playlist videos for: {Url}", playlistUrl);
+            }
 
             var options = new OptionSet
             {
@@ -234,7 +279,11 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error fetching playlist videos for {Url}", playlistUrl);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error fetching playlist videos for {Url}", playlistUrl);
+            }
+
             return [];
         }
     }
@@ -259,7 +308,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
     {
         try
         {
-            logger.LogInformation("Fetching playlists for channel: {Url}", channelUrl);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Fetching playlists for channel: {Url}", channelUrl);
+            }
 
             // Use yt-dlp to get channel playlists
             // The trick is to use the channel's playlists URL
@@ -275,7 +327,11 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
 
             if (!result.Success || result.Data is null)
             {
-                logger.LogWarning("Failed to fetch playlists for {Url}: {Error}", channelUrl, string.Join(", ", result.ErrorOutput));
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Failed to fetch playlists for {Url}: {Error}", channelUrl, string.Join(", ", result.ErrorOutput));
+                }
+
                 return [];
             }
 
@@ -306,12 +362,20 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 }
             }
 
-            logger.LogInformation("Found {Count} playlists for channel {Url}", playlists.Count, channelUrl);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Found {Count} playlists for channel {Url}", playlists.Count, channelUrl);
+            }
+
             return playlists;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error fetching playlists for channel {Url}", channelUrl);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error fetching playlists for channel {Url}", channelUrl);
+            }
+
             return [];
         }
     }

@@ -36,7 +36,10 @@ public class YoutubeDLInitializer
                 return ytdl;
             }
 
-            logger.LogInformation("Initializing YoutubeDL...");
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Initializing YoutubeDL...");
+            }
 
             // Get paths from configuration or use defaults
             string ytDlpPath = configuration.GetValue<string>("YoutubeDL:ExecutablePath")
@@ -51,13 +54,21 @@ public class YoutubeDLInitializer
             // Download yt-dlp and ffmpeg if not already present
             if (!File.Exists(ytDlpPath))
             {
-                logger.LogInformation("Downloading yt-dlp...");
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Downloading yt-dlp...");
+                }
+
                 await Utils.DownloadYtDlp();
             }
 
             if (!File.Exists(ffmpegPath))
             {
-                logger.LogInformation("Downloading ffmpeg...");
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Downloading ffmpeg...");
+                }
+
                 await Utils.DownloadFFmpeg();
             }
 
@@ -65,7 +76,10 @@ public class YoutubeDLInitializer
             if (!Directory.Exists(downloadPath))
             {
                 Directory.CreateDirectory(downloadPath);
-                logger.LogInformation("Created downloads directory: {Path}", downloadPath);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Created downloads directory: {Path}", downloadPath);
+                }
             }
 
             ytdl = new YoutubeDL
@@ -75,12 +89,19 @@ public class YoutubeDLInitializer
                 OutputFolder = downloadPath
             };
 
-            logger.LogInformation("YoutubeDL initialized successfully");
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("YoutubeDL initialized successfully");
+            }
             return ytdl;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to initialize YoutubeDL");
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Failed to initialize YoutubeDL");
+            }
+
             throw;
         }
         finally

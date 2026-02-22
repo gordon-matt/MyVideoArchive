@@ -31,7 +31,10 @@ public class ChannelSyncJob
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
     public async Task ExecuteAsync(int channelId, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Starting channel sync job for channel ID: {ChannelId}", channelId);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Starting channel sync job for channel ID: {ChannelId}", channelId);
+        }
 
         try
         {
@@ -44,7 +47,11 @@ public class ChannelSyncJob
 
             if (channel is null)
             {
-                logger.LogWarning("Channel with ID {ChannelId} not found", channelId);
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Channel with ID {ChannelId} not found", channelId);
+                }
+
                 return;
             }
 
@@ -52,7 +59,11 @@ public class ChannelSyncJob
             var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
             if (provider is null)
             {
-                logger.LogError("No metadata provider found for platform: {Platform}", channel.Platform);
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    logger.LogError("No metadata provider found for platform: {Platform}", channel.Platform);
+                }
+
                 return;
             }
 
@@ -69,7 +80,10 @@ public class ChannelSyncJob
 
             // Get all videos from the channel
             var videoMetadataList = await provider.GetChannelVideosAsync(channel.Url, cancellationToken);
-            logger.LogInformation("Found {Count} videos for channel {ChannelId}", videoMetadataList.Count, channelId);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Found {Count} videos for channel {ChannelId}", videoMetadataList.Count, channelId);
+            }
 
             // Process each video
             var existingVideoIds = channel.Videos.Select(v => v.VideoId).ToHashSet();
@@ -123,13 +137,20 @@ public class ChannelSyncJob
             channel.LastChecked = DateTime.UtcNow;
             await channelRepository.UpdateAsync(channel, ContextOptions.ForCancellationToken(cancellationToken));
 
-            logger.LogInformation(
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation(
                 "Channel sync completed for {ChannelId}. New videos: {NewCount}, Total videos: {TotalCount}",
                 channelId, newVideosCount, videoMetadataList.Count);
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error syncing channel {ChannelId}", channelId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error syncing channel {ChannelId}", channelId);
+            }
+
             throw;
         }
     }
@@ -137,27 +158,36 @@ public class ChannelSyncJob
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
     public async Task SyncAllChannelsAsync(CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Starting sync for all channels");
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Starting sync for all channels");
+        }
 
         try
         {
-            var channels = await channelRepository.FindAsync(new SearchOptions<Channel>
+            var channelIds = await channelRepository.FindAsync(new SearchOptions<Channel>
             {
                 CancellationToken = cancellationToken
-            });
+            }, x => x.Id);
 
-            foreach (var channel in channels)
+            foreach (var channelId in channelIds)
             {
                 // Queue individual channel sync jobs
                 backgroundJobClient.Enqueue<ChannelSyncJob>(job =>
-                    job.ExecuteAsync(channel.Id, CancellationToken.None));
+                    job.ExecuteAsync(channelId, CancellationToken.None));
             }
-
-            logger.LogInformation("Queued sync jobs for {Count} channels", channels.Count);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Queued sync jobs for {Count} channels", channelIds.Count);
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error queuing channel sync jobs");
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error queuing channel sync jobs");
+            }
+
             throw;
         }
     }

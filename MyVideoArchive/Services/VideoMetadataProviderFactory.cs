@@ -24,7 +24,10 @@ public class VideoMetadataProviderFactory
 
         if (provider == null)
         {
-            logger.LogWarning("No metadata provider found for URL: {Url}", url);
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning("No metadata provider found for URL: {Url}", url);
+            }
         }
 
         return provider;
@@ -37,7 +40,10 @@ public class VideoMetadataProviderFactory
 
         if (provider == null)
         {
-            logger.LogWarning("No metadata provider found for platform: {Platform}", platform);
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning("No metadata provider found for platform: {Platform}", platform);
+            }
         }
 
         return provider;

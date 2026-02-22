@@ -3,7 +3,7 @@
   "defaultProvider": "jsdelivr",
   "libraries": [
     {
-      "library": "bootstrap@5.3.3",
+      "library": "bootstrap@5.3.8",
       "destination": "wwwroot/lib/bootstrap/"
     },
     {
@@ -29,6 +29,10 @@
     {
       "library": "knockout@3.5.1",
       "destination": "wwwroot/lib/knockout/"
+    },
+    {
+      "library": "bootswatch@5.3.8",
+      "destination": "wwwroot/lib/bootswatch/"
     }
   ]
 }

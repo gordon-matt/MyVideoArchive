@@ -24,7 +24,10 @@ public class VideoDownloaderFactory
 
         if (downloader == null)
         {
-            logger.LogWarning("No downloader found for URL: {Url}", url);
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning("No downloader found for URL: {Url}", url);
+            }
         }
 
         return downloader;
@@ -37,7 +40,10 @@ public class VideoDownloaderFactory
 
         if (downloader == null)
         {
-            logger.LogWarning("No downloader found for platform: {Platform}", platform);
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning("No downloader found for platform: {Platform}", platform);
+            }
         }
 
         return downloader;

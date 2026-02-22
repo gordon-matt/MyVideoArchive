@@ -1,4 +1,5 @@
 using Hangfire;
+using MyVideoArchive.Models.Api;
 
 namespace MyVideoArchive.Controllers.Api;
 
@@ -126,7 +127,11 @@ public class ChannelPlaylistsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving playlists for channel {ChannelId}", channelId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving playlists for channel {ChannelId}", channelId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while retrieving playlists" });
         }
     }
@@ -205,7 +210,11 @@ public class ChannelPlaylistsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error subscribing to playlists for channel {ChannelId}", channelId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error subscribing to playlists for channel {ChannelId}", channelId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while subscribing to playlists" });
         }
     }
@@ -286,7 +295,11 @@ public class ChannelPlaylistsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error subscribing to all playlists for channel {ChannelId}", channelId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error subscribing to all playlists for channel {ChannelId}", channelId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while subscribing to playlists" });
         }
     }
@@ -328,7 +341,11 @@ public class ChannelPlaylistsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error toggling ignore status for playlist {PlaylistId}", playlistId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error toggling ignore status for playlist {PlaylistId}", playlistId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while updating playlist status" });
         }
     }
@@ -363,7 +380,10 @@ public class ChannelPlaylistsApiController : ControllerBase
             // Fetch playlists from YouTube
             var playlistMetadataList = await provider.GetChannelPlaylistsAsync(channel.Url);
 
-            logger.LogInformation("Found {Count} playlists for channel {ChannelId}", playlistMetadataList.Count, channelId);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Found {Count} playlists for channel {ChannelId}", playlistMetadataList.Count, channelId);
+            }
 
             int newPlaylistsCount = 0;
             var existingPlaylists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
@@ -420,18 +440,12 @@ public class ChannelPlaylistsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error refreshing playlists for channel {ChannelId}", channelId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error refreshing playlists for channel {ChannelId}", channelId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while refreshing playlists" });
         }
     }
-}
-
-public class SubscribePlaylistsRequest
-{
-    public List<int> PlaylistIds { get; set; } = [];
-}
-
-public class IgnorePlaylistRequest
-{
-    public bool IsIgnored { get; set; }
 }

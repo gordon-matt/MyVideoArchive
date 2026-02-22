@@ -27,7 +27,10 @@ public class VideoDownloadJob
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
     public async Task ExecuteAsync(int videoId, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Starting video download job for video ID: {VideoId}", videoId);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Starting video download job for video ID: {VideoId}", videoId);
+        }
 
         try
         {
@@ -40,14 +43,22 @@ public class VideoDownloadJob
 
             if (video is null)
             {
-                logger.LogWarning("Video with ID {VideoId} not found", videoId);
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Video with ID {VideoId} not found", videoId);
+                }
+
                 return;
             }
 
             // Skip if already downloaded
             if (!string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath))
             {
-                logger.LogInformation("Video {VideoId} already downloaded", videoId);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Video {VideoId} already downloaded", videoId);
+                }
+
                 return;
             }
 
@@ -55,7 +66,11 @@ public class VideoDownloadJob
             var downloader = downloaderFactory.GetDownloaderByPlatform(video.Platform);
             if (downloader is null)
             {
-                logger.LogError("No downloader found for platform: {Platform}", video.Platform);
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    logger.LogError("No downloader found for platform: {Platform}", video.Platform);
+                }
+
                 return;
             }
 
@@ -67,7 +82,13 @@ public class VideoDownloadJob
             string channelPath = Path.Combine(downloadPath, SanitizeFileName(video.Channel.Name));
 
             // Download the video
-            var progress = new Progress<double>(p => logger.LogInformation("Download progress for video {VideoId}: {Progress:P0}", videoId, p));
+            var progress = new Progress<double>(p =>
+            {
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Download progress for video {VideoId}: {Progress:P0}", videoId, p);
+                }
+            });
 
             string filePath = await downloader.DownloadVideoAsync(
                 video.Url,
@@ -82,12 +103,17 @@ public class VideoDownloadJob
             video.IsQueued = false;
 
             await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
-
-            logger.LogInformation("Successfully downloaded video {VideoId} to {FilePath}", videoId, filePath);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Successfully downloaded video {VideoId} to {FilePath}", videoId, filePath);
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error downloading video {VideoId}", videoId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error downloading video {VideoId}", videoId);
+            }
 
             // Reset IsQueued flag on failure so it can be retried
             try
@@ -101,7 +127,10 @@ public class VideoDownloadJob
             }
             catch (Exception resetEx)
             {
-                logger.LogError(resetEx, "Error resetting IsQueued flag for video {VideoId}", videoId);
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    logger.LogError(resetEx, "Error resetting IsQueued flag for video {VideoId}", videoId);
+                }
             }
 
             throw;

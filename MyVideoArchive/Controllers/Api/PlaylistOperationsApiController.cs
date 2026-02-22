@@ -1,3 +1,5 @@
+using MyVideoArchive.Models.Api;
+
 namespace MyVideoArchive.Controllers.Api;
 
 /// <summary>
@@ -101,7 +103,11 @@ public class PlaylistOperationsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error saving custom order for playlist {PlaylistId}", playlistId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error saving custom order for playlist {PlaylistId}", playlistId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while saving custom order" });
         }
     }
@@ -134,7 +140,11 @@ public class PlaylistOperationsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error getting order setting for playlist {PlaylistId}", playlistId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error getting order setting for playlist {PlaylistId}", playlistId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while getting order setting" });
         }
     }
@@ -171,7 +181,11 @@ public class PlaylistOperationsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error getting custom order for playlist {PlaylistId}", playlistId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error getting custom order for playlist {PlaylistId}", playlistId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while getting custom order" });
         }
     }
@@ -250,20 +264,12 @@ public class PlaylistOperationsApiController : ControllerBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error getting videos for playlist {PlaylistId}", playlistId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error getting videos for playlist {PlaylistId}", playlistId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while getting playlist videos" });
         }
     }
-}
-
-public class ReorderVideosRequest
-{
-    public bool UseCustomOrder { get; set; }
-    public List<VideoOrderItem>? VideoOrders { get; set; }
-}
-
-public class VideoOrderItem
-{
-    public int VideoId { get; set; }
-    public int Order { get; set; }
 }

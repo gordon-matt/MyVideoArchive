@@ -1,4 +1,5 @@
 ﻿using Extenso;
+using MyVideoArchive.Services.Abstractions;
 
 namespace MyVideoArchive.Services;
 
@@ -8,7 +9,7 @@ public class SecretsManager : ISecretsManager
 
     public SecretsManager(IConfiguration configuration)
     {
-        secretsPath = configuration.GetSection("SecretsPath").Value;
+        secretsPath = configuration.GetSection("SecretsPath").Value!;
         Secrets = File.ReadAllText(secretsPath).JsonDeserialize<IEnumerable<Secret>>();
     }
 
@@ -20,12 +21,12 @@ public class SecretsManager : ISecretsManager
 
     public IEnumerable<Secret> Secrets { get; set; }
 
-    public string GetSecret(string secretName) => Secrets.FirstOrDefault(x => x.Name == secretName)?.Value;
+    public string? GetSecret(string secretName) => Secrets.FirstOrDefault(x => x.Name == secretName)?.Value;
 }
 
 public class Secret
 {
-    public string Name { get; set; }
+    public required string Name { get; set; }
 
-    public string Value { get; set; }
+    public required string Value { get; set; }
 }

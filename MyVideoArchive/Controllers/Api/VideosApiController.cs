@@ -30,13 +30,21 @@ public class VideosApiController : ControllerBase
 
             if (video is null)
             {
-                logger.LogWarning("Video with ID {VideoId} not found", videoId);
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Video with ID {VideoId} not found", videoId);
+                }
+
                 return NotFound(new { message = "Video not found" });
             }
 
             if (string.IsNullOrEmpty(video.FilePath) || !System.IO.File.Exists(video.FilePath))
             {
-                logger.LogWarning("Video file not found for video ID {VideoId} at path {FilePath}", videoId, video.FilePath);
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Video file not found for video ID {VideoId} at path {FilePath}", videoId, video.FilePath);
+                }
+
                 return NotFound(new { message = "Video file not found" });
             }
 
@@ -55,14 +63,21 @@ public class VideosApiController : ControllerBase
                 _ => "application/octet-stream"
             };
 
-            logger.LogInformation("Streaming video {VideoId} from {FilePath}", videoId, video.FilePath);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Streaming video {VideoId} from {FilePath}", videoId, video.FilePath);
+            }
 
             // Enable range requests for seeking support
             return File(fileStream, contentType, enableRangeProcessing: true);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error streaming video {VideoId}", videoId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error streaming video {VideoId}", videoId);
+            }
+
             return StatusCode(500, new { message = "An error occurred while streaming the video" });
         }
     }

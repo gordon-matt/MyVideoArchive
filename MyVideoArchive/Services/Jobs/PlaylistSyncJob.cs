@@ -36,7 +36,10 @@ public class PlaylistSyncJob
     [DisableConcurrentExecution(timeoutInSeconds: 3600)] // 1 hour timeout
     public async Task ExecuteAsync(int playlistId, CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Starting playlist sync job for playlist ID: {PlaylistId}", playlistId);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Starting playlist sync job for playlist ID: {PlaylistId}", playlistId);
+        }
 
         try
         {
@@ -48,12 +51,15 @@ public class PlaylistSyncJob
 
                 Include = query => query
                     .Include(x => x.PlaylistVideos)
-                    .Include(x => x.Channel)
             });
 
             if (playlist is null)
             {
-                logger.LogWarning("Playlist with ID {PlaylistId} not found", playlistId);
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Playlist with ID {PlaylistId} not found", playlistId);
+                }
+
                 return;
             }
 
@@ -61,7 +67,11 @@ public class PlaylistSyncJob
             var provider = metadataProviderFactory.GetProviderByPlatform(playlist.Platform);
             if (provider is null)
             {
-                logger.LogError("No metadata provider found for platform: {Platform}", playlist.Platform);
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    logger.LogError("No metadata provider found for platform: {Platform}", playlist.Platform);
+                }
+
                 return;
             }
 
@@ -82,7 +92,10 @@ public class PlaylistSyncJob
             {
                 // Get all videos from the playlist
                 var videoMetadataList = await provider.GetPlaylistVideosAsync(playlist.Url, cancellationToken);
-                logger.LogInformation("Found {Count} videos for playlist {PlaylistId}", videoMetadataList.Count, playlistId);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Found {Count} videos for playlist {PlaylistId}", videoMetadataList.Count, playlistId);
+                }
 
                 // Process each video
                 var existingPlaylistVideoIds = playlist.PlaylistVideos.Select(vp => vp.VideoId).ToHashSet();
@@ -178,7 +191,11 @@ public class PlaylistSyncJob
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error syncing playlist {PlaylistId}", playlistId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error syncing playlist {PlaylistId}", playlistId);
+            }
+
             throw;
         }
     }
@@ -186,7 +203,10 @@ public class PlaylistSyncJob
     [DisableConcurrentExecution(timeoutInSeconds: 600)] // 10 minutes timeout
     public async Task SyncAllPlaylistsAsync(CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Starting sync for all playlists");
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Starting sync for all playlists");
+        }
 
         try
         {
@@ -202,11 +222,18 @@ public class PlaylistSyncJob
                     job.ExecuteAsync(playlist.Id, CancellationToken.None));
             }
 
-            logger.LogInformation("Queued sync jobs for {Count} playlists", playlists.Count);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Queued sync jobs for {Count} playlists", playlists.Count);
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error queuing playlist sync jobs");
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error queuing playlist sync jobs");
+            }
+
             throw;
         }
     }

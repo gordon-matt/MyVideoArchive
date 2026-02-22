@@ -64,7 +64,11 @@ public class ChannelODataController : ODataController
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving channels");
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving channels");
+            }
+
             return StatusCode(500, "An error occurred while retrieving channels");
         }
     }
@@ -108,7 +112,11 @@ public class ChannelODataController : ODataController
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error retrieving channel {ChannelId}", key);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving channel {ChannelId}", key);
+            }
+
             return StatusCode(500, "An error occurred while retrieving the channel");
         }
     }
@@ -141,7 +149,10 @@ public class ChannelODataController : ODataController
             {
                 // Channel exists, just subscribe the user
                 channelDbId = existingChannel.Id;
-                logger.LogInformation("Channel {ChannelId} already exists, subscribing user {UserId}", channel.ChannelId, userId);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Channel {ChannelId} already exists, subscribing user {UserId}", channel.ChannelId, userId);
+                }
             }
             else
             {
@@ -150,7 +161,10 @@ public class ChannelODataController : ODataController
                 channel.Platform = "YouTube"; // Default platform
                 await channelRepository.InsertAsync(channel);
                 channelDbId = channel.Id;
-                logger.LogInformation("Created new channel {ChannelId} for user {UserId}", channel.ChannelId, userId);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Created new channel {ChannelId} for user {UserId}", channel.ChannelId, userId);
+                }
             }
 
             // Check if user already subscribed
@@ -171,7 +185,10 @@ public class ChannelODataController : ODataController
                     SubscribedAt = DateTime.UtcNow
                 });
 
-                logger.LogInformation("User {UserId} subscribed to channel {ChannelId}", userId, channelDbId);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("User {UserId} subscribed to channel {ChannelId}", userId, channelDbId);
+                }
             }
 
             // Queue sync job for the channel
@@ -183,7 +200,11 @@ public class ChannelODataController : ODataController
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error creating/subscribing to channel");
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error creating/subscribing to channel");
+            }
+
             return StatusCode(500, "An error occurred while subscribing to the channel");
         }
     }
@@ -218,7 +239,10 @@ public class ChannelODataController : ODataController
             {
                 // Remove user's subscription
                 await userChannelRepository.DeleteAsync(userChannel);
-                logger.LogInformation("User {UserId} unsubscribed from channel {ChannelId}", userId, key);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("User {UserId} unsubscribed from channel {ChannelId}", userId, key);
+                }
             }
 
             // Optionally: If no users are subscribed to this channel, delete it
@@ -235,7 +259,10 @@ public class ChannelODataController : ODataController
                 if (channel is not null)
                 {
                     await channelRepository.DeleteAsync(channel);
-                    logger.LogInformation("Deleted channel {ChannelId} as no users are subscribed", key);
+                    if (logger.IsEnabled(LogLevel.Information))
+                    {
+                        logger.LogInformation("Deleted channel {ChannelId} as no users are subscribed", key);
+                    }
                 }
             }
 
@@ -243,7 +270,11 @@ public class ChannelODataController : ODataController
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error deleting channel subscription {ChannelId}", key);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error deleting channel subscription {ChannelId}", key);
+            }
+
             return StatusCode(500, "An error occurred while unsubscribing from the channel");
         }
     }

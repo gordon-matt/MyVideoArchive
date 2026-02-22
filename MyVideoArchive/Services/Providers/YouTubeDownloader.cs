@@ -39,7 +39,10 @@ public partial class YouTubeDownloader : IVideoDownloader
     {
         try
         {
-            logger.LogInformation("Downloading video from: {Url}", videoUrl);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Downloading video from: {Url}", videoUrl);
+            }
 
             // Ensure output directory exists
             if (!Directory.Exists(outputPath))
@@ -72,7 +75,14 @@ public partial class YouTubeDownloader : IVideoDownloader
             if (!result.Success)
             {
                 string errorMessage = string.Join(", ", result.ErrorOutput);
-                logger.LogError("Failed to download video from {Url}: {Error}", videoUrl, errorMessage);
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    if (logger.IsEnabled(LogLevel.Error))
+                    {
+                        logger.LogError("Failed to download video from {Url}: {Error}", videoUrl, errorMessage);
+                    }
+
+                }
                 throw new InvalidOperationException($"Failed to download video: {errorMessage}");
             }
 
@@ -83,14 +93,21 @@ public partial class YouTubeDownloader : IVideoDownloader
                 throw new InvalidOperationException("Downloaded file not found");
             }
 
-            logger.LogInformation("Successfully downloaded video to: {FilePath}", downloadedFile);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Successfully downloaded video to: {FilePath}", downloadedFile);
+            }
+
             progress?.Report(1.0);
 
             return downloadedFile;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error downloading video from {Url}", videoUrl);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error downloading video from {Url}", videoUrl);
+            }
             throw;
         }
     }
