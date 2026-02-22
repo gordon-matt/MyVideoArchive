@@ -75,7 +75,6 @@ public class ChannelSyncJob
                 channel.Description = channelMetadata.Description;
                 channel.ThumbnailUrl = channelMetadata.ThumbnailUrl;
                 channel.SubscriberCount = channelMetadata.SubscriberCount;
-                channel.VideoCount = channelMetadata.VideoCount;
             }
 
             // Get all videos from the channel
@@ -135,6 +134,11 @@ public class ChannelSyncJob
 
             // Update last checked timestamp
             channel.LastChecked = DateTime.UtcNow;
+
+            channel.VideoCount = await channelRepository.CountAsync(
+                x => x.Id == channelId,
+                ContextOptions.ForCancellationToken(cancellationToken));
+
             await channelRepository.UpdateAsync(channel, ContextOptions.ForCancellationToken(cancellationToken));
 
             if (logger.IsEnabled(LogLevel.Information))

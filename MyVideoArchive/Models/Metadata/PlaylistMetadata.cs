@@ -16,8 +16,6 @@ public class PlaylistMetadata
 
     public required string ChannelName { get; set; }
 
-    public int? VideoCount { get; set; }
-
     public required string Platform { get; set; }
 
     public List<string> VideoIds { get; set; } = [];

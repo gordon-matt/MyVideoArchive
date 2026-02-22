@@ -405,7 +405,6 @@ public class ChannelPlaylistsApiController : ControllerBase
                     existingPlaylist.Description = playlistMetadata.Description;
                     existingPlaylist.Url = playlistMetadata.Url;
                     existingPlaylist.ThumbnailUrl = playlistMetadata.ThumbnailUrl;
-                    existingPlaylist.VideoCount = playlistMetadata.VideoCount;
                     playlistUpdates.Add(existingPlaylist);
                 }
                 else
@@ -419,7 +418,6 @@ public class ChannelPlaylistsApiController : ControllerBase
                         Url = playlistMetadata.Url,
                         ThumbnailUrl = playlistMetadata.ThumbnailUrl,
                         Platform = playlistMetadata.Platform,
-                        VideoCount = playlistMetadata.VideoCount,
                         SubscribedAt = DateTime.MinValue, // Not subscribed yet
                         IsIgnored = false,
                         ChannelId = channelId

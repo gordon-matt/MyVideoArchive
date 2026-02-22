@@ -81,7 +81,6 @@ public class PlaylistSyncJob
             {
                 playlist.Name = playlistMetadata.Name;
                 playlist.Description = playlistMetadata.Description;
-                playlist.VideoCount = playlistMetadata.VideoCount;
             }
 
             bool hasAnySubs = await userPlaylistRepository.CountAsync(
@@ -179,6 +178,10 @@ public class PlaylistSyncJob
                 await videoRepository.InsertAsync(videoInserts, ContextOptions.ForCancellationToken(cancellationToken));
                 await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
                 await playlistVideoRepository.InsertAsync(playlistVideoInserts, ContextOptions.ForCancellationToken(cancellationToken));
+
+                playlist.VideoCount = playlistVideoRepository.Count(
+                    x => x.PlaylistId == playlistId,
+                    ContextOptions.ForCancellationToken(cancellationToken));
             }
 
             // Update last checked timestamp

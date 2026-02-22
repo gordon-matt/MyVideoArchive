@@ -14,7 +14,5 @@ public class ChannelMetadata
 
     public int? SubscriberCount { get; set; }
 
-    public int? VideoCount { get; set; }
-
     public required string Platform { get; set; }
 }

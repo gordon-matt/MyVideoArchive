@@ -7,12 +7,10 @@
     <script type="importmap"></script>
 
     <environment include="Development">
-        @* <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.css" /> *@
         <link rel="stylesheet" href="~/lib/bootswatch/dist/flatly/bootstrap.css" />
         <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.css">
     </environment>
     <environment exclude="Development">
-        @* <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" /> *@
         <link rel="stylesheet" href="~/lib/bootswatch/dist/flatly/bootstrap.min.css" />
         <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css">
     </environment>
@@ -42,6 +40,13 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="Downloads" asp-action="Index">Downloads</a>
                         </li>
+
+                        @if (User.IsInRole(Constants.Roles.Administrator))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" href="/hangfire">Hangfire</a>
+                            </li>
+                        }
                     </ul>
                     <partial name="_LoginPartial" />
                 </div>
@@ -56,7 +61,7 @@
 
     <footer class="border-top footer text-muted">
         <div class="container">
-            &copy; @DateTime.Today.Year - MyVideoArchive - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+            &copy; @DateTime.Today.Year - MyVideoArchive</a>
         </div>
     </footer>
 

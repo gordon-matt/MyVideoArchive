@@ -12,15 +12,15 @@ public class ODataRegistrar : IODataRegistrar
 
         // Configure Channel
         var channelEntity = builder.EntitySet<Channel>("ChannelOData").EntityType;
-        channelEntity.HasKey(c => c.Id);
+        channelEntity.HasKey(x => x.Id);
 
         // Configure Video
         var videoEntity = builder.EntitySet<Video>("VideoOData").EntityType;
-        videoEntity.HasKey(v => v.Id);
+        videoEntity.HasKey(x => x.Id);
 
         // Configure Playlist
         var playlistEntity = builder.EntitySet<Playlist>("PlaylistOData").EntityType;
-        playlistEntity.HasKey(p => p.Id);
+        playlistEntity.HasKey(x => x.Id);
 
         options.AddRouteComponents("odata", builder.GetEdmModel());
     }

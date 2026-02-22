@@ -159,7 +159,6 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 Description = data.Description,
                 ChannelId = data.Channel ?? data.Uploader ?? string.Empty,
                 ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
-                VideoCount = null,
                 Platform = PlatformName,
                 VideoIds = []
             };
