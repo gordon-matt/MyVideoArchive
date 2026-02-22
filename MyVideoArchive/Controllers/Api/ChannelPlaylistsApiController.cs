@@ -116,6 +116,7 @@ public class ChannelPlaylistsApiController : ControllerBase
                 x.Description,
                 x.Url,
                 x.ThumbnailUrl,
+                x.Platform,
                 x.VideoCount,
                 x.SubscribedAt,
                 x.LastChecked,

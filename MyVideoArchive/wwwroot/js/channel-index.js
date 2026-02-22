@@ -4,6 +4,8 @@ class ChannelsViewModel {
     constructor() {
         this.channels = ko.observableArray([]);
         this.loading = ko.observable(true);
+        this.platformFilter = ko.observable('');
+        this.platformFilter.subscribe(() => this.loadChannels());
         this.selectedPlatform = ko.observable('YouTube');
         this.newChannelUrl = ko.observable('');
         this.customChannelName = ko.observable('');
@@ -22,7 +24,12 @@ class ChannelsViewModel {
     loadChannels = async () => {
         this.loading(true);
 
-        await fetch('/odata/ChannelOData?$orderby=Name')
+        var url = '/odata/ChannelOData?$orderby=Name';
+        if (this.platformFilter()) {
+            url += `&$filter=Platform eq '${this.platformFilter()}'`;
+        }
+
+        await fetch(url)
             .then(response => response.json())
             .then(data => {
                 this.channels(data.value || []);

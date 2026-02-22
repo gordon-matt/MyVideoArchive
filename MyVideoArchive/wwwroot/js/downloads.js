@@ -1,17 +1,18 @@
-﻿import { delay, formatDate, formatDuration } from './utils.js';
+import { delay, formatDate, formatDuration } from './utils.js';
 
 class DownloadsViewModel {
     constructor() {
         this.videos = ko.observableArray([]);
         this.channels = ko.observableArray([]);
         this.selectedChannelId = ko.observable('');
+        this.selectedChannelId.subscribe(() => this.loadVideos());
         this.statusFilter = ko.observable('all');
         this.loading = ko.observable(true);
         this.checking = ko.observable(false);
 
         // Pagination
         this.currentPage = ko.observable(1);
-        this.pageSize = 25;
+        this.pageSize = 20;
         this.totalPages = ko.observable(1);
         this.totalCount = ko.observable(0);
 
@@ -98,7 +99,7 @@ class DownloadsViewModel {
                 });
 
                 this.videos(videos);
-                this.totalCount(data['@@odata.count'] || 0);
+                this.totalCount(data['@odata.count'] || 0);
                 this.totalPages(Math.ceil(this.totalCount() / this.pageSize));
                 this.loading(false);
             })

@@ -1,4 +1,4 @@
-﻿import { formatDate, formatDuration, formatNumber } from './utils.js';
+import { formatDate, formatDuration, formatNumber } from './utils.js';
 
 class PlaylistDetailsViewModel {
     constructor(playlistId) {
@@ -51,17 +51,40 @@ class PlaylistDetailsViewModel {
         // Load videos with proper ordering
         await fetch(`/api/playlists/${this.playlistId}/videos?useCustomOrder=${this.useCustomOrder()}`)
             .then(response => response.json())
-            .then(data => {
-                this.playlistVideos(data.videos || []);
+            .then(async data => {
+                // Initialise watched as a plain boolean on every video before setting
+                // the observable array so the KO binding is always defined on render.
+                const videos = (data.videos || []).map(v => {
+                    v.watched = false;
+                    return v;
+                });
+                this.playlistVideos(videos);
                 this.loadingVideos(false);
+
+                // Load watched status and update
+                if (videos.length > 0) {
+                    try {
+                        const params = new URLSearchParams();
+                        videos.forEach(v => params.append("videoIds", v.id));
+                        const watchedResponse = await fetch(`/api/user/videos/watched?${params.toString()}`);
+                        const watchedData = await watchedResponse.json();
+                        const watchedSet = new Set(watchedData.watchedIds || []);
+                        this.playlistVideos().forEach(v => {
+                            v.watched = watchedSet.has(v.id);
+                        });
+                        this.playlistVideos.valueHasMutated();
+                    } catch (e) {
+                        console.error('Error loading watched status:', e);
+                    }
+                }
 
                 // Initialize drag-drop after data is loaded
                 setTimeout(() => {
                     this.initializeSortable();
                 }, 100);
 
-                // Auto-play first downloaded video
-                if (this.playlistVideos().length > 0) {
+                // Auto-play first downloaded video (only on initial load, not after reorder)
+                if (this.playlistVideos().length > 0 && !this.currentVideo()) {
                     var firstDownloaded = this.playlistVideos().find(function (v) { return v.downloadedAt; });
                     if (firstDownloaded) {
                         this.playVideo(firstDownloaded);
@@ -74,13 +97,21 @@ class PlaylistDetailsViewModel {
             });
     };
 
-    playVideo = (video) => {
+    playVideo = async (video) => {
         if (!video.downloadedAt) {
             return; // Just don't play if not downloaded, don't show alert
         }
 
         this.currentVideo(video);
         this.currentVideoUrl(`/api/videos/${video.id}/stream`);
+
+        // Mark as watched
+        try {
+            await fetch(`/api/user/videos/${video.id}/watched`, { method: 'POST' });
+            video.watched = true;
+        } catch (error) {
+            console.error('Error marking video as watched:', error);
+        }
 
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });

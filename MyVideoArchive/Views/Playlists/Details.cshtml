@@ -27,23 +27,50 @@
             <!-- Current Video Info -->
             <div class="card mt-3" data-bind="visible: currentVideo()">
                 <div class="card-body">
-                    <h3 class="card-title" data-bind="text: currentVideo() && currentVideo().Title"></h3>
+                    <h3 class="card-title" data-bind="text: currentVideo() && currentVideo().title"></h3>
                     
                     <div class="d-flex align-items-center mb-3 text-muted">
-                        <span data-bind="if: currentVideo() && currentVideo().ViewCount">
-                            <i class="bi bi-eye"></i> <span data-bind="text: formatNumber(currentVideo().ViewCount)"></span> views
+                        <span data-bind="if: currentVideo() && currentVideo().viewCount">
+                            <i class="bi bi-eye"></i> <span data-bind="text: formatNumber(currentVideo().viewCount)"></span> views
                         </span>
-                        <span data-bind="if: currentVideo() && currentVideo().LikeCount" class="ms-3">
-                            <i class="bi bi-hand-thumbs-up"></i> <span data-bind="text: formatNumber(currentVideo().LikeCount)"></span> likes
+                        <span data-bind="if: currentVideo() && currentVideo().likeCount" class="ms-3">
+                            <i class="bi bi-hand-thumbs-up"></i> <span data-bind="text: formatNumber(currentVideo().likeCount)"></span> likes
                         </span>
-                        <span data-bind="if: currentVideo() && currentVideo().UploadDate" class="ms-3">
-                            <i class="bi bi-calendar"></i> <span data-bind="text: formatDate(currentVideo().UploadDate)"></span>
+                        <span data-bind="if: currentVideo() && currentVideo().uploadDate" class="ms-3">
+                            <i class="bi bi-calendar"></i> <span data-bind="text: formatDate(currentVideo().uploadDate)"></span>
                         </span>
                     </div>
                     
                     <div class="description-box p-3 bg-light rounded">
-                        <p class="mb-0" data-bind="text: currentVideo() && currentVideo().Description" style="white-space: pre-wrap;"></p>
+                        <p class="mb-0" data-bind="text: currentVideo() && currentVideo().description" style="white-space: pre-wrap;"></p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Video Information -->
+            <div class="card mt-3" data-bind="visible: currentVideo()">
+                <div class="card-header">
+                    <h5 class="mb-0">Video Information</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr data-bind="if: currentVideo() && currentVideo().duration">
+                                <th>Duration</th>
+                                <td data-bind="text: formatDuration(currentVideo().duration)"></td>
+                            </tr>
+                            <tr data-bind="if: currentVideo() && currentVideo().downloadedAt">
+                                <th>Downloaded</th>
+                                <td data-bind="text: formatDate(currentVideo().downloadedAt)"></td>
+                            </tr>
+                            <tr data-bind="if: currentVideo() && currentVideo().url">
+                                <th>Original URL</th>
+                                <td>
+                                    <a data-bind="attr: { href: currentVideo().url }" target="_blank" class="text-truncate d-block" style="max-width: 200px;">Open Original</a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -88,14 +115,19 @@
                         <p class="small mb-0">No videos in this playlist yet.</p>
                     </div>
                     
-                <div id="videoListContainer" data-bind="visible: !loadingVideos() && playlistVideos().length > 0, foreach: playlistVideos">
+                    <div id="videoListContainer" data-bind="visible: !loadingVideos() && playlistVideos().length > 0, foreach: playlistVideos">
                     <div class="playlist-video-item" data-bind="click: $parent.playVideo, css: { active: $parent.currentVideo() && $parent.currentVideo().id === id, 'not-downloaded': !downloadedAt }, attr: { 'data-video-id': id }">
                         <span data-bind="visible: $parent.useCustomOrder()" class="drag-handle">
                             <i class="bi bi-grip-vertical"></i>
                         </span>
                         <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: title }" class="playlist-video-thumbnail" />
                             <div class="playlist-video-info flex-grow-1">
-                                <div class="playlist-video-title" data-bind="text: title"></div>
+                                <div class="playlist-video-title">
+                                    <span data-bind="text: title"></span>
+                                    <!-- ko if: watched -->
+                                    <i class="bi bi-eye text-success ms-1" title="Watched"></i>
+                                    <!-- /ko -->
+                                </div>
                                 <!-- ko if: channel -->
                                 <div class="playlist-video-channel" data-bind="text: channel.name"></div>
                                 <!-- /ko -->

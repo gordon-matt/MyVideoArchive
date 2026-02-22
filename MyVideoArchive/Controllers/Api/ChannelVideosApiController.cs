@@ -269,6 +269,53 @@ public class ChannelVideosApiController : ControllerBase
     }
 
     /// <summary>
+    /// Delete the physical file for a downloaded video, clearing download metadata and marking it ignored
+    /// </summary>
+    [HttpDelete("{videoId}/file")]
+    public async Task<IActionResult> DeleteVideoFile(int channelId, int videoId)
+    {
+        try
+        {
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+
+            var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+            {
+                Query = x => x.Id == videoId && x.ChannelId == channelId
+            });
+
+            if (video is null)
+            {
+                return NotFound(new { message = "Video not found" });
+            }
+
+            if (!string.IsNullOrEmpty(video.FilePath) && System.IO.File.Exists(video.FilePath))
+            {
+                System.IO.File.Delete(video.FilePath);
+            }
+
+            video.DownloadedAt = null;
+            video.FilePath = null;
+            video.FileSize = null;
+            video.IsIgnored = true;
+            await videoRepository.UpdateAsync(video);
+
+            return Ok(new { message = "Video file deleted successfully" });
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error deleting video file for video {VideoId}", videoId);
+            }
+
+            return StatusCode(500, new { message = "An error occurred while deleting the video file" });
+        }
+    }
+
+    /// <summary>
     /// Toggle ignore status for a video
     /// </summary>
     [HttpPut("{videoId}/ignore")]

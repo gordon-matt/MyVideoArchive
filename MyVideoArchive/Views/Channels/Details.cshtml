@@ -59,21 +59,29 @@
             </div>
 
             <div data-bind="visible: !loading() && videos().length > 0, foreach: videos">
-                <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
-                    <div class="video-item">
+                <div class="video-item">
+                    <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none d-flex align-items-center" style="flex: 1; min-width: 0;">
                         <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }" class="video-thumbnail-small" />
-                        <div style="flex: 1;">
-                            <h6 data-bind="text: Title"></h6>
+                        <div style="flex: 1; min-width: 0;">
+                            <h6 class="mb-1">
+                                <span data-bind="text: Title"></span>
+                                <!-- ko if: watched() -->
+                                <span class="badge bg-success ms-2"><i class="bi bi-eye"></i> Watched</span>
+                                <!-- /ko -->
+                            </h6>
                             <small class="text-muted">
                                 Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span>
                                 <span data-bind="if: DownloadedAt"> | Downloaded: <span data-bind="text: $parent.formatDate(DownloadedAt)"></span></span>
                             </small>
                         </div>
-                        <div class="ms-auto">
+                        <div class="ms-3">
                             <i class="bi bi-play-circle fs-3 text-primary"></i>
                         </div>
-                    </div>
-                </a>
+                    </a>
+                    <button class="btn btn-sm btn-outline-danger ms-3" data-bind="click: $parent.deleteVideoFile" title="Delete file">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -110,7 +118,7 @@
             <div data-bind="visible: !availableLoading() && availableVideos().length > 0">
                 <div class="card mb-3">
                     <div class="card-header d-flex align-items-center">
-                        <input type="checkbox" class="form-check-input me-2" data-bind="checked: selectAll, click: toggleSelectAll">
+                        <input type="checkbox" class="form-check-input me-2" data-bind="checked: selectAll">
                         <strong>Select All (Current Page)</strong>
                     </div>
                 </div>
@@ -127,7 +135,12 @@
                                          style="width: 160px; height: 90px; object-fit: cover; border-radius: 4px;">
                                 </div>
                                 <div class="col">
-                                    <h6 data-bind="text: title"></h6>
+                                    <h6>
+                                        <span data-bind="text: title"></span>
+                                        <a data-bind="attr: { href: url }" target="_blank" class="ms-2 text-muted" title="View original" onclick="event.stopPropagation();">
+                                            <i class="bi bi-box-arrow-up-right small"></i>
+                                        </a>
+                                    </h6>
                                     <p class="text-muted small mb-1" data-bind="text: description" style="max-height: 60px; overflow: hidden;"></p>
                                     <small class="text-muted">
                                         Uploaded: <span data-bind="text: $parent.formatDate(uploadDate)"></span>
@@ -213,7 +226,7 @@
             <div data-bind="visible: !playlistsLoading() && playlists().length > 0">
                 <div class="card mb-3">
                     <div class="card-header d-flex align-items-center">
-                        <input type="checkbox" class="form-check-input me-2" data-bind="checked: selectAllPlaylists, click: toggleSelectAllPlaylists">
+                        <input type="checkbox" class="form-check-input me-2" data-bind="checked: selectAllPlaylists">
                         <strong>Select All</strong>
                     </div>
                 </div>
@@ -239,7 +252,11 @@
                                     <span data-bind="if: isIgnored" class="badge bg-secondary">Ignored</span>
                                 </div>
                             </div>
-                            <div class="card-footer bg-transparent border-0 p-2 pt-0">
+                            <div class="card-footer bg-transparent border-0 p-2 pt-0 d-flex flex-column gap-1">
+                                <a data-bind="attr: { href: url }, visible: url" target="_blank" class="btn btn-sm btn-outline-secondary w-100">
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                    View on <span data-bind="text: platform"></span>
+                                </a>
                                 <button class="btn btn-sm btn-outline-danger w-100" data-bind="click: $parent.ignorePlaylist">
                                     <span data-bind="text: isIgnored ? 'Unignore' : 'Ignore'"></span>
                                 </button>

@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="~/css/channel-index.css" />
 }
 
-<div class="row mb-4">
+<div class="row mb-3">
     <div class="col-8">
         <h2>My Channels</h2>
         <p class="text-muted">Channels you are subscribed to</p>
@@ -15,6 +15,16 @@
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addChannelModal">
             <i class="bi bi-plus-circle"></i> Add Channel
         </button>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <select class="form-select" data-bind="value: platformFilter">
+            <option value="">All Platforms</option>
+            <option value="YouTube">YouTube</option>
+            <option value="Custom">Custom</option>
+        </select>
     </div>
 </div>
 

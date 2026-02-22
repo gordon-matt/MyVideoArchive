@@ -24,7 +24,7 @@
 
 <div class="row mb-3">
     <div class="col-md-3 mb-2 mb-md-0">
-        <select class="form-select" data-bind="value: selectedChannelId, event: { change: loadVideos }">
+        <select class="form-select" data-bind="value: selectedChannelId">
             <option value="">All Channels</option>
             <!-- ko foreach: channels -->
             <option data-bind="value: Id, text: Name"></option>
@@ -63,7 +63,12 @@
             <div class="video-download-item" data-bind="css: { queued: isQueued }">
                 <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/160x90?text=No+Thumbnail', alt: title }" class="video-thumbnail-list" />
                 <div class="video-details">
-                    <div class="video-title-large" data-bind="text: title"></div>
+                    <div class="video-title-large">
+                        <span data-bind="text: title"></span>
+                        <a data-bind="attr: { href: url }" target="_blank" class="ms-2 text-muted" title="View original">
+                            <i class="bi bi-box-arrow-up-right small"></i>
+                        </a>
+                    </div>
                     <div class="video-channel-name" data-bind="text: channelName"></div>
                     <div class="video-meta-info">
                         Uploaded: <span data-bind="text: $parent.formatDate(uploadDate)"></span>

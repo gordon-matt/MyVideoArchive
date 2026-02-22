@@ -9,13 +9,51 @@ public class VideosApiController : ControllerBase
 {
     private readonly ILogger<VideosApiController> logger;
     private readonly IRepository<Video> videoRepository;
+    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
 
     public VideosApiController(
         ILogger<VideosApiController> logger,
-        IRepository<Video> videoRepository)
+        IRepository<Video> videoRepository,
+        IRepository<PlaylistVideo> playlistVideoRepository)
     {
         this.logger = logger;
         this.videoRepository = videoRepository;
+        this.playlistVideoRepository = playlistVideoRepository;
+    }
+
+    /// <summary>
+    /// Get playlists that contain a specific video
+    /// </summary>
+    [HttpGet("{videoId}/playlists")]
+    public async Task<IActionResult> GetVideoPlaylists(int videoId)
+    {
+        try
+        {
+            var playlistVideos = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+            {
+                Query = x => x.VideoId == videoId,
+                Include = query => query.Include(x => x.Playlist)
+            });
+
+            var playlists = playlistVideos.Select(x => new
+            {
+                x.Playlist.Id,
+                x.Playlist.Name,
+                x.Playlist.Platform,
+                x.Playlist.Url
+            });
+
+            return Ok(new { playlists });
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving playlists for video {VideoId}", videoId);
+            }
+
+            return StatusCode(500, new { message = "An error occurred while retrieving playlists" });
+        }
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-﻿import { formatDate, formatDuration } from './utils.js';
+import { formatDate, formatDuration } from './utils.js';
 
 class ChannelDetailsViewModel {
     constructor(channelId) {
@@ -23,6 +23,16 @@ class ChannelDetailsViewModel {
         // Playlists state
         this.showIgnoredPlaylists = ko.observable(false);
         this.selectAllPlaylists = ko.observable(false);
+
+        // When selectAll changes, sync individual video checkboxes
+        this.selectAll.subscribe((newValue) => {
+            this.availableVideos().forEach(v => v.selected(newValue));
+        });
+
+        // When selectAllPlaylists changes, sync individual playlist checkboxes
+        this.selectAllPlaylists.subscribe((newValue) => {
+            this.playlists().forEach(p => p.selected(newValue));
+        });
 
         this.pageNumbers = ko.computed(() => {
             const pages = [];
@@ -59,14 +69,57 @@ class ChannelDetailsViewModel {
     loadVideos = async () => {
         await fetch(`/odata/VideoOData?$filter=ChannelId eq ${this.channelId} and DownloadedAt ne null&$orderby=UploadDate desc`)
             .then(response => response.json())
-            .then(data => {
-                this.videos(data.value || []);
+            .then(async data => {
+                // Initialise watched as an observable on every video so the binding
+                // is always defined, even before the watched-status API responds.
+                const videos = (data.value || []).map(v => {
+                    v.watched = ko.observable(false);
+                    return v;
+                });
+                this.videos(videos);
                 this.loading(false);
+
+                // Load watched status and update the observables
+                if (videos.length > 0) {
+                    const params = new URLSearchParams();
+                    videos.forEach(v => params.append("videoIds", v.Id));
+                    await fetch(`/api/user/videos/watched?${params.toString()}`)
+                        .then(r => r.json())
+                        .then(watchedData => {
+                            const watchedSet = new Set(watchedData.watchedIds || []);
+                            this.videos().forEach(v => v.watched(watchedSet.has(v.Id)));
+                        })
+                        .catch(() => {});
+                }
             })
             .catch(error => {
                 console.error('Error loading videos:', error);
                 this.loading(false);
             });
+    };
+
+    // Delete physical file of a downloaded video
+    deleteVideoFile = async (video) => {
+        if (!confirm(`Delete the file for "${video.Title}"? This cannot be undone. The video will be marked as ignored.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/videos/${video.Id}/file`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                this.videos.remove(video);
+            } else {
+                alert(data.message || 'Failed to delete video file.');
+            }
+        } catch (error) {
+            console.error('Error deleting video file:', error);
+            alert('Error deleting video file. Please try again.');
+        }
     };
 
     loadAvailableVideos = async () => {
@@ -110,12 +163,6 @@ class ChannelDetailsViewModel {
     };
 
     // Playlist functions
-    toggleSelectAllPlaylists = () => {
-        var selected = this.selectAllPlaylists();
-        this.playlists().forEach(function (playlist) {
-            playlist.selected(selected);
-        });
-    };
 
     subscribeSelectedPlaylists = async () => {
         var selectedPlaylists = this.playlists().filter(function (p) {
@@ -236,14 +283,6 @@ class ChannelDetailsViewModel {
             this.currentPage(this.currentPage() + 1);
             await this.loadAvailableVideos();
         }
-    };
-
-    // Select All
-    toggleSelectAll = () => {
-        var selected = this.selectAll();
-        this.availableVideos().forEach(function (video) {
-            video.selected(selected);
-        });
     };
 
     // Download Selected

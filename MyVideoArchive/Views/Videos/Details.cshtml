@@ -71,10 +71,14 @@
                     
                     <hr>
                     
-                    <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
                         <a data-bind="attr: { href: '/channels/' + (video() && video().ChannelId) }" class="text-decoration-none">
                             <strong><i class="bi bi-person-circle"></i> <span data-bind="text: video() && video().Channel && video().Channel.Name"></span></strong>
                         </a>
+                        <button class="btn btn-sm" data-bind="click: toggleWatched, css: watched() ? 'btn-success' : 'btn-outline-secondary'">
+                            <i class="bi bi-eye"></i>
+                            <span data-bind="text: watched() ? 'Watched' : 'Mark as Watched'"></span>
+                        </button>
                     </div>
                     
                     <div class="description-box p-3 bg-light rounded">
@@ -116,6 +120,26 @@
                     </table>
                 </div>
             </div>
+
+            <!-- ko if: playlists().length > 0 -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Appears in Playlists</h5>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        <!-- ko foreach: playlists -->
+                        <li class="list-group-item d-flex align-items-center justify-content-between">
+                            <a data-bind="attr: { href: '/playlists/' + id }, text: name" class="text-decoration-none fw-semibold"></a>
+                            <a data-bind="attr: { href: url }, visible: url" target="_blank" class="btn btn-sm btn-outline-secondary" title="View on platform">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </li>
+                        <!-- /ko -->
+                    </ul>
+                </div>
+            </div>
+            <!-- /ko -->
         </div>
     </div>
 </div>
