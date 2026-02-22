@@ -18,6 +18,15 @@ class CustomChannelViewModel {
         this.newPlaylistName = ko.observable('');
         this.newPlaylistDescription = ko.observable('');
 
+        // Playlist thumbnail upload state
+        this.thumbnailTargetPlaylist = ko.observable(null);
+        this.thumbnailPreviewUrl = ko.observable(null);
+        this.thumbnailFile = ko.observable(null);
+        this.uploadingThumbnail = ko.observable(false);
+
+        // Cache-bust counter so Knockout re-renders thumbnails after upload
+        this.thumbnailCacheBust = ko.observable(Date.now());
+
         this.formatDate = formatDate;
     }
 
@@ -32,10 +41,7 @@ class CustomChannelViewModel {
     loadChannel = async () => {
         try {
             const response = await fetch(`/odata/ChannelOData(${this.channelId})`);
-            if (response.ok) {
-                const data = await response.json();
-                this.channel(data);
-            }
+            if (response.ok) this.channel(await response.json());
         } catch (error) {
             console.error('Error loading channel:', error);
         }
@@ -71,6 +77,8 @@ class CustomChannelViewModel {
         }
     };
 
+    // ── Edit channel ─────────────────────────────────────────────────────────
+
     openEditChannel = () => {
         const ch = this.channel();
         if (!ch) return;
@@ -91,7 +99,6 @@ class CustomChannelViewModel {
                     thumbnailUrl: this.editThumbnailUrl() || null
                 })
             });
-
             if (response.ok) {
                 bootstrap.Modal.getInstance(document.getElementById('editChannelModal')).hide();
                 await this.loadChannel();
@@ -103,6 +110,8 @@ class CustomChannelViewModel {
             alert('Failed to update channel.');
         }
     };
+
+    // ── Create playlist ───────────────────────────────────────────────────────
 
     openCreatePlaylist = () => {
         this.newPlaylistName('');
@@ -120,7 +129,6 @@ class CustomChannelViewModel {
                     description: this.newPlaylistDescription() || null
                 })
             });
-
             if (response.ok) {
                 const data = await response.json();
                 bootstrap.Modal.getInstance(document.getElementById('createPlaylistModal')).hide();
@@ -133,12 +141,105 @@ class CustomChannelViewModel {
             alert('Failed to create playlist.');
         }
     };
+
+    // ── Delete playlist ───────────────────────────────────────────────────────
+
+    deletePlaylist = async (playlist) => {
+        if (!confirm(`Delete playlist "${playlist.Name}"? This cannot be undone.`)) return;
+        try {
+            const response = await fetch(`/api/custom/playlists/${playlist.Id}`, { method: 'DELETE' });
+            if (response.ok) {
+                this.playlists.remove(playlist);
+            } else {
+                alert('Failed to delete playlist. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error deleting playlist:', error);
+            alert('Failed to delete playlist.');
+        }
+    };
+
+    // ── Playlist thumbnail ────────────────────────────────────────────────────
+
+    openThumbnailModal = (playlist) => {
+        this.thumbnailTargetPlaylist(playlist);
+        this.thumbnailPreviewUrl(playlist.ThumbnailUrl ? playlist.ThumbnailUrl + '?t=' + Date.now() : null);
+        this.thumbnailFile(null);
+        new bootstrap.Modal(document.getElementById('playlistThumbnailModal')).show();
+    };
+
+    onThumbnailDragOver = (data, event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        return true;
+    };
+
+    onThumbnailDrop = (data, event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const file = event.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) this._setThumbnailFile(file);
+        return true;
+    };
+
+    triggerThumbnailInput = () => {
+        document.getElementById('playlistThumbnailInput').click();
+    };
+
+    onThumbnailFileSelected = (data, event) => {
+        const file = event.target.files?.[0];
+        if (file) this._setThumbnailFile(file);
+        // Reset input so re-selecting the same file triggers change again
+        event.target.value = '';
+    };
+
+    _setThumbnailFile = (file) => {
+        this.thumbnailFile(file);
+        const reader = new FileReader();
+        reader.onload = (e) => this.thumbnailPreviewUrl(e.target.result);
+        reader.readAsDataURL(file);
+    };
+
+    uploadPlaylistThumbnail = async () => {
+        const playlist = this.thumbnailTargetPlaylist();
+        const file = this.thumbnailFile();
+        if (!playlist || !file) return;
+
+        this.uploadingThumbnail(true);
+        try {
+            const form = new FormData();
+            form.append('file', file);
+            const response = await fetch(`/api/custom/playlists/${playlist.Id}/thumbnail`, {
+                method: 'POST',
+                body: form
+            });
+
+            if (response.ok) {
+                // Force Knockout to re-render all thumbnail images with a new cache-bust token
+                this.thumbnailCacheBust(Date.now());
+                // Update the ThumbnailUrl on the playlist object in the array
+                const data = await response.json();
+                const idx = this.playlists().indexOf(playlist);
+                if (idx >= 0) {
+                    // Replace the object so Knockout picks up the change
+                    const updated = Object.assign({}, playlist, { ThumbnailUrl: data.thumbnailUrl });
+                    this.playlists.splice(idx, 1, updated);
+                }
+                bootstrap.Modal.getInstance(document.getElementById('playlistThumbnailModal')).hide();
+            } else {
+                alert('Failed to upload thumbnail. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error uploading thumbnail:', error);
+            alert('Failed to upload thumbnail.');
+        } finally {
+            this.uploadingThumbnail(false);
+        }
+    };
 }
 
-var viewModel;
-
 document.addEventListener('DOMContentLoaded', async () => {
-    viewModel = new CustomChannelViewModel(channelId);
+    const viewModel = new CustomChannelViewModel(channelId);
     ko.applyBindings(viewModel);
     await viewModel.load();
 });

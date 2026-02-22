@@ -90,8 +90,32 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Thumbnail URL</label>
-                        <input type="text" class="form-control" data-bind="value: editThumbnailUrl" placeholder="https://..." />
+                        <label class="form-label">Thumbnail</label>
+                        <div class="d-flex align-items-start gap-3 flex-wrap">
+                            <img data-bind="visible: video() && video().ThumbnailUrl,
+                                            attr: { src: video() && video().ThumbnailUrl ? video().ThumbnailUrl + '?t=' + thumbnailCacheBust() : '' }"
+                                 style="width: 160px; height: 90px; object-fit: cover; border-radius: 4px; flex-shrink: 0;" />
+                            <div style="flex: 1; min-width: 200px;">
+                                <div id="videoThumbnailDropZone"
+                                     class="border rounded p-3 text-center"
+                                     style="border-style: dashed !important; cursor: pointer; min-height: 80px;"
+                                     data-bind="event: { dragover: onThumbnailDragOver, drop: onThumbnailDrop, click: triggerThumbnailInput }">
+                                    <i class="bi bi-cloud-arrow-up text-muted"></i>
+                                    <p class="text-muted small mb-0" data-bind="visible: !thumbnailFile()">
+                                        Drop image or click to browse<br>
+                                        <small>Saved next to the video file on disk</small>
+                                    </p>
+                                    <p class="text-success small mb-0" data-bind="visible: thumbnailFile()">
+                                        <i class="bi bi-check-circle"></i>
+                                        <span data-bind="text: thumbnailFile() && thumbnailFile().name"></span>
+                                        &mdash; click Save to upload
+                                    </p>
+                                </div>
+                                <input type="file" id="videoThumbnailInput" accept="image/*" style="display:none;"
+                                       data-bind="event: { change: onThumbnailFileSelected }" />
+                                <div class="form-text">JPG, PNG or WebP &mdash; max 10 MB</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">File Path</label>

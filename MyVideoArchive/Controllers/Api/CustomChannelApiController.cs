@@ -1,39 +1,47 @@
 namespace MyVideoArchive.Controllers.Api;
 
 /// <summary>
-/// API controller for creating and managing custom (non-platform) channels
+/// API controller for creating and managing custom (non-platform) channels, playlists and videos
 /// </summary>
 [ApiController]
 [Route("api/custom")]
 [Authorize]
 public class CustomChannelApiController : ControllerBase
 {
+    private static readonly string[] AllowedImageExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+
     private readonly ILogger<CustomChannelApiController> logger;
+    private readonly IConfiguration configuration;
     private readonly IUserContextService userContextService;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<Playlist> playlistRepository;
+    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
     private readonly IRepository<Video> videoRepository;
 
     public CustomChannelApiController(
         ILogger<CustomChannelApiController> logger,
+        IConfiguration configuration,
         IUserContextService userContextService,
         IRepository<Channel> channelRepository,
         IRepository<Playlist> playlistRepository,
+        IRepository<PlaylistVideo> playlistVideoRepository,
         IRepository<UserChannel> userChannelRepository,
         IRepository<Video> videoRepository)
     {
         this.logger = logger;
+        this.configuration = configuration;
         this.userContextService = userContextService;
         this.channelRepository = channelRepository;
         this.playlistRepository = playlistRepository;
+        this.playlistVideoRepository = playlistVideoRepository;
         this.userChannelRepository = userChannelRepository;
         this.videoRepository = videoRepository;
     }
 
-    /// <summary>
-    /// Creates a new custom channel (not tied to any external platform)
-    /// </summary>
+    // ── Channels ────────────────────────────────────────────────────────────
+
+    /// <summary>Creates a new custom channel not tied to any external platform.</summary>
     [HttpPost("channels")]
     public async Task<IActionResult> CreateChannel([FromBody] CreateCustomChannelRequest request)
     {
@@ -57,7 +65,6 @@ public class CustomChannelApiController : ControllerBase
             };
 
             await channelRepository.InsertAsync(channel);
-
             await userChannelRepository.InsertAsync(new UserChannel
             {
                 UserId = userId,
@@ -83,40 +90,26 @@ public class CustomChannelApiController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Updates metadata for a custom channel
-    /// </summary>
+    /// <summary>Updates name, description and thumbnail URL for a custom channel.</summary>
     [HttpPut("channels/{channelId:int}")]
     public async Task<IActionResult> UpdateChannel(int channelId, [FromBody] UpdateCustomChannelRequest request)
     {
         try
         {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
+            var (canAccess, channel) = await CanAccessChannel(channelId);
+            if (!canAccess)
             {
-                return Unauthorized();
+                return Forbid();
             }
 
-            var channel = await channelRepository.FindOneAsync(channelId);
             if (channel is null || channel.Platform != "Custom")
             {
                 return NotFound();
             }
 
-            var hasAccess = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
-            {
-                Query = x => x.UserId == userId && x.ChannelId == channelId
-            });
-
-            if (hasAccess is null && !userContextService.IsAdministrator())
-            {
-                return Forbid();
-            }
-
             channel.Name = request.Name;
             channel.Description = request.Description;
             channel.ThumbnailUrl = request.ThumbnailUrl;
-
             await channelRepository.UpdateAsync(channel);
 
             return Ok();
@@ -132,34 +125,23 @@ public class CustomChannelApiController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Creates a new playlist within a custom channel
-    /// </summary>
+    // ── Playlists ────────────────────────────────────────────────────────────
+
+    /// <summary>Creates a new playlist within a custom channel.</summary>
     [HttpPost("channels/{channelId:int}/playlists")]
     public async Task<IActionResult> CreatePlaylist(int channelId, [FromBody] CreateCustomPlaylistRequest request)
     {
         try
         {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
+            var (canAccess, channel) = await CanAccessChannel(channelId);
+            if (!canAccess)
             {
-                return Unauthorized();
+                return Forbid();
             }
 
-            var channel = await channelRepository.FindOneAsync(channelId);
             if (channel is null || channel.Platform != "Custom")
             {
                 return NotFound();
-            }
-
-            var hasAccess = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
-            {
-                Query = x => x.UserId == userId && x.ChannelId == channelId
-            });
-
-            if (hasAccess is null && !userContextService.IsAdministrator())
-            {
-                return Forbid();
             }
 
             string playlistId = Guid.NewGuid().ToString("N");
@@ -175,7 +157,6 @@ public class CustomChannelApiController : ControllerBase
             };
 
             await playlistRepository.InsertAsync(playlist);
-
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Created custom playlist {PlaylistId} in channel {ChannelId}", playlist.Id, channelId);
@@ -194,41 +175,27 @@ public class CustomChannelApiController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Updates metadata for a custom playlist
-    /// </summary>
+    /// <summary>Updates name and description for a custom playlist.</summary>
     [HttpPut("playlists/{playlistId:int}")]
     public async Task<IActionResult> UpdatePlaylist(int playlistId, [FromBody] UpdateCustomPlaylistRequest request)
     {
         try
         {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
-
             var playlist = await playlistRepository.FindOneAsync(playlistId);
             if (playlist is null)
             {
                 return NotFound();
             }
 
-            var hasAccess = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
-            {
-                Query = x => x.UserId == userId && x.ChannelId == playlist.ChannelId
-            });
-
-            if (hasAccess is null && !userContextService.IsAdministrator())
+            var (canAccess, channel) = await CanAccessChannel(playlist.ChannelId);
+            if (!canAccess)
             {
                 return Forbid();
             }
 
             playlist.Name = request.Name;
             playlist.Description = request.Description;
-
             await playlistRepository.UpdateAsync(playlist);
-
             return Ok();
         }
         catch (Exception ex)
@@ -243,36 +210,146 @@ public class CustomChannelApiController : ControllerBase
     }
 
     /// <summary>
-    /// Updates metadata for a custom video
+    /// Deletes a custom playlist and all of its playlist–video junction records.
+    /// PlaylistVideo uses ClientNoAction, so we delete junction rows manually first.
     /// </summary>
+    [HttpDelete("playlists/{playlistId:int}")]
+    public async Task<IActionResult> DeletePlaylist(int playlistId)
+    {
+        try
+        {
+            var playlist = await playlistRepository.FindOneAsync(playlistId);
+            if (playlist is null)
+            {
+                return NotFound();
+            }
+
+            var (canAccess, channel) = await CanAccessChannel(playlist.ChannelId);
+            if (!canAccess)
+            {
+                return Forbid();
+            }
+
+            // Delete junction records first (no cascade configured)
+            var playlistVideos = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+            {
+                Query = x => x.PlaylistId == playlistId
+            });
+
+            await playlistVideoRepository.DeleteAsync(playlistVideos);
+
+            // Delete thumbnail file if it was stored locally
+            await TryDeletePlaylistThumbnailFileAsync(playlist);
+
+            await playlistRepository.DeleteAsync(playlist);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Deleted custom playlist {PlaylistId}", playlistId);
+            }
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error deleting playlist {PlaylistId}", playlistId);
+            }
+
+            return StatusCode(500, new { message = "An error occurred while deleting the playlist" });
+        }
+    }
+
+    /// <summary>Serves the locally stored thumbnail for a playlist.</summary>
+    [HttpGet("playlists/{playlistId:int}/thumbnail")]
+    public async Task<IActionResult> GetPlaylistThumbnail(int playlistId)
+    {
+        var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+        {
+            Query = x => x.Id == playlistId,
+            Include = query => query.Include(x => x.Channel)
+        });
+        if (playlist is null)
+        {
+            return NotFound();
+        }
+
+        string dir = GetPlaylistThumbnailDirectory(playlist);
+        return ServeImageFromDirectory(dir, playlist.PlaylistId);
+    }
+
+    /// <summary>Accepts an uploaded image and saves it as the playlist thumbnail.</summary>
+    [HttpPost("playlists/{playlistId:int}/thumbnail")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
+    public async Task<IActionResult> UploadPlaylistThumbnail(int playlistId, IFormFile file)
+    {
+        try
+        {
+            var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+            {
+                Query = x => x.Id == playlistId,
+                Include = query => query.Include(x => x.Channel)
+            });
+
+            if (playlist is null)
+            {
+                return NotFound();
+            }
+
+            var (canAccess, channel) = await CanAccessChannel(playlist.ChannelId);
+            if (!canAccess)
+            {
+                return Forbid();
+            }
+
+            string dir = GetPlaylistThumbnailDirectory(playlist);
+            Directory.CreateDirectory(dir);
+
+            string ext = NormaliseImageExtension(Path.GetExtension(file.FileName));
+            string thumbPath = Path.Combine(dir, playlist.PlaylistId + ext);
+
+            await using (var stream = System.IO.File.Create(thumbPath))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            // Use a cache-busting URL so the browser fetches the new image
+            playlist.ThumbnailUrl = $"/api/custom/playlists/{playlistId}/thumbnail";
+            await playlistRepository.UpdateAsync(playlist);
+
+            return Ok(new { thumbnailUrl = playlist.ThumbnailUrl });
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error uploading thumbnail for playlist {PlaylistId}", playlistId);
+            }
+
+            return StatusCode(500, new { message = "An error occurred while saving the thumbnail" });
+        }
+    }
+
+    // ── Videos ────────────────────────────────────────────────────────────────
+
+    /// <summary>Updates metadata for a custom (or manually imported) video.</summary>
     [HttpPut("videos/{videoId:int}")]
     public async Task<IActionResult> UpdateVideo(int videoId, [FromBody] UpdateCustomVideoRequest request)
     {
         try
         {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
-
             var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
             {
                 Query = x => x.Id == videoId,
                 Include = query => query.Include(x => x.Channel)
             });
-
             if (video is null)
             {
                 return NotFound();
             }
 
-            var hasAccess = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
-            {
-                Query = x => x.UserId == userId && x.ChannelId == video.ChannelId
-            });
-
-            if (hasAccess is null && !userContextService.IsAdministrator())
+            var (canAccess, channel) = await CanAccessChannel(video.ChannelId);
+            if (!canAccess)
             {
                 return Forbid();
             }
@@ -293,14 +370,15 @@ public class CustomChannelApiController : ControllerBase
                 }
             }
 
-            // If metadata is now complete, clear the review flag
-            if (!string.IsNullOrEmpty(video.Title) && video.Title != Path.GetFileNameWithoutExtension(video.FilePath ?? ""))
+            // Clear review flag when a meaningful title has been provided
+            if (!string.IsNullOrEmpty(video.Title) &&
+                !string.Equals(video.Title, video.VideoId, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(video.Title, Path.GetFileNameWithoutExtension(video.FilePath ?? ""), StringComparison.OrdinalIgnoreCase))
             {
                 video.NeedsMetadataReview = false;
             }
 
             await videoRepository.UpdateAsync(video);
-
             return Ok();
         }
         catch (Exception ex)
@@ -314,14 +392,183 @@ public class CustomChannelApiController : ControllerBase
         }
     }
 
+    /// <summary>Serves the locally stored thumbnail for a video.</summary>
+    [HttpGet("videos/{videoId:int}/thumbnail")]
+    public async Task<IActionResult> GetVideoThumbnail(int videoId)
+    {
+        var video = await videoRepository.FindOneAsync(videoId);
+        if (video is null || string.IsNullOrEmpty(video.FilePath))
+        {
+            return NotFound();
+        }
+
+        string dir = Path.GetDirectoryName(video.FilePath)!;
+        string stem = Path.GetFileNameWithoutExtension(video.FilePath);
+        return ServeImageFromDirectory(dir, stem);
+    }
+
+    /// <summary>
+    /// Accepts an uploaded image and saves it next to the video file with the same base name.
+    /// Updates ThumbnailUrl to the serve endpoint.
+    /// </summary>
+    [HttpPost("videos/{videoId:int}/thumbnail")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
+    public async Task<IActionResult> UploadVideoThumbnail(int videoId, IFormFile file)
+    {
+        try
+        {
+            var video = await videoRepository.FindOneAsync(videoId);
+            if (video is null)
+            {
+                return NotFound();
+            }
+
+            var (canAccess, channel) = await CanAccessChannel(video.ChannelId);
+            if (!canAccess)
+            {
+                return Forbid();
+            }
+
+            if (string.IsNullOrEmpty(video.FilePath))
+            {
+                return BadRequest(new { message = "Please link a file path to this video first." });
+            }
+
+            string dir = Path.GetDirectoryName(video.FilePath)!;
+            string stem = Path.GetFileNameWithoutExtension(video.FilePath);
+            string ext = NormaliseImageExtension(Path.GetExtension(file.FileName));
+            string thumbPath = Path.Combine(dir, stem + ext);
+
+            await using (var stream = System.IO.File.Create(thumbPath))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            video.ThumbnailUrl = $"/api/custom/videos/{videoId}/thumbnail";
+            await videoRepository.UpdateAsync(video);
+
+            return Ok(new { thumbnailUrl = video.ThumbnailUrl });
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error uploading thumbnail for video {VideoId}", videoId);
+            }
+
+            return StatusCode(500, new { message = "An error occurred while saving the thumbnail" });
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private async Task<bool> CanAccessChannel(int channelId, Channel? channel = null)
+    {
+        if (userContextService.IsAdministrator())
+        {
+            return true;
+        }
+
+        string? userId = userContextService.GetCurrentUserId();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return false;
+        }
+
+        var access = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
+        {
+            Query = x => x.UserId == userId && x.ChannelId == channelId
+        });
+        return access is not null;
+    }
+
+    private async Task<(bool CanAccess, Channel? Channel)> CanAccessChannel(int channelId)
+    {
+        var channel = await channelRepository.FindOneAsync(channelId);
+        bool canAccess = await CanAccessChannel(channelId, null);
+        return (canAccess, channel);
+    }
+
+    private string GetDownloadPath() =>
+        configuration.GetValue<string>("VideoDownload:OutputPath")
+            ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
+
+    private string GetPlaylistThumbnailDirectory(Playlist playlist) =>
+        Path.Combine(GetDownloadPath(), SanitizeFileName(playlist.Channel.Name), "Playlists");
+
+    private IActionResult ServeImageFromDirectory(string directory, string stem)
+    {
+        foreach (string ext in AllowedImageExtensions)
+        {
+            string path = Path.Combine(directory, stem + ext);
+            if (System.IO.File.Exists(path))
+            {
+                string contentType = ext == ".png" ? "image/png"
+                    : ext == ".webp" ? "image/webp"
+                    : "image/jpeg";
+                return PhysicalFile(path, contentType);
+            }
+        }
+        return NotFound();
+    }
+
+    private async Task TryDeletePlaylistThumbnailFileAsync(Playlist playlist)
+    {
+        try
+        {
+            if (playlist.ThumbnailUrl?.StartsWith("/api/custom/playlists/") != true)
+            {
+                return;
+            }
+
+            var playlistWithChannel = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+            {
+                Query = x => x.Id == playlist.Id,
+                Include = query => query.Include(x => x.Channel)
+            });
+            if (playlistWithChannel?.Channel is null)
+            {
+                return;
+            }
+
+            string dir = GetPlaylistThumbnailDirectory(playlistWithChannel);
+            foreach (string ext in AllowedImageExtensions)
+            {
+                string path = Path.Combine(dir, playlist.PlaylistId + ext);
+                if (System.IO.File.Exists(path))
+                {
+                    System.IO.File.Delete(path);
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Could not delete thumbnail file for playlist {PlaylistId}", playlist.Id);
+            }
+        }
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        char[] invalidChars = Path.GetInvalidFileNameChars();
+        return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
+    }
+
+    private static string NormaliseImageExtension(string ext)
+    {
+        ext = ext.ToLowerInvariant();
+        return AllowedImageExtensions.Contains(ext) ? ext : ".jpg";
+    }
+
+    // ── Request records ───────────────────────────────────────────────────────
+
     public record CreateCustomChannelRequest(string Name, string? Description);
-
     public record CreateCustomPlaylistRequest(string Name, string? Description);
-
     public record UpdateCustomChannelRequest(string Name, string? Description, string? ThumbnailUrl);
-
     public record UpdateCustomPlaylistRequest(string Name, string? Description);
-
     public record UpdateCustomVideoRequest(
         string Title,
         string? Description,

@@ -36,8 +36,8 @@
     <div class="row mt-4" data-bind="visible: video()">
         <div class="col-12 col-lg-8">
             <!-- Manual import warning -->
-            <div class="alert alert-danger d-flex align-items-center justify-content-between mb-3"
-                 data-bind="visible: video() && video().NeedsMetadataReview">
+            <!-- ko if: video() && ko.unwrap(video().NeedsMetadataReview) -->
+            <div class="alert alert-danger d-flex align-items-center justify-content-between mb-3">
                 <div>
                     <i class="bi bi-exclamation-triangle-fill me-2"></i>
                     <strong>Manually imported.</strong> Unable to find metadata from the source platform.
@@ -51,6 +51,7 @@
                     </span>
                 </button>
             </div>
+            <!-- /ko -->
 
             <div class="card">
                 <div class="card-body">

@@ -128,6 +128,18 @@ public class FileSystemScanJob
                 existingVideo.FilePath = filePath;
                 existingVideo.FileSize = new FileInfo(filePath).Length;
                 existingVideo.DownloadedAt ??= File.GetLastWriteTimeUtc(filePath);
+
+                // Clear the review flag when the video already has a real title from a platform sync
+                // (title differs meaningfully from the bare VideoId or filename stem)
+                if (existingVideo.NeedsMetadataReview &&
+                    !string.IsNullOrEmpty(existingVideo.Title) &&
+                    !string.Equals(existingVideo.Title, existingVideo.VideoId, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(existingVideo.Title, fileNameWithoutExt, StringComparison.OrdinalIgnoreCase))
+                {
+                    existingVideo.NeedsMetadataReview = false;
+                    existingVideo.IsManuallyImported = false;
+                }
+
                 await videoRepository.UpdateAsync(existingVideo, ContextOptions.ForCancellationToken(cancellationToken));
                 result.UpdatedVideos++;
 

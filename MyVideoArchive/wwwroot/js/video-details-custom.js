@@ -13,8 +13,11 @@ class CustomVideoViewModel {
         this.editDescription = ko.observable('');
         this.editUploadDate = ko.observable('');
         this.editDuration = ko.observable('');
-        this.editThumbnailUrl = ko.observable('');
         this.editFilePath = ko.observable('');
+
+        // Thumbnail upload
+        this.thumbnailFile = ko.observable(null);
+        this.thumbnailCacheBust = ko.observable(Date.now());
 
         this.hasFile = ko.computed(() => {
             const v = this.video();
@@ -30,14 +33,9 @@ class CustomVideoViewModel {
         try {
             const response = await fetch(`/odata/VideoOData(${this.videoId})?$expand=Channel`);
             if (!response.ok) throw new Error('Video not found');
-
             const data = await response.json();
             this.video(data);
-
-            if (data.FilePath) {
-                this.videoUrl(`/api/videos/${data.Id}/stream`);
-            }
-
+            if (data.FilePath) this.videoUrl(`/api/videos/${data.Id}/stream`);
             this.populateEditForm(data);
         } catch (error) {
             console.error('Error loading video:', error);
@@ -49,35 +47,28 @@ class CustomVideoViewModel {
     populateEditForm = (video) => {
         this.editTitle(video.Title || '');
         this.editDescription(video.Description || '');
-        this.editThumbnailUrl(video.ThumbnailUrl || '');
         this.editFilePath(video.FilePath || '');
+        this.thumbnailFile(null);
 
         if (video.UploadDate) {
-            // Format as YYYY-MM-DD for date input
             const d = new Date(video.UploadDate);
             this.editUploadDate(d.toISOString().split('T')[0]);
         } else {
             this.editUploadDate('');
         }
 
-        if (video.Duration) {
-            // Duration comes as ISO 8601 duration string (PT1H23M45S) or HH:MM:SS
-            this.editDuration(this.durationToHms(video.Duration));
-        } else {
-            this.editDuration('');
-        }
+        this.editDuration(video.Duration ? this.durationToHms(video.Duration) : '');
     };
 
     durationToHms = (duration) => {
         if (!duration) return '';
-        // Handle ISO 8601 (PT1H23M45S)
         if (typeof duration === 'string' && duration.startsWith('P')) {
-            const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-            if (match) {
-                const h = (match[1] || 0).toString().padStart(2, '0');
-                const m = (match[2] || 0).toString().padStart(2, '0');
-                const s = (match[3] || 0).toString().padStart(2, '0');
-                return `${h}:${m}:${s}`;
+            const m = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+            if (m) {
+                const h = (m[1] || 0).toString().padStart(2, '0');
+                const min = (m[2] || 0).toString().padStart(2, '0');
+                const s = (m[3] || 0).toString().padStart(2, '0');
+                return `${h}:${min}:${s}`;
             }
         }
         return duration;
@@ -86,15 +77,11 @@ class CustomVideoViewModel {
     hmsToDuration = (hms) => {
         if (!hms) return null;
         const parts = hms.split(':').map(Number);
-        if (parts.length === 3) {
-            return `PT${parts[0]}H${parts[1]}M${parts[2]}S`;
-        }
+        if (parts.length === 3) return `PT${parts[0]}H${parts[1]}M${parts[2]}S`;
         return null;
     };
 
-    toggleEditForm = () => {
-        this.showEditForm(!this.showEditForm());
-    };
+    toggleEditForm = () => this.showEditForm(!this.showEditForm());
 
     resetEditForm = () => {
         const v = this.video();
@@ -104,36 +91,88 @@ class CustomVideoViewModel {
 
     saveMetadata = async () => {
         try {
-            const response = await fetch(`/api/custom/videos/${this.videoId}`, {
+            const metaResponse = await fetch(`/api/custom/videos/${this.videoId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: this.editTitle(),
                     description: this.editDescription() || null,
-                    thumbnailUrl: this.editThumbnailUrl() || null,
+                    thumbnailUrl: this.video()?.ThumbnailUrl ?? null, // preserve existing
                     uploadDate: this.editUploadDate() ? new Date(this.editUploadDate()).toISOString() : null,
                     duration: this.hmsToDuration(this.editDuration()),
                     filePath: this.editFilePath() || null
                 })
             });
 
-            if (response.ok) {
-                this.showEditForm(false);
-                await this.loadVideo();
-            } else {
+            if (!metaResponse.ok) {
                 alert('Failed to save metadata. Please try again.');
+                return;
             }
+
+            // If a thumbnail file was chosen, upload it now
+            if (this.thumbnailFile()) {
+                await this._uploadThumbnail();
+            } else {
+                await this.loadVideo();
+            }
+
+            this.showEditForm(false);
         } catch (error) {
             console.error('Error saving metadata:', error);
             alert('Failed to save metadata.');
         }
     };
+
+    // ── Thumbnail helpers ─────────────────────────────────────────────────────
+
+    onThumbnailDragOver = (data, event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        return true;
+    };
+
+    onThumbnailDrop = (data, event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const file = event.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) this.thumbnailFile(file);
+        return true;
+    };
+
+    triggerThumbnailInput = () => {
+        document.getElementById('videoThumbnailInput').click();
+    };
+
+    onThumbnailFileSelected = (data, event) => {
+        const file = event.target.files?.[0];
+        if (file) this.thumbnailFile(file);
+        event.target.value = ''; // allow re-selecting same file
+    };
+
+    _uploadThumbnail = async () => {
+        const file = this.thumbnailFile();
+        if (!file) return;
+
+        const form = new FormData();
+        form.append('file', file);
+        const response = await fetch(`/api/custom/videos/${this.videoId}/thumbnail`, {
+            method: 'POST',
+            body: form
+        });
+
+        if (response.ok) {
+            this.thumbnailFile(null);
+            this.thumbnailCacheBust(Date.now());
+            await this.loadVideo();
+        } else {
+            alert('Metadata saved, but thumbnail upload failed. Please try again.');
+            await this.loadVideo();
+        }
+    };
 }
 
-var viewModel;
-
 document.addEventListener('DOMContentLoaded', async () => {
-    viewModel = new CustomVideoViewModel(videoId);
-    ko.applyBindings(viewModel);
-    await viewModel.loadVideo();
+    window.viewModel = new CustomVideoViewModel(videoId);
+    ko.applyBindings(window.viewModel);
+    await window.viewModel.loadVideo();
 });
