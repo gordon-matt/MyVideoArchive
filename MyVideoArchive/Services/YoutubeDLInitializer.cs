@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using YoutubeDLSharp;
 
 namespace MyVideoArchive.Services;
@@ -41,38 +42,82 @@ public class YoutubeDLInitializer
                 logger.LogInformation("Initializing YoutubeDL...");
             }
 
-            // Get paths from configuration or use defaults
-            string ytDlpPath = configuration.GetValue<string>("YoutubeDL:ExecutablePath")
-                ?? Path.Combine(Directory.GetCurrentDirectory(), "yt-dlp.exe");
+            bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+            string ytDlpName = isWindows ? "yt-dlp.exe" : "yt-dlp";
+            string ffmpegName = isWindows ? "ffmpeg.exe" : "ffmpeg";
 
-            string ffmpegPath = configuration.GetValue<string>("YoutubeDL:FFmpegPath")
-                ?? Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
+            // Read configured paths; treat empty/null the same
+            string? configuredYtDlpPath = configuration["YoutubeDL:ExecutablePath"];
+            if (string.IsNullOrWhiteSpace(configuredYtDlpPath))
+            {
+                configuredYtDlpPath = null;
+            }
 
-            string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
+            string? configuredFfmpegPath = configuration["YoutubeDL:FFmpegPath"];
+            if (string.IsNullOrWhiteSpace(configuredFfmpegPath))
+            {
+                configuredFfmpegPath = null;
+            }
+
+            string ytDlpPath = configuredYtDlpPath
+                ?? Path.Combine(Directory.GetCurrentDirectory(), ytDlpName);
+
+            string ffmpegPath = configuredFfmpegPath
+                ?? Path.Combine(Directory.GetCurrentDirectory(), ffmpegName);
+
+            string downloadPath = configuration["VideoDownload:OutputPath"]
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
-            // Download yt-dlp and ffmpeg if not already present
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("yt-dlp path : {Path} (exists: {Exists})", ytDlpPath, File.Exists(ytDlpPath));
+                logger.LogInformation("ffmpeg path : {Path} (exists: {Exists})", ffmpegPath, File.Exists(ffmpegPath));
+                logger.LogInformation("PATH        : {Path}", Environment.GetEnvironmentVariable("PATH"));
+            }
+
             if (!File.Exists(ytDlpPath))
             {
-                if (logger.IsEnabled(LogLevel.Information))
+                if (configuredYtDlpPath != null)
                 {
-                    logger.LogInformation("Downloading yt-dlp...");
+                    // Explicit path configured (e.g. Docker) but file missing — the image was not built correctly.
+                    // Never fall back to Utils.DownloadYtDlp(): that downloads a Python script
+                    // (#!/usr/bin/env python3) which causes "env: can't execute 'python3'" errors.
+                    throw new InvalidOperationException(
+                        $"yt-dlp not found at configured path '{ytDlpPath}'. " +
+                        "Rebuild the image: docker compose build --no-cache app && docker compose up -d");
+                }
+
+                // No configured path (local/Windows dev) — download as fallback
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("yt-dlp not found at '{Path}'; downloading.", ytDlpPath);
                 }
 
                 await Utils.DownloadYtDlp();
             }
 
+            if (!File.Exists(ytDlpPath))
+            {
+                throw new InvalidOperationException($"yt-dlp not found at '{ytDlpPath}'.");
+            }
+
             if (!File.Exists(ffmpegPath))
             {
-                if (logger.IsEnabled(LogLevel.Information))
+                if (configuredFfmpegPath != null)
                 {
-                    logger.LogInformation("Downloading ffmpeg...");
+                    throw new InvalidOperationException(
+                        $"ffmpeg not found at configured path '{ffmpegPath}'. " +
+                        "Rebuild the image: docker compose build --no-cache app && docker compose up -d");
+                }
+
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("ffmpeg not found at '{Path}'; downloading.", ffmpegPath);
                 }
 
                 await Utils.DownloadFFmpeg();
             }
 
-            // Create downloads folder if it doesn't exist
             if (!Directory.Exists(downloadPath))
             {
                 Directory.CreateDirectory(downloadPath);
@@ -91,8 +136,9 @@ public class YoutubeDLInitializer
 
             if (logger.IsEnabled(LogLevel.Information))
             {
-                logger.LogInformation("YoutubeDL initialized successfully");
+                logger.LogInformation("YoutubeDL initialized. yt-dlp: {YtDlp}, ffmpeg: {Ffmpeg}", ytDlpPath, ffmpegPath);
             }
+
             return ytdl;
         }
         catch (Exception ex)

@@ -15,6 +15,8 @@ services:
       # Linux path for downloads; override in appsettings on Windows
       VideoDownload__VideoQuality: bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best
       VideoDownload__OutputPath: /app/data
+      YoutubeDL__ExecutablePath: /usr/local/bin/yt-dlp
+      YoutubeDL__FFmpegPath: /usr/bin/ffmpeg
     volumes:
       # Host path must exist; ensure D: is in Docker Desktop → Settings → Resources → File sharing
       - D:/_Docker/my-video-archive/videos:/app/data
