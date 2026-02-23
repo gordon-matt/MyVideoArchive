@@ -16,8 +16,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 
 // Add services to the container.
-var secretsManager = new SecretsManager(builder.Configuration.GetValue<string>("SecretsPath")!);
-string? connectionString = secretsManager.GetSecret("DefaultConnection");
+// Connection string: from User Secrets (local), appsettings, or env (e.g. Docker: ConnectionStrings__DefaultConnection)
+string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 if (string.IsNullOrEmpty(connectionString))
 {
@@ -55,7 +55,9 @@ builder.Services.AddEntityFrameworkRepository();
 // Configure Hangfire (requires SQL Server)
 if (string.IsNullOrEmpty(connectionString))
 {
-    throw new InvalidOperationException("Hangfire requires a SQL Server connection string. Please configure 'DefaultConnection' in your secrets file.");
+    throw new InvalidOperationException(
+        "Hangfire requires a connection string. Configure ConnectionStrings:DefaultConnection via User Secrets (local), " +
+        "appsettings, or environment variable ConnectionStrings__DefaultConnection (e.g. in Docker).");
 }
 
 builder.Services.AddHangfire(configuration => configuration
@@ -101,8 +103,6 @@ builder.Services.AddScoped<IUserContextService, UserContextService>();
 // Configure Autofac
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 {
-    containerBuilder.RegisterType<SecretsManager>().As<ISecretsManager>().SingleInstance();
-
     containerBuilder.RegisterType<ApplicationDbContextFactory>().As<IDbContextFactory>().SingleInstance();
 
     containerBuilder.RegisterGeneric(typeof(EntityFrameworkRepository<>))
@@ -146,19 +146,25 @@ app.MapHangfireDashboard("/hangfire", new DashboardOptions
     Authorization = [new HangfireAuthorizationFilter()]
 });
 
-app.MapStaticAssets();
+// Use fingerprinted static assets only in Development (avoids 500s in Docker when manifest paths differ)
+if (app.Environment.IsDevelopment())
+{
+    app.MapStaticAssets();
+}
 
 app.MapControllerRoute(
     name: "areas",
     pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 
-app.MapControllerRoute(
+var defaultRoute = app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets();
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+if (app.Environment.IsDevelopment())
+    defaultRoute.WithStaticAssets();
 
-app.MapRazorPages()
-   .WithStaticAssets();
+var razorPages = app.MapRazorPages();
+if (app.Environment.IsDevelopment())
+    razorPages.WithStaticAssets();
 
 // Schedule recurring jobs
 RecurringJob.AddOrUpdate<ChannelSyncJob>(
@@ -171,25 +177,23 @@ RecurringJob.AddOrUpdate<PlaylistSyncJob>(
     job => job.SyncAllPlaylistsAsync(CancellationToken.None),
     Cron.Daily); // Check for new playlist videos every day
 
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<ApplicationDbContext>();
-        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-        var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
 
-        await DbInitializer.InitializeAsync(context, userManager, roleManager);
-    }
-    catch (Exception ex)
+using var scope = app.Services.CreateScope();
+var services = scope.ServiceProvider;
+try
+{
+    var context = services.GetRequiredService<ApplicationDbContext>();
+    var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+    var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
+
+    await DbInitializer.InitializeAsync(context, userManager, roleManager);
+}
+catch (Exception ex)
+{
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    if (logger.IsEnabled(LogLevel.Error))
     {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        if (logger.IsEnabled(LogLevel.Error))
-        {
-            logger.LogError(ex, "An error occurred while seeding the database.");
-        }
+        logger.LogError(ex, "An error occurred while seeding the database.");
     }
 }
 

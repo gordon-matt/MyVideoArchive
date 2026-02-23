@@ -1,0 +1,42 @@
+# Minimal stack: .NET 10 (Alpine) + PostgreSQL 18 (Alpine)
+# Run from repo root: docker compose up -d
+# App: http://localhost:8080
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: MyVideoArchive/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=myvideoarchive;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
+      # Linux path for downloads; override in appsettings on Windows
+      VideoDownload__VideoQuality: bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best
+      VideoDownload__OutputPath: /app/data
+    volumes:
+      # Host path must exist; ensure D: is in Docker Desktop → Settings → Resources → File sharing
+      - D:/_Docker/my-video-archive/videos:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18-alpine
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: myvideoarchive
+    volumes:
+      # Postgres 18+ expects mount at /var/lib/postgresql (image uses versioned subdir inside it)
+      # Host path must exist; ensure D: is in Docker Desktop → Settings → Resources → File sharing
+      - D:/_Docker/my-video-archive/pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+

@@ -1,8 +1,6 @@
-using MyVideoArchive.Services.Abstractions;
-
 namespace MyVideoArchive.Data;
 
-public class ApplicationDbContextFactory(ISecretsManager secretsManager) : IDbContextFactory
+public class ApplicationDbContextFactory(IConfiguration configuration) : IDbContextFactory
 {
     private DbContextOptions<ApplicationDbContext> Options
     {
@@ -11,7 +9,7 @@ public class ApplicationDbContextFactory(ISecretsManager secretsManager) : IDbCo
             if (field is null)
             {
                 var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-                string? connectionString = secretsManager.GetSecret("DefaultConnection");
+                string? connectionString = configuration.GetConnectionString("DefaultConnection");
 
                 if (string.IsNullOrEmpty(connectionString))
                 {

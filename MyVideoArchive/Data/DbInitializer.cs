@@ -16,23 +16,30 @@ public static class DbInitializer
         await context.Database.MigrateAsync();
 
         // Seed roles
-        await SeedRolesAsync(roleManager);
-
-        // Seed default admin user
-        await SeedAdminUserAsync(userManager);
+        bool isFirstRun = await SeedRolesAsync(roleManager);
+        if (isFirstRun)
+        {
+            // Seed default admin user
+            await SeedAdminUserAsync(userManager);
+        }
     }
 
-    private static async Task SeedRolesAsync(RoleManager<ApplicationRole> roleManager)
+    private static async Task<bool> SeedRolesAsync(RoleManager<ApplicationRole> roleManager)
     {
-        string[] roleNames = { Constants.Roles.Administrator, "User" };
+        string[] roleNames = [Constants.Roles.Administrator, Constants.Roles.User];
+
+        bool isFirstRun = false;
 
         foreach (string roleName in roleNames)
         {
             if (!await roleManager.RoleExistsAsync(roleName))
             {
+                isFirstRun = true;
                 await roleManager.CreateAsync(new ApplicationRole { Name = roleName });
             }
         }
+
+        return isFirstRun;
     }
 
     private static async Task SeedAdminUserAsync(UserManager<ApplicationUser> userManager)

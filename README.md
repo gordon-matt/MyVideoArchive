@@ -56,7 +56,8 @@ A simple video archiving application inspired by TubeArchivist, built with ASP.N
 
 ### Configuration
 
-The application uses SQL Server by default. To use an in-memory database for development, leave the `DefaultConnection` connection string empty in `appsettings.json`.
+- **Local development**: Use **User Secrets** for the connection string (Visual Studio: right-click project → **Manage User Secrets**). See [DEPLOYMENT.md](DEPLOYMENT.md) for details.
+- **Docker**: The container reads settings from environment variables in `docker-compose.yml` or from a `.env` file; it does not use User Secrets. See [DEPLOYMENT.md](DEPLOYMENT.md) for test deploy and where non-developers set connection strings.
 
 ### Running the Application
 
