@@ -83,9 +83,9 @@ public class PlaylistSyncJob
                 playlist.Description = playlistMetadata.Description;
             }
 
-            bool hasAnySubs = await userPlaylistRepository.CountAsync(
+            bool hasAnySubs = await userPlaylistRepository.ExistsAsync(
                 x => x.PlaylistId == playlistId,
-                ContextOptions.ForCancellationToken(cancellationToken)) > 0;
+                ContextOptions.ForCancellationToken(cancellationToken));
 
             if (hasAnySubs)
             {
@@ -104,6 +104,8 @@ public class PlaylistSyncJob
                 var videoUpdates = new List<Video>();
                 var videoInserts = new List<Video>();
                 var playlistVideoInserts = new List<PlaylistVideo>();
+                // New videos to link to playlist after insert (Id is unknown until SaveChanges)
+                var newVideoOrders = new List<(Video Video, int Order)>();
 
                 foreach (var videoMetadata in videoMetadataList)
                 {
@@ -118,8 +120,6 @@ public class PlaylistSyncJob
                             x.VideoId == videoMetadata.VideoId
                     });
 
-                    int videoId;
-
                     if (existingVideo is not null)
                     {
                         // Update existing video metadata
@@ -131,7 +131,24 @@ public class PlaylistSyncJob
                         existingVideo.LikeCount = videoMetadata.LikeCount;
 
                         videoUpdates.Add(existingVideo);
-                        videoId = existingVideo.Id;
+
+                        // Associate existing video with this playlist if not already associated
+                        if (!existingPlaylistVideoIds.Contains(existingVideo.Id))
+                        {
+                            if (await playlistVideoRepository.ExistsAsync(
+                                x =>
+                                    x.PlaylistId == playlistId &&
+                                    x.VideoId == existingVideo.Id,
+                                ContextOptions.ForCancellationToken(cancellationToken)))
+                            {
+                                playlistVideoInserts.Add(new PlaylistVideo
+                                {
+                                    PlaylistId = playlistId,
+                                    VideoId = existingVideo.Id,
+                                    Order = videoOrder
+                                });
+                            }
+                        }
                     }
                     else
                     {
@@ -154,29 +171,32 @@ public class PlaylistSyncJob
                         };
 
                         videoInserts.Add(newVideo);
-                        videoId = newVideo.Id;
+                        newVideoOrders.Add((newVideo, videoOrder));
                         newVideosCount++;
-                    }
-
-                    // Associate video with this playlist if not already associated
-                    if (!existingPlaylistVideoIds.Contains(videoId))
-                    {
-                        var playlistVideo = new PlaylistVideo
-                        {
-                            PlaylistId = playlistId,
-                            VideoId = videoId,
-                            Order = videoOrder // Set the original order
-                        };
-
-                        if (await playlistVideoRepository.CountAsync(x => x.PlaylistId == playlistId && x.VideoId == videoId) == 0)
-                        {
-                            playlistVideoInserts.Add(playlistVideo);
-                        }
                     }
                 }
 
                 await videoRepository.InsertAsync(videoInserts, ContextOptions.ForCancellationToken(cancellationToken));
                 await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
+
+                // After insert, new Video entities have Id set; create PlaylistVideo for each
+                foreach (var (insertedVideo, order) in newVideoOrders)
+                {
+                    if (await playlistVideoRepository.ExistsAsync(
+                        x =>
+                            x.PlaylistId == playlistId &&
+                            x.VideoId == insertedVideo.Id,
+                        ContextOptions.ForCancellationToken(cancellationToken)))
+                    {
+                        playlistVideoInserts.Add(new PlaylistVideo
+                        {
+                            PlaylistId = playlistId,
+                            VideoId = insertedVideo.Id,
+                            Order = order
+                        });
+                    }
+                }
+
                 await playlistVideoRepository.InsertAsync(playlistVideoInserts, ContextOptions.ForCancellationToken(cancellationToken));
 
                 playlist.VideoCount = playlistVideoRepository.Count(

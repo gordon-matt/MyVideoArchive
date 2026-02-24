@@ -247,18 +247,15 @@ public class ChannelODataController : ODataController
 
             // Optionally: If no users are subscribed to this channel, delete it
             // (Only if admin or if this was the last subscription)
-            int remainingSubscriptions = await userChannelRepository.CountAsync(new SearchOptions<UserChannel>
-            {
-                Query = x => x.ChannelId == key
-            });
+            bool hasRemainingSubscriptions = await userChannelRepository.ExistsAsync(x => x.ChannelId == key);
 
-            if (remainingSubscriptions == 0)
+            if (hasRemainingSubscriptions)
             {
                 // No one is subscribed, delete the channel
-                var channel = await channelRepository.FindOneAsync(key);
-                if (channel is not null)
+                var channelExists = await channelRepository.ExistsAsync(x => x.Id == key);
+                if (channelExists)
                 {
-                    await channelRepository.DeleteAsync(channel);
+                    await channelRepository.DeleteAsync(x => x.Id == key);
                     if (logger.IsEnabled(LogLevel.Information))
                     {
                         logger.LogInformation("Deleted channel {ChannelId} as no users are subscribed", key);

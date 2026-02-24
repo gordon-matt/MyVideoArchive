@@ -12,7 +12,7 @@
     <PackageReference Include="Autofac" Version="9.0.0" />
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Extenso.AspNetCore.OData" Version="10.0.1" />
-    <PackageReference Include="Extenso.Data.Entity" Version="10.0.1" />
+    <PackageReference Include="Extenso.Data.Entity" Version="10.1.0" />
     <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.3" />
@@ -27,7 +27,7 @@
     <PackageReference Include="Microsoft.Web.LibraryManager.Build" Version="2.1.113" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
     <PackageReference Include="YoutubeDLSharp" Version="1.2.0" />
-    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.18" />
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
   </ItemGroup>
 
 </Project>
