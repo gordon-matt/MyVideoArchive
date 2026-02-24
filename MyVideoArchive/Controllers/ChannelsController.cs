@@ -1,5 +1,6 @@
 namespace MyVideoArchive.Controllers;
 
+[Authorize]
 [Route("channels")]
 public class ChannelsController : Controller
 {

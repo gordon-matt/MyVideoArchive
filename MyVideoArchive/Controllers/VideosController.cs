@@ -1,5 +1,6 @@
 namespace MyVideoArchive.Controllers;
 
+[Authorize]
 [Route("videos")]
 public class VideosController : Controller
 {

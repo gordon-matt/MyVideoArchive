@@ -53,7 +53,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
 
             return new ChannelMetadata
             {
-                ChannelId = data.Channel ?? data.Uploader ?? data.ID ?? string.Empty,
+                ChannelId = data.ChannelID,
                 Name = data.Channel ?? data.Uploader ?? "Unknown Channel",
                 Url = data.WebpageUrl ?? channelUrl,
                 Description = data.Description,

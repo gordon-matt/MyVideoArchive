@@ -2,6 +2,7 @@ using Extenso.AspNetCore.OData;
 
 namespace MyVideoArchive.Controllers.OData;
 
+[Authorize]
 public class PlaylistODataController(IAuthorizationService authorizationService, IRepository<Playlist> repository)
     : BaseODataController<Playlist, int>(authorizationService, repository)
 {

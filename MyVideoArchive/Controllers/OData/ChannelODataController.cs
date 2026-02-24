@@ -9,6 +9,7 @@ public class ChannelODataController : ODataController
 {
     private readonly ILogger<ChannelODataController> logger;
     private readonly IUserContextService userContextService;
+    private readonly VideoMetadataProviderFactory metadataProviderFactory;
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
@@ -16,6 +17,7 @@ public class ChannelODataController : ODataController
     public ChannelODataController(
         ILogger<ChannelODataController> logger,
         IUserContextService userContextService,
+        VideoMetadataProviderFactory metadataProviderFactory,
         IBackgroundJobClient backgroundJobClient,
         IRepository<Channel> channelRepository,
         IRepository<UserChannel> userChannelRepository)
@@ -23,6 +25,7 @@ public class ChannelODataController : ODataController
         this.logger = logger;
         this.userContextService = userContextService;
         this.backgroundJobClient = backgroundJobClient;
+        this.metadataProviderFactory = metadataProviderFactory;
         this.channelRepository = channelRepository;
         this.userChannelRepository = userChannelRepository;
     }
@@ -137,13 +140,36 @@ public class ChannelODataController : ODataController
                 return BadRequest(ModelState);
             }
 
-            // Check if channel already exists by ChannelId
-            var existingChannel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
+            var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
+            if (provider is null)
             {
-                Query = x => x.ChannelId == channel.ChannelId
-            });
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    logger.LogError("No metadata provider found for platform: {Platform}", channel.Platform);
+                }
+
+                return BadRequest();
+            }
+
+            // Update channel metadata
+            var channelMetadata = await provider.GetChannelMetadataAsync(channel.Url);
+            if (channelMetadata is null)
+            {
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    logger.LogError("Unable to retrieve metadata for channel: {Url}", channel.Url);
+                }
+
+                return BadRequest();
+            }
 
             int channelDbId;
+
+            // Check if channel already exists by Url
+            var existingChannel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
+            {
+                Query = x => x.Url == channel.Url
+            });
 
             if (existingChannel is not null)
             {
@@ -157,8 +183,12 @@ public class ChannelODataController : ODataController
             else
             {
                 // Create new channel
+                channel.ChannelId = channelMetadata.ChannelId;
+                channel.Name = channelMetadata.Name;
+                channel.Description = channelMetadata.Description;
+                channel.ThumbnailUrl = channelMetadata.ThumbnailUrl;
+                channel.SubscriberCount = channelMetadata.SubscriberCount;
                 channel.SubscribedAt = DateTime.UtcNow;
-                channel.Platform = "YouTube"; // Default platform
                 await channelRepository.InsertAsync(channel);
                 channelDbId = channel.Id;
                 if (logger.IsEnabled(LogLevel.Information))

@@ -71,6 +71,7 @@ public class ChannelSyncJob
             var channelMetadata = await provider.GetChannelMetadataAsync(channel.Url, cancellationToken);
             if (channelMetadata is not null)
             {
+                channel.ChannelId = channelMetadata.ChannelId;
                 channel.Name = channelMetadata.Name;
                 channel.Description = channelMetadata.Description;
                 channel.ThumbnailUrl = channelMetadata.ThumbnailUrl;
@@ -123,19 +124,23 @@ public class ChannelSyncJob
                         IsIgnored = false
                     });
                     newVideosCount++;
-
-                    // Note: Videos are no longer auto-downloaded.
-                    // Users must select videos to download from the Available tab.
                 }
             }
 
-            await videoRepository.InsertAsync(videoInserts, ContextOptions.ForCancellationToken(cancellationToken));
-            await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
+            if (!videoInserts.IsNullOrEmpty())
+            {
+                await videoRepository.InsertAsync(videoInserts, ContextOptions.ForCancellationToken(cancellationToken));
+            }
+
+            if (!videoUpdates.IsNullOrEmpty())
+            {
+                await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
+            }
 
             // Update last checked timestamp
             channel.LastChecked = DateTime.UtcNow;
 
-            channel.VideoCount = await channelRepository.CountAsync(
+            channel.VideoCount = await videoRepository.CountAsync(
                 x => x.Id == channelId,
                 ContextOptions.ForCancellationToken(cancellationToken));
 

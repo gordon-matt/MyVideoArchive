@@ -11,7 +11,7 @@
   <ItemGroup>
     <PackageReference Include="Autofac" Version="9.0.0" />
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="10.0.0" />
-    <PackageReference Include="Extenso.AspNetCore.OData" Version="10.0.1" />
+    <PackageReference Include="Extenso.AspNetCore.OData" Version="10.0.2" />
     <PackageReference Include="Extenso.Data.Entity" Version="10.1.0" />
     <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.3" />

@@ -3,6 +3,7 @@ namespace MyVideoArchive.Controllers.Api;
 /// <summary>
 /// API controller for video streaming and operations
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/videos")]
 public class VideosApiController : ControllerBase

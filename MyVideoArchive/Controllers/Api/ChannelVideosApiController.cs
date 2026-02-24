@@ -101,9 +101,6 @@ public class ChannelVideosApiController : ControllerBase
                 PageSize = pageSize
             };
 
-            // Get total count for pagination
-            int totalCount = await videoRepository.CountAsync(options);
-
             // Apply pagination
             var videos = await videoRepository.FindAsync(options, x => new
             {
@@ -129,8 +126,8 @@ public class ChannelVideosApiController : ControllerBase
                 {
                     currentPage = page,
                     pageSize,
-                    totalCount,
-                    totalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+                    videos.ItemCount,
+                    totalPages = videos.PageCount
                 }
             });
         }

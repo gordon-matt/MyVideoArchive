@@ -5,6 +5,7 @@ namespace MyVideoArchive.Controllers.Api;
 /// <summary>
 /// API controller for channel operations like sync
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/channels")]
 public class ChannelOperationsApiController : ControllerBase

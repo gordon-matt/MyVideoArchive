@@ -3,6 +3,7 @@ using MyVideoArchive.Models;
 
 namespace MyVideoArchive.Controllers;
 
+[Authorize]
 public class HomeController : Controller
 {
     public IActionResult Index() => View();
