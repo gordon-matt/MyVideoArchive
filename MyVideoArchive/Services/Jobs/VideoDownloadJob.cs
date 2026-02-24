@@ -78,8 +78,8 @@ public class VideoDownloadJob
             string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
-            // Create channel-specific subdirectory
-            string channelPath = Path.Combine(downloadPath, SanitizeFileName(video.Channel.Name));
+            // Create channel-specific subdirectory (keyed on ChannelId so renames don't break paths)
+            string channelPath = Path.Combine(downloadPath, video.Channel.ChannelId);
 
             // Download the video
             var progress = new Progress<double>(p =>
@@ -137,9 +137,4 @@ public class VideoDownloadJob
         }
     }
 
-    private static string SanitizeFileName(string fileName)
-    {
-        char[] invalidChars = Path.GetInvalidFileNameChars();
-        return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
-    }
 }

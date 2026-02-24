@@ -221,10 +221,11 @@ public class FileSystemScanJob
 
     private async Task<Channel> FindOrCreateChannelForFolderAsync(string folderName, CancellationToken cancellationToken)
     {
+        // Folders are now named after ChannelId (not the display name), so match on that field
         var existing = await channelRepository.FindOneAsync(new SearchOptions<Channel>
         {
             CancellationToken = cancellationToken,
-            Query = x => x.Name == folderName
+            Query = x => x.ChannelId == folderName
         });
 
         if (existing is not null)
@@ -233,14 +234,12 @@ public class FileSystemScanJob
         }
 
         // Create a placeholder channel for unrecognised folders.
-        // Platform defaults to YouTube since that is the most common download source;
-        // admins can change it via the channel details page.
-        string channelId = Guid.NewGuid().ToString("N");
+        // The folder name IS the ChannelId; admins can update the display name and platform later.
         var channel = new Channel
         {
-            ChannelId = channelId,
+            ChannelId = folderName,
             Name = folderName,
-            Url = $"custom://{channelId}",
+            Url = $"custom://{folderName}",
             Platform = "YouTube",
             SubscribedAt = DateTime.UtcNow
         };

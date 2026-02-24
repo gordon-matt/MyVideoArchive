@@ -15,6 +15,10 @@ class CustomVideoViewModel {
         this.editDuration = ko.observable('');
         this.editFilePath = ko.observable('');
 
+        // Playlist checkboxes
+        this.channelPlaylists = ko.observableArray([]);  // [{ Id, Name }]
+        this.editPlaylistIds = ko.observableArray([]);   // currently selected playlist IDs
+
         // Thumbnail upload
         this.thumbnailFile = ko.observable(null);
         this.thumbnailCacheBust = ko.observable(Date.now());
@@ -37,6 +41,22 @@ class CustomVideoViewModel {
             this.video(data);
             if (data.FilePath) this.videoUrl(`/api/videos/${data.Id}/stream`);
             this.populateEditForm(data);
+
+            // Load channel playlists and current memberships in parallel
+            if (data.ChannelId) {
+                const [playlistsRes, membershipRes] = await Promise.all([
+                    fetch(`/api/custom/channels/${data.ChannelId}/playlists`),
+                    fetch(`/api/custom/videos/${this.videoId}/playlists`)
+                ]);
+
+                if (playlistsRes.ok) {
+                    this.channelPlaylists(await playlistsRes.json());
+                }
+
+                if (membershipRes.ok) {
+                    this.editPlaylistIds(await membershipRes.json());
+                }
+            }
         } catch (error) {
             console.error('Error loading video:', error);
         } finally {
@@ -49,6 +69,7 @@ class CustomVideoViewModel {
         this.editDescription(video.Description || '');
         this.editFilePath(video.FilePath || '');
         this.thumbnailFile(null);
+        // editPlaylistIds is populated separately after fetching memberships from the API
 
         if (video.UploadDate) {
             const d = new Date(video.UploadDate);
@@ -100,7 +121,8 @@ class CustomVideoViewModel {
                     thumbnailUrl: this.video()?.ThumbnailUrl ?? null, // preserve existing
                     uploadDate: this.editUploadDate() ? new Date(this.editUploadDate()).toISOString() : null,
                     duration: this.hmsToDuration(this.editDuration()),
-                    filePath: this.editFilePath() || null
+                    filePath: this.editFilePath() || null,
+                    playlistIds: this.editPlaylistIds()
                 })
             });
 

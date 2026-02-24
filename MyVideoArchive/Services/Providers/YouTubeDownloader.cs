@@ -52,7 +52,7 @@ public partial class YouTubeDownloader : IVideoDownloader
 
             // Get video quality from configuration
             string videoQuality = configuration.GetValue<string>("VideoDownload:VideoQuality")
-                ?? "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
+                ?? Constants.BestDownloadQuality;
 
             // Configure download options
             var options = new OptionSet
@@ -72,6 +72,18 @@ public partial class YouTubeDownloader : IVideoDownloader
 
             var result = await ytdl.RunVideoDownload(videoUrl, overrideOptions: options, ct: cancellationToken);
 
+            if (!result.Success && options.Format != Constants.BestDownloadQuality)
+            {
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Failed to download video from {Url}. Attempting fallback to best quality", videoUrl);
+                }
+
+                // Fallback in case of failure with specified quality
+                options.Format = Constants.BestDownloadQuality;
+                result = await ytdl.RunVideoDownload(videoUrl, overrideOptions: options, ct: cancellationToken);
+            }
+
             if (!result.Success)
             {
                 string errorMessage = string.Join(", ", result.ErrorOutput);
@@ -83,6 +95,7 @@ public partial class YouTubeDownloader : IVideoDownloader
                     }
 
                 }
+
                 throw new InvalidOperationException($"Failed to download video: {errorMessage}");
             }
 

@@ -13,7 +13,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=myvideoarchive;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
       # Linux path for downloads; override in appsettings on Windows
-      VideoDownload__VideoQuality: bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best
+      VideoDownload__VideoQuality: bestvideo[height=720]+bestaudio/bestvideo[height=720]+bestaudio/bestvideo[height=480]+bestaudio/best
       VideoDownload__OutputPath: /app/data
       YoutubeDL__ExecutablePath: /usr/local/bin/yt-dlp
       YoutubeDL__FFmpegPath: /usr/bin/ffmpeg

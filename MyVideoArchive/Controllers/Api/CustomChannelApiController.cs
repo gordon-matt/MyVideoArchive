@@ -330,6 +330,53 @@ public class CustomChannelApiController : ControllerBase
         }
     }
 
+    /// <summary>Returns all playlists belonging to a custom channel.</summary>
+    [HttpGet("channels/{channelId:int}/playlists")]
+    public async Task<IActionResult> GetChannelPlaylists(int channelId)
+    {
+        var (canAccess, channel) = await CanAccessChannel(channelId);
+        if (!canAccess)
+        {
+            return Forbid();
+        }
+
+        if (channel is null || channel.Platform != "Custom")
+        {
+            return NotFound();
+        }
+
+        var playlists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
+        {
+            Query = x => x.ChannelId == channelId && !x.IsIgnored
+        }, x => new { x.Id, x.Name });
+
+        return Ok(playlists);
+    }
+
+    /// <summary>Returns the IDs of custom playlists that contain the given video.</summary>
+    [HttpGet("videos/{videoId:int}/playlists")]
+    public async Task<IActionResult> GetVideoPlaylists(int videoId)
+    {
+        var video = await videoRepository.FindOneAsync(videoId);
+        if (video is null)
+        {
+            return NotFound();
+        }
+
+        var (canAccess, _) = await CanAccessChannel(video.ChannelId);
+        if (!canAccess)
+        {
+            return Forbid();
+        }
+
+        var entries = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+        {
+            Query = x => x.VideoId == videoId
+        }, x => x.PlaylistId);
+
+        return Ok(entries);
+    }
+
     // ── Videos ────────────────────────────────────────────────────────────────
 
     /// <summary>Updates metadata for a custom (or manually imported) video.</summary>
@@ -379,6 +426,13 @@ public class CustomChannelApiController : ControllerBase
             }
 
             await videoRepository.UpdateAsync(video);
+
+            // Sync playlist memberships when a list is provided (only touches playlists in this channel)
+            if (request.PlaylistIds is not null)
+            {
+                await SyncVideoPlaylistsAsync(video.Id, video.ChannelId, request.PlaylistIds);
+            }
+
             return Ok();
         }
         catch (Exception ex)
@@ -462,6 +516,55 @@ public class CustomChannelApiController : ControllerBase
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Syncs PlaylistVideo junction rows so the video belongs to exactly the given playlists
+    /// (limited to playlists owned by <paramref name="channelId"/> to avoid touching platform data).
+    /// </summary>
+    private async Task SyncVideoPlaylistsAsync(int videoId, int channelId, IReadOnlyList<int> desiredPlaylistIds)
+    {
+        // Resolve which of the requested IDs actually belong to this channel
+        var channelPlaylistIds = (await playlistRepository.FindAsync(new SearchOptions<Playlist>
+        {
+            Query = x => x.ChannelId == channelId
+        }, x => x.Id)).ToHashSet();
+
+        var validDesiredIds = desiredPlaylistIds
+            .Where(id => channelPlaylistIds.Contains(id))
+            .ToHashSet();
+
+        // Fetch existing junction rows for this video that belong to this channel
+        var existing = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+        {
+            Query = x => x.VideoId == videoId && channelPlaylistIds.Contains(x.PlaylistId)
+        });
+
+        var existingIds = existing.Select(x => x.PlaylistId).ToHashSet();
+
+        // Remove deselected
+        var toRemove = existing.Where(x => !validDesiredIds.Contains(x.PlaylistId)).ToList();
+        if (toRemove.Count > 0)
+        {
+            await playlistVideoRepository.DeleteAsync(toRemove);
+        }
+
+        // Add newly selected
+        foreach (int playlistId in validDesiredIds.Except(existingIds))
+        {
+            // Place the video at the end of the playlist
+            var maxOrder = (await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+            {
+                Query = x => x.PlaylistId == playlistId
+            }, x => (int?)x.Order)).Max() ?? -1;
+
+            await playlistVideoRepository.InsertAsync(new PlaylistVideo
+            {
+                PlaylistId = playlistId,
+                VideoId = videoId,
+                Order = maxOrder + 1
+            });
+        }
+    }
+
     private async Task<bool> CanAccessChannel(int channelId, Channel? channel = null)
     {
         if (userContextService.IsAdministrator())
@@ -494,7 +597,7 @@ public class CustomChannelApiController : ControllerBase
             ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
     private string GetPlaylistThumbnailDirectory(Playlist playlist) =>
-        Path.Combine(GetDownloadPath(), SanitizeFileName(playlist.Channel.Name), "Playlists");
+        Path.Combine(GetDownloadPath(), playlist.Channel.ChannelId, "Playlists");
 
     private IActionResult ServeImageFromDirectory(string directory, string stem)
     {
@@ -551,12 +654,6 @@ public class CustomChannelApiController : ControllerBase
         }
     }
 
-    private static string SanitizeFileName(string fileName)
-    {
-        char[] invalidChars = Path.GetInvalidFileNameChars();
-        return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
-    }
-
     private static string NormaliseImageExtension(string ext)
     {
         ext = ext.ToLowerInvariant();
@@ -575,5 +672,6 @@ public class CustomChannelApiController : ControllerBase
         string? ThumbnailUrl,
         DateTime? UploadDate,
         TimeSpan? Duration,
-        string? FilePath);
+        string? FilePath,
+        List<int>? PlaylistIds);
 }
