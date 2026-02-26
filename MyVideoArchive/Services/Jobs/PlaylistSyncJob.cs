@@ -135,7 +135,7 @@ public class PlaylistSyncJob
                         // Associate existing video with this playlist if not already associated
                         if (!existingPlaylistVideoIds.Contains(existingVideo.Id))
                         {
-                            if (await playlistVideoRepository.ExistsAsync(
+                            if (!await playlistVideoRepository.ExistsAsync(
                                 x =>
                                     x.PlaylistId == playlistId &&
                                     x.VideoId == existingVideo.Id,
@@ -182,7 +182,7 @@ public class PlaylistSyncJob
                 // After insert, new Video entities have Id set; create PlaylistVideo for each
                 foreach (var (insertedVideo, order) in newVideoOrders)
                 {
-                    if (await playlistVideoRepository.ExistsAsync(
+                    if (!await playlistVideoRepository.ExistsAsync(
                         x =>
                             x.PlaylistId == playlistId &&
                             x.VideoId == insertedVideo.Id,

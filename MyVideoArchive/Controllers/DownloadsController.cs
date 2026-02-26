@@ -1,6 +1,6 @@
 namespace MyVideoArchive.Controllers;
 
-[Authorize]
+[Authorize(Roles = Constants.Roles.Administrator)]
 [Route("downloads")]
 public class DownloadsController : Controller
 {

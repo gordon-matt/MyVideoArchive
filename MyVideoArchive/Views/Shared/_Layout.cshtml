@@ -37,12 +37,12 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="Channels" asp-action="Index">Channels</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Downloads" asp-action="Index">Downloads</a>
-                        </li>
 
                         @if (User.IsInRole(Constants.Roles.Administrator))
                         {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-controller="Downloads" asp-action="Index">Downloads</a>
+                            </li>
                             <li class="nav-item">
                                 <a class="nav-link text-dark" asp-area="Admin" asp-controller="Home" asp-action="Index">Admin</a>
                             </li>
