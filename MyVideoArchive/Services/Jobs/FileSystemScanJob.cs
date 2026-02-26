@@ -11,6 +11,7 @@ public class FileSystemScanJob
     private readonly ILogger<FileSystemScanJob> logger;
     private readonly IConfiguration configuration;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
+    private readonly ThumbnailService thumbnailService;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<Video> videoRepository;
 
@@ -18,12 +19,14 @@ public class FileSystemScanJob
         ILogger<FileSystemScanJob> logger,
         IConfiguration configuration,
         VideoMetadataProviderFactory metadataProviderFactory,
+        ThumbnailService thumbnailService,
         IRepository<Channel> channelRepository,
         IRepository<Video> videoRepository)
     {
         this.logger = logger;
         this.configuration = configuration;
         this.metadataProviderFactory = metadataProviderFactory;
+        this.thumbnailService = thumbnailService;
         this.channelRepository = channelRepository;
         this.videoRepository = videoRepository;
     }
@@ -177,7 +180,15 @@ public class FileSystemScanJob
         }
 
         var fileInfo = new FileInfo(filePath);
-        bool needsReview = metadata is null && channel.Platform != "Custom";
+        bool needsReview = (metadata is null || metadata.Title == Constants.PrivateVideoTitle) && channel.Platform != "Custom";
+
+        string? thumbnailDataUrl = null;
+        if (metadata?.ThumbnailUrl is not null)
+        {
+            string thumbnailDir = Path.GetDirectoryName(filePath)!;
+            thumbnailDataUrl = await thumbnailService.DownloadAndSaveAsync(
+                metadata.ThumbnailUrl, thumbnailDir, fileNameWithoutExt, cancellationToken);
+        }
 
         var video = new Video
         {
@@ -185,7 +196,7 @@ public class FileSystemScanJob
             Title = metadata?.Title ?? fileNameWithoutExt,
             Description = metadata?.Description,
             Url = metadata?.Url ?? filePath,
-            ThumbnailUrl = metadata?.ThumbnailUrl,
+            ThumbnailUrl = thumbnailDataUrl ?? metadata?.ThumbnailUrl,
             Platform = channel.Platform,
             Duration = metadata?.Duration,
             UploadDate = metadata?.UploadDate ?? File.GetLastWriteTimeUtc(filePath),

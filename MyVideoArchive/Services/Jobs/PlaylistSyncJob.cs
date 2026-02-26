@@ -8,7 +8,9 @@ namespace MyVideoArchive.Services.Jobs;
 public class PlaylistSyncJob
 {
     private readonly ILogger<PlaylistSyncJob> logger;
+    private readonly IConfiguration configuration;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
+    private readonly ThumbnailService thumbnailService;
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly IRepository<Playlist> playlistRepository;
     private readonly IRepository<PlaylistVideo> playlistVideoRepository;
@@ -17,7 +19,9 @@ public class PlaylistSyncJob
 
     public PlaylistSyncJob(
         ILogger<PlaylistSyncJob> logger,
+        IConfiguration configuration,
         VideoMetadataProviderFactory metadataProviderFactory,
+        ThumbnailService thumbnailService,
         IBackgroundJobClient backgroundJobClient,
         IRepository<Playlist> playlistRepository,
         IRepository<PlaylistVideo> playlistVideoRepository,
@@ -25,7 +29,9 @@ public class PlaylistSyncJob
         IRepository<Video> videoRepository)
     {
         this.logger = logger;
+        this.configuration = configuration;
         this.metadataProviderFactory = metadataProviderFactory;
+        this.thumbnailService = thumbnailService;
         this.backgroundJobClient = backgroundJobClient;
         this.playlistRepository = playlistRepository;
         this.playlistVideoRepository = playlistVideoRepository;
@@ -51,6 +57,7 @@ public class PlaylistSyncJob
 
                 Include = query => query
                     .Include(x => x.PlaylistVideos)
+                    .Include(x => x.Channel)
             });
 
             if (playlist is null)
@@ -75,12 +82,23 @@ public class PlaylistSyncJob
                 return;
             }
 
+            string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
+                ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
+
+            string channelDirId = playlist.Channel?.ChannelId ?? playlist.ChannelId.ToString();
+            string videoThumbnailDir = Path.Combine(downloadPath, channelDirId);
+
             // Update playlist metadata
             var playlistMetadata = await provider.GetPlaylistMetadataAsync(playlist.Url, cancellationToken);
             if (playlistMetadata is not null)
             {
                 playlist.Name = playlistMetadata.Name;
                 playlist.Description = playlistMetadata.Description;
+
+                string playlistThumbnailDir = Path.Combine(downloadPath, channelDirId, "Playlists");
+                playlist.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
+                    playlistMetadata.ThumbnailUrl, playlistThumbnailDir, playlist.PlaylistId, cancellationToken)
+                    ?? playlist.ThumbnailUrl;
             }
 
             bool hasAnySubs = await userPlaylistRepository.ExistsAsync(
@@ -125,10 +143,22 @@ public class PlaylistSyncJob
                         // Update existing video metadata
                         existingVideo.Title = videoMetadata.Title;
                         existingVideo.Description = videoMetadata.Description;
-                        existingVideo.ThumbnailUrl = videoMetadata.ThumbnailUrl;
                         existingVideo.Duration = videoMetadata.Duration;
                         existingVideo.ViewCount = videoMetadata.ViewCount;
                         existingVideo.LikeCount = videoMetadata.LikeCount;
+
+                        if (videoMetadata.Title == Constants.PrivateVideoTitle)
+                        {
+                            existingVideo.NeedsMetadataReview = true;
+                        }
+
+                        // Only download thumbnail if not already stored as a data URL
+                        if (!existingVideo.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
+                        {
+                            existingVideo.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
+                                videoMetadata.ThumbnailUrl, videoThumbnailDir, existingVideo.VideoId, cancellationToken)
+                                ?? videoMetadata.ThumbnailUrl;
+                        }
 
                         videoUpdates.Add(existingVideo);
 
@@ -152,6 +182,9 @@ public class PlaylistSyncJob
                     }
                     else
                     {
+                        string? thumbnailDataUrl = await thumbnailService.DownloadAndSaveAsync(
+                            videoMetadata.ThumbnailUrl, videoThumbnailDir, videoMetadata.VideoId, cancellationToken);
+
                         // Create new video entry (without auto-downloading)
                         var newVideo = new Video
                         {
@@ -159,7 +192,7 @@ public class PlaylistSyncJob
                             Title = videoMetadata.Title,
                             Description = videoMetadata.Description,
                             Url = videoMetadata.Url,
-                            ThumbnailUrl = videoMetadata.ThumbnailUrl,
+                            ThumbnailUrl = thumbnailDataUrl ?? videoMetadata.ThumbnailUrl,
                             Platform = videoMetadata.Platform,
                             Duration = videoMetadata.Duration,
                             UploadDate = videoMetadata.UploadDate,
@@ -167,7 +200,8 @@ public class PlaylistSyncJob
                             LikeCount = videoMetadata.LikeCount,
                             ChannelId = playlist.ChannelId,
                             IsIgnored = false,
-                            IsQueued = false
+                            IsQueued = false,
+                            NeedsMetadataReview = videoMetadata.Title == Constants.PrivateVideoTitle
                         };
 
                         videoInserts.Add(newVideo);

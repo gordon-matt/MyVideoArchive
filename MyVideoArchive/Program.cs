@@ -72,6 +72,9 @@ builder.Services.AddHangfire(configuration => configuration
 
 builder.Services.AddHangfireServer();
 
+// Register HTTP client (used by ThumbnailService)
+builder.Services.AddHttpClient();
+
 // Register video services
 builder.Services.AddSingleton<YoutubeDLInitializer>();
 builder.Services.AddSingleton(sp =>
@@ -90,11 +93,15 @@ builder.Services.AddSingleton<IVideoDownloader, YouTubeDownloader>();
 builder.Services.AddSingleton<VideoMetadataProviderFactory>();
 builder.Services.AddSingleton<VideoDownloaderFactory>();
 
+// Register thumbnail service
+builder.Services.AddTransient<ThumbnailService>();
+
 // Register Hangfire jobs
 builder.Services.AddTransient<VideoDownloadJob>();
 builder.Services.AddTransient<ChannelSyncJob>();
 builder.Services.AddTransient<PlaylistSyncJob>();
 builder.Services.AddTransient<FileSystemScanJob>();
+builder.Services.AddTransient<MetadataReviewJob>();
 
 // Register user context service
 builder.Services.AddHttpContextAccessor();
@@ -176,6 +183,11 @@ RecurringJob.AddOrUpdate<PlaylistSyncJob>(
     "sync-all-playlists",
     job => job.SyncAllPlaylistsAsync(CancellationToken.None),
     Cron.Daily); // Check for new playlist videos every day
+
+RecurringJob.AddOrUpdate<MetadataReviewJob>(
+    "metadata-review",
+    job => job.ExecuteAsync(CancellationToken.None),
+    Cron.Weekly()); // Retry previously unavailable video metadata once per week
 
 
 using var scope = app.Services.CreateScope();

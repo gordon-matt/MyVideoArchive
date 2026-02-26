@@ -9,20 +9,26 @@ namespace MyVideoArchive.Services.Jobs;
 public class ChannelSyncJob
 {
     private readonly ILogger<ChannelSyncJob> logger;
+    private readonly IConfiguration configuration;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
+    private readonly ThumbnailService thumbnailService;
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<Video> videoRepository;
 
     public ChannelSyncJob(
         ILogger<ChannelSyncJob> logger,
+        IConfiguration configuration,
         VideoMetadataProviderFactory metadataProviderFactory,
+        ThumbnailService thumbnailService,
         IBackgroundJobClient backgroundJobClient,
         IRepository<Channel> channelRepository,
         IRepository<Video> videoRepository)
     {
         this.logger = logger;
+        this.configuration = configuration;
         this.metadataProviderFactory = metadataProviderFactory;
+        this.thumbnailService = thumbnailService;
         this.backgroundJobClient = backgroundJobClient;
         this.channelRepository = channelRepository;
         this.videoRepository = videoRepository;
@@ -67,6 +73,9 @@ public class ChannelSyncJob
                 return;
             }
 
+            string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
+                ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
+
             // Update channel metadata
             var channelMetadata = await provider.GetChannelMetadataAsync(channel.Url, cancellationToken);
             if (channelMetadata is not null)
@@ -74,8 +83,12 @@ public class ChannelSyncJob
                 channel.ChannelId = channelMetadata.ChannelId;
                 channel.Name = channelMetadata.Name;
                 channel.Description = channelMetadata.Description;
-                channel.ThumbnailUrl = channelMetadata.ThumbnailUrl;
                 channel.SubscriberCount = channelMetadata.SubscriberCount;
+
+                string channelDir = Path.Combine(downloadPath, channel.ChannelId);
+                channel.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
+                    channelMetadata.ThumbnailUrl, channelDir, channel.ChannelId, cancellationToken)
+                    ?? channel.ThumbnailUrl;
             }
 
             // Get all videos from the channel
@@ -89,6 +102,7 @@ public class ChannelSyncJob
             var existingVideoIds = channel.Videos.Select(v => v.VideoId).ToHashSet();
             int newVideosCount = 0;
 
+            string videoThumbnailDir = Path.Combine(downloadPath, channel.ChannelId);
             var videoUpdates = new List<Video>();
             var videoInserts = new List<Video>();
             foreach (var videoMetadata in videoMetadataList)
@@ -99,14 +113,30 @@ public class ChannelSyncJob
                     var existingVideo = channel.Videos.First(v => v.VideoId == videoMetadata.VideoId);
                     existingVideo.Title = videoMetadata.Title;
                     existingVideo.Description = videoMetadata.Description;
-                    existingVideo.ThumbnailUrl = videoMetadata.ThumbnailUrl;
                     existingVideo.Duration = videoMetadata.Duration;
                     existingVideo.ViewCount = videoMetadata.ViewCount;
                     existingVideo.LikeCount = videoMetadata.LikeCount;
+
+                    if (videoMetadata.Title == Constants.PrivateVideoTitle)
+                    {
+                        existingVideo.NeedsMetadataReview = true;
+                    }
+
+                    // Only download thumbnail if not already stored as a data URL
+                    if (!existingVideo.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
+                    {
+                        existingVideo.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
+                            videoMetadata.ThumbnailUrl, videoThumbnailDir, existingVideo.VideoId, cancellationToken)
+                            ?? videoMetadata.ThumbnailUrl;
+                    }
+
                     videoUpdates.Add(existingVideo);
                 }
                 else
                 {
+                    string? thumbnailDataUrl = await thumbnailService.DownloadAndSaveAsync(
+                        videoMetadata.ThumbnailUrl, videoThumbnailDir, videoMetadata.VideoId, cancellationToken);
+
                     // Create new video entry (without auto-downloading)
                     videoInserts.Add(new Video
                     {
@@ -114,14 +144,15 @@ public class ChannelSyncJob
                         Title = videoMetadata.Title,
                         Description = videoMetadata.Description,
                         Url = videoMetadata.Url,
-                        ThumbnailUrl = videoMetadata.ThumbnailUrl,
+                        ThumbnailUrl = thumbnailDataUrl ?? videoMetadata.ThumbnailUrl,
                         Platform = videoMetadata.Platform,
                         Duration = videoMetadata.Duration,
                         UploadDate = videoMetadata.UploadDate,
                         ViewCount = videoMetadata.ViewCount,
                         LikeCount = videoMetadata.LikeCount,
                         ChannelId = channelId,
-                        IsIgnored = false
+                        IsIgnored = false,
+                        NeedsMetadataReview = videoMetadata.Title == Constants.PrivateVideoTitle
                     });
                     newVideosCount++;
                 }

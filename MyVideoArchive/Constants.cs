@@ -1,8 +1,10 @@
-﻿namespace MyVideoArchive;
+namespace MyVideoArchive;
 
 public static class Constants
 {
     public const string BestDownloadQuality = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
+
+    public const string PrivateVideoTitle = "[Private video]";
 
     public static class Roles
     {

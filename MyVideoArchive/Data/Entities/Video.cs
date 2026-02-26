@@ -55,7 +55,7 @@ public class VideoMap : IEntityTypeConfiguration<Video>
         builder.Property(m => m.Title).IsRequired().HasMaxLength(512).IsUnicode(true);
         builder.Property(m => m.Description).IsUnicode(true);
         builder.Property(m => m.Url).IsRequired().HasMaxLength(512);
-        builder.Property(m => m.ThumbnailUrl).HasMaxLength(512);
+        builder.Property(m => m.ThumbnailUrl);
         builder.Property(m => m.Platform).IsRequired().HasMaxLength(64);
         builder.Property(m => m.FilePath).HasMaxLength(1024);
 
