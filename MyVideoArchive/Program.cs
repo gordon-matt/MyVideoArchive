@@ -177,12 +177,12 @@ if (app.Environment.IsDevelopment())
 RecurringJob.AddOrUpdate<ChannelSyncJob>(
     "sync-all-channels",
     job => job.SyncAllChannelsAsync(CancellationToken.None),
-    Cron.Daily); // Check for new videos every day
+    Cron.Weekly()); // Check for new videos every day
 
 RecurringJob.AddOrUpdate<PlaylistSyncJob>(
     "sync-all-playlists",
     job => job.SyncAllPlaylistsAsync(CancellationToken.None),
-    Cron.Daily); // Check for new playlist videos every day
+    Cron.Weekly()); // Check for new playlist videos every day
 
 RecurringJob.AddOrUpdate<MetadataReviewJob>(
     "metadata-review",
