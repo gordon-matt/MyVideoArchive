@@ -1,4 +1,4 @@
-﻿.channel-header-card {
+.channel-header-card {
     border: 1px solid #ddd;
     border-radius: 8px;
     padding: 30px;
@@ -88,4 +88,35 @@ a:has(.video-item) {
 .disabled-link {
     pointer-events: none;
     opacity: 0.6;
+}
+
+/* ── Video grid card ────────────────────────────────────────────────────── */
+
+.video-grid-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    transition: all 0.3s;
+    overflow: hidden;
+}
+
+    .video-grid-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateY(-4px);
+    }
+
+.video-grid-thumbnail {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background-color: #000;
+}
+
+.video-grid-title {
+    font-size: 0.875em;
+    font-weight: 600;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.6em;
 }

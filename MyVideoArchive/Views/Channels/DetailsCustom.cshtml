@@ -51,15 +51,45 @@
 </ul>
 
 <div class="tab-content" id="channelTabsContent">
-    <!-- Videos tab -->
+
+    <!-- ── Videos tab ─────────────────────────────────────────────────────── -->
     <div class="tab-pane fade show active" id="videos" role="tabpanel">
-        <div data-bind="visible: loading" class="text-center">
-            <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+
+        <!-- Toolbar: search + view mode -->
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <div class="input-group" style="max-width: 340px;">
+                <input type="text" id="videosSearchInput" class="form-control" placeholder="Search videos…"
+                       data-bind="value: videosSearchInput, valueUpdate: 'input'" />
+                <button class="btn btn-primary" data-bind="click: searchVideos">
+                    <i class="bi bi-search"></i>
+                </button>
+                <button class="btn btn-outline-secondary" data-bind="click: clearVideoSearch, visible: videosSearch()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <div class="btn-group ms-auto">
+                <button class="btn btn-outline-secondary" title="List view"
+                        data-bind="click: function(){ setVideoViewMode('list'); }, css: { active: videoViewMode() === 'list' }">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+                <button class="btn btn-outline-secondary" title="Grid view"
+                        data-bind="click: function(){ setVideoViewMode('grid'); }, css: { active: videoViewMode() === 'grid' }">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </button>
+            </div>
         </div>
+
+        <div data-bind="visible: loading" class="text-center">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
+        </div>
+
         <div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
             <p>No videos yet. Copy video files into the channel's download folder and use <a href="/admin">Admin &rsaquo; Scan File System</a> to import them, or add them manually.</p>
         </div>
-        <div data-bind="visible: !loading() && videos().length > 0, foreach: videos">
+
+        <!-- List view -->
+        <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'list', foreach: videos">
             <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
                 <div class="video-item">
                     <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }"
@@ -77,9 +107,51 @@
                 </div>
             </a>
         </div>
+
+        <!-- Grid view -->
+        <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'grid'" class="row">
+            <!-- ko foreach: videos -->
+            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
+                <div class="video-grid-card card h-100">
+                    <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
+                        <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/320x180?text=No+Thumbnail', alt: Title }"
+                             class="card-img-top video-grid-thumbnail" />
+                    </a>
+                    <div class="card-body p-2">
+                        <h6 class="video-grid-title mb-1" data-bind="text: Title, attr: { title: Title }"></h6>
+                        <small class="text-muted d-block">
+                            <span data-bind="if: UploadDate"><span data-bind="text: $parent.formatDate(UploadDate)"></span></span>
+                        </small>
+                        <span data-bind="if: NeedsMetadataReview" class="badge bg-danger mt-1">Needs Review</span>
+                    </div>
+                </div>
+            </div>
+            <!-- /ko -->
+        </div>
+
+        <!-- Videos pagination -->
+        <nav aria-label="Videos pagination" data-bind="visible: !loading() && videosTotalPages() > 1" class="mt-3">
+            <ul class="pagination justify-content-center">
+                <li class="page-item" data-bind="css: { disabled: videosCurrentPage() === 1 }">
+                    <a class="page-link" href="#" data-bind="click: videosPreviousPage">Previous</a>
+                </li>
+                <!-- ko foreach: videosPageNumbers -->
+                <li class="page-item" data-bind="css: { active: $data === $parent.videosCurrentPage() }">
+                    <a class="page-link" href="#" data-bind="text: $data, click: function() { $parent.videosGoToPage($data); }"></a>
+                </li>
+                <!-- /ko -->
+                <li class="page-item" data-bind="css: { disabled: videosCurrentPage() === videosTotalPages() }">
+                    <a class="page-link" href="#" data-bind="click: videosNextPage">Next</a>
+                </li>
+            </ul>
+            <p class="text-center text-muted small">
+                Page <span data-bind="text: videosCurrentPage"></span> of <span data-bind="text: videosTotalPages"></span>
+                (<span data-bind="text: videosTotalCount"></span> total)
+            </p>
+        </nav>
     </div>
 
-    <!-- Playlists tab -->
+    <!-- ── Playlists tab ──────────────────────────────────────────────────── -->
     <div class="tab-pane fade" id="playlists" role="tabpanel">
         <div class="mb-3">
             <button class="btn btn-primary" data-bind="click: openCreatePlaylist">
@@ -87,7 +159,7 @@
             </button>
         </div>
         <div data-bind="visible: playlistsLoading" class="text-center">
-            <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+            <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
         <div data-bind="visible: !playlistsLoading() && playlists().length === 0" class="alert alert-info">
             <p>No playlists yet. Click "Create Playlist" to get started.</p>
@@ -97,13 +169,11 @@
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
                 <div class="card h-100">
                     <a data-bind="attr: { href: '/playlists/' + Id }">
-                        <!-- Show thumbnail when available -->
                         <!-- ko if: ThumbnailUrl -->
-                        <img data-bind="attr: { src: ThumbnailUrl ? (ThumbnailUrl + '?t=' + $parent.thumbnailCacheBust()) : '' }"
+                        <img data-bind="attr: { src: ThumbnailUrl + '?t=' + $parent.thumbnailCacheBust(), alt: Name }"
                              class="card-img-top"
                              style="height: 120px; object-fit: cover;" />
                         <!-- /ko -->
-                        <!-- Placeholder when no thumbnail -->
                         <!-- ko ifnot: ThumbnailUrl -->
                         <div class="card-img-top d-flex align-items-center justify-content-center bg-secondary"
                              style="height: 120px;">
@@ -131,6 +201,27 @@
             </div>
             <!-- /ko -->
         </div>
+
+        <!-- Playlists pagination -->
+        <nav aria-label="Playlists pagination" data-bind="visible: !playlistsLoading() && playlistsTotalPages() > 1" class="mt-3">
+            <ul class="pagination justify-content-center">
+                <li class="page-item" data-bind="css: { disabled: playlistsCurrentPage() === 1 }">
+                    <a class="page-link" href="#" data-bind="click: playlistsPreviousPage">Previous</a>
+                </li>
+                <!-- ko foreach: playlistsPageNumbers -->
+                <li class="page-item" data-bind="css: { active: $data === $parent.playlistsCurrentPage() }">
+                    <a class="page-link" href="#" data-bind="text: $data, click: function() { $parent.playlistsGoToPage($data); }"></a>
+                </li>
+                <!-- /ko -->
+                <li class="page-item" data-bind="css: { disabled: playlistsCurrentPage() === playlistsTotalPages() }">
+                    <a class="page-link" href="#" data-bind="click: playlistsNextPage">Next</a>
+                </li>
+            </ul>
+            <p class="text-center text-muted small">
+                Page <span data-bind="text: playlistsCurrentPage"></span> of <span data-bind="text: playlistsTotalPages"></span>
+                (<span data-bind="text: playlistsTotalCount"></span> total playlists)
+            </p>
+        </nav>
     </div>
 </div>
 
@@ -180,7 +271,6 @@
                      class="border rounded p-4 text-center position-relative"
                      style="border-style: dashed !important; cursor: pointer; min-height: 160px;"
                      data-bind="event: { dragover: onThumbnailDragOver, drop: onThumbnailDrop, click: triggerThumbnailInput }">
-                    <!-- Preview -->
                     <div data-bind="visible: !thumbnailPreviewUrl()">
                         <i class="bi bi-cloud-arrow-up fs-1 text-muted"></i>
                         <p class="text-muted mt-2 mb-0">Drag &amp; drop an image here, or click to browse</p>
@@ -199,7 +289,7 @@
                     <span data-bind="visible: !uploadingThumbnail()"><i class="bi bi-save"></i> Save</span>
                     <span data-bind="visible: uploadingThumbnail()">
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        Saving...
+                        Saving…
                     </span>
                 </button>
             </div>

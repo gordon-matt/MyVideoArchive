@@ -58,6 +58,95 @@ public class ChannelVideosApiController : ControllerBase
     }
 
     /// <summary>
+    /// Get downloaded videos for a channel with optional search and playlist filtering (paginated)
+    /// </summary>
+    [HttpGet("downloaded")]
+    public async Task<IActionResult> GetDownloadedVideos(
+        int channelId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 24,
+        [FromQuery] string? search = null,
+        [FromQuery] int? playlistId = null)
+    {
+        try
+        {
+            if (!await UserHasAccessToChannel(channelId))
+            {
+                return Forbid();
+            }
+
+            var channelExists = await channelRepository.ExistsAsync(x => x.Id == channelId);
+            if (!channelExists)
+            {
+                return NotFound(new { message = "Channel not found" });
+            }
+
+            var predicate = PredicateBuilder.New<Video>(x => x.ChannelId == channelId && x.DownloadedAt != null);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.Trim().ToLower();
+                predicate = predicate.And(x => x.Title.ToLower().Contains(searchLower));
+            }
+
+            if (playlistId.HasValue)
+            {
+                if (playlistId.Value == -1)
+                {
+                    // Videos not in any playlist
+                    predicate = predicate.And(x => !x.PlaylistVideos.Any());
+                }
+                else if (playlistId.Value > 0)
+                {
+                    predicate = predicate.And(x => x.PlaylistVideos.Any(pv => pv.PlaylistId == playlistId.Value));
+                }
+            }
+
+            var options = new SearchOptions<Video>
+            {
+                CancellationToken = HttpContext.RequestAborted,
+                Query = predicate,
+                OrderBy = query => query.OrderByDescending(x => x.UploadDate),
+                PageNumber = page,
+                PageSize = pageSize
+            };
+
+            var videos = await videoRepository.FindAsync(options, x => new
+            {
+                x.Id,
+                x.VideoId,
+                x.Title,
+                x.Url,
+                x.ThumbnailUrl,
+                x.Duration,
+                x.UploadDate,
+                x.DownloadedAt
+            });
+
+            return Ok(new
+            {
+                videos,
+                pagination = new
+                {
+                    currentPage = page,
+                    pageSize,
+                    totalCount = videos.ItemCount,
+                    totalPages = videos.PageCount
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving downloaded videos for channel {ChannelId}", channelId);
+            }
+
+            return StatusCode(500, new { message = "An error occurred while retrieving videos" });
+        }
+    }
+
+    /// <summary>
     /// Get available videos for a channel (paginated)
     /// </summary>
     [HttpGet("available")]
@@ -85,6 +174,9 @@ public class ChannelVideosApiController : ControllerBase
 
             // Only show videos that haven't been downloaded yet and aren't queued
             predicate = predicate.And(x => x.DownloadedAt == null && !x.IsQueued);
+
+            // Exclude private videos
+            predicate = predicate.And(x => x.Title != Constants.PrivateVideoTitle);
 
             // Filter based on showIgnored flag
             if (!showIgnored)
@@ -126,7 +218,7 @@ public class ChannelVideosApiController : ControllerBase
                 {
                     currentPage = page,
                     pageSize,
-                    videos.ItemCount,
+                    totalCount = videos.ItemCount,
                     totalPages = videos.PageCount
                 }
             });

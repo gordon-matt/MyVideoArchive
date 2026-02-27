@@ -64,10 +64,14 @@ public class ChannelPlaylistsApiController : ControllerBase
     }
 
     /// <summary>
-    /// Get all playlists for a channel (available, subscribed, and ignored)
+    /// Get all playlists for a channel (available, subscribed, and ignored), paginated
     /// </summary>
     [HttpGet("available")]
-    public async Task<IActionResult> GetAvailablePlaylists(int channelId, [FromQuery] bool showIgnored = false)
+    public async Task<IActionResult> GetAvailablePlaylists(
+        int channelId,
+        [FromQuery] bool showIgnored = false,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 24)
     {
         try
         {
@@ -90,8 +94,6 @@ public class ChannelPlaylistsApiController : ControllerBase
                 return BadRequest(new { message = $"No provider found for platform {channel.Platform}" });
             }
 
-            // Get all playlists from the channel (this would need to be implemented in the provider)
-            // For now, we'll just return playlists already in our database
             var predicate = PredicateBuilder.New<Playlist>(x => x.ChannelId == channelId);
 
             if (!showIgnored)
@@ -105,7 +107,9 @@ public class ChannelPlaylistsApiController : ControllerBase
                 Query = predicate,
                 OrderBy = query => query
                     .OrderByDescending(p => p.SubscribedAt)
-                    .ThenBy(p => p.Name)
+                    .ThenBy(p => p.Name),
+                PageNumber = page,
+                PageSize = pageSize
             };
 
             var playlists = await playlistRepository.FindAsync(options, x => new
@@ -124,7 +128,17 @@ public class ChannelPlaylistsApiController : ControllerBase
                 IsSubscribed = x.SubscribedAt != default
             });
 
-            return Ok(new { playlists });
+            return Ok(new
+            {
+                playlists,
+                pagination = new
+                {
+                    currentPage = page,
+                    pageSize,
+                    totalCount = playlists.ItemCount,
+                    totalPages = playlists.PageCount
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -405,7 +419,14 @@ public class ChannelPlaylistsApiController : ControllerBase
                     existingPlaylist.Name = playlistMetadata.Name;
                     existingPlaylist.Description = playlistMetadata.Description;
                     existingPlaylist.Url = playlistMetadata.Url;
-                    existingPlaylist.ThumbnailUrl = playlistMetadata.ThumbnailUrl;
+
+                    // Only overwrite ThumbnailUrl if it has not already been downloaded and
+                    // stored as a base64 data URL – external URLs expire and cause 404s.
+                    if (!existingPlaylist.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
+                    {
+                        existingPlaylist.ThumbnailUrl = playlistMetadata.ThumbnailUrl;
+                    }
+
                     playlistUpdates.Add(existingPlaylist);
                 }
                 else
