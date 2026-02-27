@@ -1,39 +1,43 @@
+using MyVideoArchive.Models;
+
 namespace MyVideoArchive.Services.Jobs;
 
 /// <summary>
 /// Scans the configured downloads folder for video files not yet tracked in the database.
-/// Attempts to fetch metadata from the source platform, falling back to file-level info.
+/// Non-Custom platforms use a convention-based path check (OutputPath/{ChannelId}/{VideoId}).
+/// Custom platform channels use file enumeration inside OutputPath/_Custom/{ChannelId}/.
 /// </summary>
 public class FileSystemScanJob
 {
     private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".m4v", ".wmv"];
 
-    private readonly ILogger<FileSystemScanJob> logger;
-    private readonly IConfiguration configuration;
-    private readonly VideoMetadataProviderFactory metadataProviderFactory;
-    private readonly ThumbnailService thumbnailService;
     private readonly IRepository<Channel> channelRepository;
+    private readonly IConfiguration configuration;
+    private readonly ILogger<FileSystemScanJob> logger;
     private readonly IRepository<Video> videoRepository;
 
     public FileSystemScanJob(
         ILogger<FileSystemScanJob> logger,
         IConfiguration configuration,
-        VideoMetadataProviderFactory metadataProviderFactory,
-        ThumbnailService thumbnailService,
         IRepository<Channel> channelRepository,
         IRepository<Video> videoRepository)
     {
         this.logger = logger;
         this.configuration = configuration;
-        this.metadataProviderFactory = metadataProviderFactory;
-        this.thumbnailService = thumbnailService;
         this.channelRepository = channelRepository;
         this.videoRepository = videoRepository;
     }
 
-    private record VideoIdEntry(string VideoId, int Id, string? FilePath);
-
-    public async Task<FileSystemScanResult> ExecuteAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Executes the file system scan, optionally limited to a single channel.
+    /// </summary>
+    /// <param name="filterChannelId">DB primary key of the channel to scan, or null to scan all channels.</param>
+    /// <param name="progress">Optional progress reporter updated after each channel is processed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<FileSystemScanResult> ExecuteAsync(
+        int? filterChannelId = null,
+        IProgress<FileSystemScanProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var result = new FileSystemScanResult();
 
@@ -42,33 +46,30 @@ public class FileSystemScanJob
 
         if (!Directory.Exists(downloadPath))
         {
-            if (logger.IsEnabled(LogLevel.Warning))
-            {
-                logger.LogWarning("Download path does not exist: {Path}", downloadPath);
-            }
-
+            logger.LogWarning("Download path does not exist: {Path}", downloadPath);
             return result;
         }
 
-        if (logger.IsEnabled(LogLevel.Information))
+        string customBasePath = Path.Combine(downloadPath, "_Custom");
+
+        logger.LogInformation("Starting file system scan in: {Path}", downloadPath);
+
+        var channelOptions = new SearchOptions<Channel> { CancellationToken = cancellationToken };
+        if (filterChannelId.HasValue)
         {
-            logger.LogInformation("Starting file system scan in: {Path}", downloadPath);
+            channelOptions.Query = x => x.Id == filterChannelId.Value;
         }
 
-        var allVideos = await videoRepository.FindAsync(new SearchOptions<Video>
-        {
-            CancellationToken = cancellationToken
-        }, x => new VideoIdEntry(x.VideoId, x.Id, x.FilePath));
+        var channels = await channelRepository.FindAsync(
+            channelOptions,
+            x => new ChannelEntry(x.Id, x.ChannelId, x.Name, x.Platform));
 
-        var existingPaths = allVideos
-            .Where(v => v.FilePath != null)
-            .Select(v => v.FilePath!)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        int totalChannels = channels.Count;
+        int processedChannels = 0;
 
-        var existingVideoIds = allVideos
-            .ToDictionary(v => v.VideoId, v => v, StringComparer.OrdinalIgnoreCase);
+        progress?.Report(new FileSystemScanProgress { TotalChannels = totalChannels });
 
-        foreach (string filePath in EnumerateVideoFiles(downloadPath))
+        foreach (var channel in channels)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -77,203 +78,286 @@ public class FileSystemScanJob
 
             try
             {
-                // Already tracked by path
-                if (existingPaths.Contains(filePath))
+                if (channel.Platform == "Custom")
                 {
-                    continue;
+                    await ProcessCustomChannelAsync(channel, customBasePath, result, cancellationToken);
                 }
-
-                await ProcessFileAsync(filePath, existingVideoIds, result, cancellationToken);
+                else
+                {
+                    await ProcessNonCustomChannelAsync(channel, downloadPath, result, cancellationToken);
+                }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                if (logger.IsEnabled(LogLevel.Error))
-                {
-                    logger.LogError(ex, "Error processing file: {FilePath}", filePath);
-                }
+                logger.LogError(ex, "Error processing channel {ChannelName} ({ChannelId})", channel.Name, channel.ChannelId);
             }
+
+            processedChannels++;
+            progress?.Report(new FileSystemScanProgress
+            {
+                TotalChannels = totalChannels,
+                ProcessedChannels = processedChannels,
+                CurrentChannelName = channel.Name,
+                NewVideos = result.NewVideos,
+                UpdatedVideos = result.UpdatedVideos,
+                FlaggedForReview = result.FlaggedForReview,
+                MissingFiles = result.MissingFiles
+            });
         }
 
-        if (logger.IsEnabled(LogLevel.Information))
-        {
-            logger.LogInformation(
-                "File system scan complete. New: {New}, Updated: {Updated}, Flagged: {Flagged}",
-                result.NewVideos,
-                result.UpdatedVideos,
-                result.FlaggedForReview);
-        }
+        logger.LogInformation(
+            "File system scan complete. New: {New}, Updated: {Updated}, Flagged: {Flagged}, Missing: {Missing}",
+            result.NewVideos, result.UpdatedVideos, result.FlaggedForReview, result.MissingFiles);
 
         return result;
     }
 
-    private async Task ProcessFileAsync(
-        string filePath,
-        Dictionary<string, VideoIdEntry> existingVideoIds,
-        FileSystemScanResult result,
-        CancellationToken cancellationToken)
-    {
-        string fileNameWithoutExt = Path.GetFileNameWithoutExtension(filePath);
-        string parentFolderName = Path.GetFileName(Path.GetDirectoryName(filePath)) ?? "Unknown";
-
-        // Check if a video with this VideoId already exists but FilePath is missing/wrong
-        if (existingVideoIds.TryGetValue(fileNameWithoutExt, out var existingEntry) &&
-            existingEntry.FilePath != filePath)
-        {
-            var existingVideo = await videoRepository.FindOneAsync(new SearchOptions<Video>
-            {
-                CancellationToken = cancellationToken,
-                Query = x => x.Id == existingEntry.Id
-            });
-
-            if (existingVideo is not null)
-            {
-                existingVideo.FilePath = filePath;
-                existingVideo.FileSize = new FileInfo(filePath).Length;
-                existingVideo.DownloadedAt ??= File.GetLastWriteTimeUtc(filePath);
-
-                // Clear the review flag when the video already has a real title from a platform sync
-                // (title differs meaningfully from the bare VideoId or filename stem)
-                if (existingVideo.NeedsMetadataReview &&
-                    !string.IsNullOrEmpty(existingVideo.Title) &&
-                    !string.Equals(existingVideo.Title, existingVideo.VideoId, StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(existingVideo.Title, fileNameWithoutExt, StringComparison.OrdinalIgnoreCase))
-                {
-                    existingVideo.NeedsMetadataReview = false;
-                    existingVideo.IsManuallyImported = false;
-                }
-
-                await videoRepository.UpdateAsync(existingVideo, ContextOptions.ForCancellationToken(cancellationToken));
-                result.UpdatedVideos++;
-
-                if (logger.IsEnabled(LogLevel.Information))
-                {
-                    logger.LogInformation("Updated file path for video {VideoId}: {FilePath}", fileNameWithoutExt, filePath);
-                }
-            }
-
-            return;
-        }
-
-        // New file - find or create its channel based on the parent folder
-        var channel = await FindOrCreateChannelForFolderAsync(parentFolderName, cancellationToken);
-
-        // Try to get metadata from the platform if this channel has a known platform
-        Models.Metadata.VideoMetadata? metadata = null;
-        if (channel.Platform != "Custom")
-        {
-            var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
-            if (provider is not null)
-            {
-                try
-                {
-                    metadata = await provider.GetVideoMetadataAsync(fileNameWithoutExt, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    if (logger.IsEnabled(LogLevel.Warning))
-                    {
-                        logger.LogWarning(ex, "Could not fetch metadata for video ID {VideoId} from {Platform}", fileNameWithoutExt, channel.Platform);
-                    }
-                }
-            }
-        }
-
-        var fileInfo = new FileInfo(filePath);
-        bool needsReview = (metadata is null || metadata.Title == Constants.PrivateVideoTitle) && channel.Platform != "Custom";
-
-        string? thumbnailDataUrl = null;
-        if (metadata?.ThumbnailUrl is not null)
-        {
-            string thumbnailDir = Path.GetDirectoryName(filePath)!;
-            thumbnailDataUrl = await thumbnailService.DownloadAndSaveAsync(
-                metadata.ThumbnailUrl, thumbnailDir, fileNameWithoutExt, cancellationToken);
-        }
-
-        var video = new Video
-        {
-            VideoId = metadata?.VideoId ?? fileNameWithoutExt,
-            Title = metadata?.Title ?? fileNameWithoutExt,
-            Description = metadata?.Description,
-            Url = metadata?.Url ?? filePath,
-            ThumbnailUrl = thumbnailDataUrl ?? metadata?.ThumbnailUrl,
-            Platform = channel.Platform,
-            Duration = metadata?.Duration,
-            UploadDate = metadata?.UploadDate ?? File.GetLastWriteTimeUtc(filePath),
-            ViewCount = metadata?.ViewCount,
-            LikeCount = metadata?.LikeCount,
-            FilePath = filePath,
-            FileSize = fileInfo.Length,
-            DownloadedAt = fileInfo.LastWriteTimeUtc,
-            ChannelId = channel.Id,
-            IsManuallyImported = true,
-            NeedsMetadataReview = needsReview
-        };
-
-        await videoRepository.InsertAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
-        result.NewVideos++;
-
-        if (needsReview)
-        {
-            result.FlaggedForReview++;
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("Imported {FilePath} without metadata - flagged for review", filePath);
-            }
-        }
-        else
-        {
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("Imported {FilePath} with metadata from {Platform}", filePath, channel.Platform);
-            }
-        }
-    }
-
-    private async Task<Channel> FindOrCreateChannelForFolderAsync(string folderName, CancellationToken cancellationToken)
-    {
-        // Folders are now named after ChannelId (not the display name), so match on that field
-        var existing = await channelRepository.FindOneAsync(new SearchOptions<Channel>
-        {
-            CancellationToken = cancellationToken,
-            Query = x => x.ChannelId == folderName
-        });
-
-        if (existing is not null)
-        {
-            return existing;
-        }
-
-        // Create a placeholder channel for unrecognised folders.
-        // The folder name IS the ChannelId; admins can update the display name and platform later.
-        var channel = new Channel
-        {
-            ChannelId = folderName,
-            Name = folderName,
-            Url = $"custom://{folderName}",
-            Platform = "YouTube",
-            SubscribedAt = DateTime.UtcNow
-        };
-
-        await channelRepository.InsertAsync(channel, ContextOptions.ForCancellationToken(cancellationToken));
-
-        if (logger.IsEnabled(LogLevel.Information))
-        {
-            logger.LogInformation("Created placeholder channel for folder '{FolderName}'", folderName);
-        }
-
-        return channel;
-    }
+    // ── Non-Custom channels ───────────────────────────────────────────────────
+    // Videos are expected at OutputPath/{ChannelId}/{VideoId}.ext
+    // No file enumeration - the DB is the source of truth for what videos exist.
 
     private static IEnumerable<string> EnumerateVideoFiles(string rootPath) =>
         Directory.EnumerateFiles(rootPath, "*.*", SearchOption.AllDirectories)
             .Where(f => VideoExtensions.Contains(
                 Path.GetExtension(f),
                 StringComparer.OrdinalIgnoreCase));
+
+    private static string? FindFileByConvention(string channelPath, string videoId)
+    {
+        if (!Directory.Exists(channelPath))
+        {
+            return null;
+        }
+
+        foreach (string ext in VideoExtensions)
+        {
+            string candidate = Path.Combine(channelPath, videoId + ext);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task ClearMissingFileAsync(
+        int videoDbId,
+        string videoId,
+        FileSystemScanResult result,
+        CancellationToken cancellationToken)
+    {
+        var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.Id == videoDbId
+        });
+
+        if (video is null)
+        {
+            return;
+        }
+
+        video.FilePath = null;
+        video.DownloadedAt = null;
+        await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+        result.MissingFiles++;
+
+        logger.LogInformation("File no longer exists, cleared path for video {VideoId}", videoId);
+    }
+
+    // ── Shared helpers ────────────────────────────────────────────────────────
+    private async Task LinkFoundFileAsync(
+        VideoEntry entry,
+        string filePath,
+        FileSystemScanResult result,
+        CancellationToken cancellationToken)
+    {
+        var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.Id == entry.Id
+        });
+
+        if (video is null)
+        {
+            return;
+        }
+
+        video.FilePath = filePath;
+        video.FileSize = new FileInfo(filePath).Length;
+        video.DownloadedAt ??= File.GetLastWriteTimeUtc(filePath);
+
+        if (video.NeedsMetadataReview &&
+            !string.IsNullOrEmpty(video.Title) &&
+            !string.Equals(video.Title, video.VideoId, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(video.Title, Path.GetFileNameWithoutExtension(filePath), StringComparison.OrdinalIgnoreCase))
+        {
+            video.NeedsMetadataReview = false;
+            video.IsManuallyImported = false;
+        }
+
+        await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+        result.UpdatedVideos++;
+
+        logger.LogInformation("Linked file {FilePath} to video {VideoId}", filePath, entry.VideoId);
+    }
+
+    private async Task ProcessCustomChannelAsync(
+        ChannelEntry channel,
+        string customBasePath,
+        FileSystemScanResult result,
+        CancellationToken cancellationToken)
+    {
+        string channelPath = Path.Combine(customBasePath, channel.ChannelId);
+
+        var videoEntries = await videoRepository.FindAsync(
+            new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.ChannelId == channel.Id
+            },
+            x => new VideoEntry(x.Id, x.VideoId, x.FilePath, x.NeedsMetadataReview, x.IsManuallyImported, x.Title, x.DownloadedAt));
+
+        var trackedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var videosByVideoId = new Dictionary<string, VideoEntry>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in videoEntries)
+        {
+            videosByVideoId[entry.VideoId] = entry;
+
+            if (entry.FilePath != null)
+            {
+                if (!File.Exists(entry.FilePath))
+                {
+                    await ClearMissingFileAsync(entry.Id, entry.VideoId, result, cancellationToken);
+                }
+                else
+                {
+                    trackedPaths.Add(entry.FilePath);
+                }
+            }
+        }
+
+        if (!Directory.Exists(channelPath))
+        {
+            return;
+        }
+
+        foreach (string filePath in EnumerateVideoFiles(channelPath))
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (trackedPaths.Contains(filePath))
+            {
+                continue;
+            }
+
+            try
+            {
+                await ProcessCustomFileAsync(filePath, channel, videosByVideoId, result, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Error processing file: {FilePath}", filePath);
+            }
+        }
+    }
+
+    // ── Custom channels ───────────────────────────────────────────────────────
+    // Files live under OutputPath/_Custom/{ChannelId}/.
+    // We enumerate files and match them against existing DB records by filename.
+    private async Task ProcessCustomFileAsync(
+        string filePath,
+        ChannelEntry channel,
+        Dictionary<string, VideoEntry> videosByVideoId,
+        FileSystemScanResult result,
+        CancellationToken cancellationToken)
+    {
+        string videoId = Path.GetFileNameWithoutExtension(filePath);
+
+        if (videosByVideoId.TryGetValue(videoId, out var existingEntry))
+        {
+            // Video already in DB but FilePath not set or wrong
+            await LinkFoundFileAsync(existingEntry, filePath, result, cancellationToken);
+            return;
+        }
+
+        // Entirely new file - create a video record
+        var fileInfo = new FileInfo(filePath);
+        var video = new Video
+        {
+            VideoId = videoId,
+            Title = videoId,
+            Url = filePath,
+            Platform = "Custom",
+            UploadDate = fileInfo.LastWriteTimeUtc,
+            FilePath = filePath,
+            FileSize = fileInfo.Length,
+            DownloadedAt = fileInfo.LastWriteTimeUtc,
+            ChannelId = channel.Id,
+            IsManuallyImported = true,
+            NeedsMetadataReview = false
+        };
+
+        await videoRepository.InsertAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+        result.NewVideos++;
+
+        logger.LogInformation("Imported custom file {FilePath}", filePath);
+    }
+
+    private async Task ProcessNonCustomChannelAsync(
+        ChannelEntry channel,
+        string downloadPath,
+        FileSystemScanResult result,
+        CancellationToken cancellationToken)
+    {
+        string channelPath = Path.Combine(downloadPath, channel.ChannelId);
+
+        var videoEntries = await videoRepository.FindAsync(
+            new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.ChannelId == channel.Id
+            },
+            x => new VideoEntry(x.Id, x.VideoId, x.FilePath, x.NeedsMetadataReview, x.IsManuallyImported, x.Title, x.DownloadedAt));
+
+        foreach (var entry in videoEntries)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (entry.FilePath != null)
+            {
+                if (!File.Exists(entry.FilePath))
+                {
+                    await ClearMissingFileAsync(entry.Id, entry.VideoId, result, cancellationToken);
+                }
+            }
+            else
+            {
+                string? found = FindFileByConvention(channelPath, entry.VideoId);
+                if (found is not null)
+                {
+                    await LinkFoundFileAsync(entry, found, result, cancellationToken);
+                }
+            }
+        }
+    }
+
+    private record ChannelEntry(int Id, string ChannelId, string Name, string Platform);
+    private record VideoEntry(int Id, string VideoId, string? FilePath, bool NeedsMetadataReview, bool IsManuallyImported, string Title, DateTime? DownloadedAt);
 }
 
 public class FileSystemScanResult
 {
+    public int FlaggedForReview { get; set; }
+    public int MissingFiles { get; set; }
     public int NewVideos { get; set; }
     public int UpdatedVideos { get; set; }
-    public int FlaggedForReview { get; set; }
 }

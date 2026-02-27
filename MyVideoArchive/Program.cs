@@ -103,6 +103,9 @@ builder.Services.AddTransient<PlaylistSyncJob>();
 builder.Services.AddTransient<FileSystemScanJob>();
 builder.Services.AddTransient<MetadataReviewJob>();
 
+// Register file system scan state (singleton - tracks progress across requests)
+builder.Services.AddSingleton<FileSystemScanStateService>();
+
 // Register user context service
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUserContextService, UserContextService>();

@@ -29,6 +29,11 @@ class ChannelDetailsViewModel {
         this.showIgnored = ko.observable(false);
         this.selectAll = ko.observable(false);
 
+        // ── File system scan ──────────────────────────────────────────────────
+        this.scanningFiles = ko.observable(false);
+        this.scanMessage = ko.observable(null);
+        this._scanPollTimer = null;
+
         // ── Playlists tab ─────────────────────────────────────────────────────
         this.playlists = ko.observableArray([]);
         this.playlistsLoading = ko.observable(false);
@@ -183,6 +188,90 @@ class ChannelDetailsViewModel {
         if (this.videosCurrentPage() < this.videosTotalPages()) {
             this.videosCurrentPage(this.videosCurrentPage() + 1);
             await this.loadVideos();
+        }
+    };
+
+    // ── File system scan ──────────────────────────────────────────────────────
+
+    scanFiles = async () => {
+        this.scanningFiles(true);
+        this.scanMessage(null);
+
+        try {
+            const response = await fetch(`/api/admin/channels/${this.channelId}/scan-filesystem`, { method: 'POST' });
+
+            if (response.status === 409) {
+                this.scanMessage('A scan is already in progress on another channel or the admin page.');
+                this.scanningFiles(false);
+                return;
+            }
+
+            if (response.status === 403 || response.status === 401) {
+                this.scanMessage('You do not have permission to run a file system scan.');
+                this.scanningFiles(false);
+                return;
+            }
+
+            if (!response.ok) {
+                this.scanMessage('Failed to start scan.');
+                this.scanningFiles(false);
+                return;
+            }
+
+            // 202 Accepted - scan started in background; poll for completion
+            this._startScanPolling();
+        } catch (error) {
+            console.error('Error starting file system scan:', error);
+            this.scanMessage('An unexpected error occurred while starting the scan.');
+            this.scanningFiles(false);
+        }
+    };
+
+    cancelScan = async () => {
+        try {
+            await fetch('/api/admin/scan-filesystem/cancel', { method: 'POST' });
+            this.scanMessage('Cancellation requested.');
+        } catch (error) {
+            console.error('Error cancelling scan:', error);
+        }
+    };
+
+    _startScanPolling = () => {
+        this._stopScanPolling();
+        this._scanPollTimer = setInterval(() => this._pollScanStatus(), 1000);
+    };
+
+    _stopScanPolling = () => {
+        if (this._scanPollTimer !== null) {
+            clearInterval(this._scanPollTimer);
+            this._scanPollTimer = null;
+        }
+    };
+
+    _pollScanStatus = async () => {
+        try {
+            const response = await fetch('/api/admin/scan-filesystem/status');
+            if (!response.ok) return;
+
+            const data = await response.json();
+
+            if (!data.isRunning) {
+                this._stopScanPolling();
+                this.scanningFiles(false);
+
+                if (data.lastResult) {
+                    const r = data.lastResult;
+                    this.scanMessage(
+                        `Scan complete: ${r.newVideos} new, ${r.updatedVideos} updated, ${r.missingFiles} missing from disk.`
+                    );
+                    // Reload videos to reflect any path changes
+                    await this.loadVideos();
+                } else if (data.errorMessage) {
+                    this.scanMessage(`Scan error: ${data.errorMessage}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error polling scan status:', error);
         }
     };
 

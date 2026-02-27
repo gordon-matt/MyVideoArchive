@@ -1,7 +1,10 @@
+using MyVideoArchive.Models;
+
 namespace MyVideoArchive.Controllers.Api;
 
 /// <summary>
-/// API controller for triggering file system scans
+/// API controller for file system scan operations.
+/// Scans run in background; poll /status for progress and call /cancel to stop early.
 /// </summary>
 [ApiController]
 [Route("api/admin")]
@@ -9,45 +12,121 @@ namespace MyVideoArchive.Controllers.Api;
 public class FileSystemScanApiController : ControllerBase
 {
     private readonly ILogger<FileSystemScanApiController> logger;
-    private readonly FileSystemScanJob scanJob;
+    private readonly FileSystemScanStateService scanState;
+    private readonly IServiceScopeFactory scopeFactory;
 
     public FileSystemScanApiController(
         ILogger<FileSystemScanApiController> logger,
-        FileSystemScanJob scanJob)
+        FileSystemScanStateService scanState,
+        IServiceScopeFactory scopeFactory)
     {
         this.logger = logger;
-        this.scanJob = scanJob;
+        this.scanState = scanState;
+        this.scopeFactory = scopeFactory;
     }
 
     /// <summary>
-    /// Scans the downloads folder for untracked video files
+    /// Starts a background file system scan across all channels.
+    /// Returns 202 Accepted immediately; poll /status for progress.
+    /// Returns 409 Conflict if a scan is already running.
     /// </summary>
     [HttpPost("scan-filesystem")]
-    public async Task<IActionResult> ScanFileSystem(CancellationToken cancellationToken)
+    public IActionResult ScanFileSystem()
     {
-        try
+        if (!scanState.TryStart(out var cancellationToken))
         {
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("File system scan initiated by {User}", User.Identity?.Name);
-            }
-
-            var result = await scanJob.ExecuteAsync(cancellationToken);
-            return Ok(result);
+            return Conflict(new { message = "A file system scan is already in progress." });
         }
-        catch (Exception ex)
+
+        string? userName = User.Identity?.Name;
+
+        _ = Task.Run(async () =>
         {
-            if (logger.IsEnabled(LogLevel.Error))
+            logger.LogInformation("File system scan (all channels) initiated by {User}", userName);
+
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var scanJob = scope.ServiceProvider.GetRequiredService<FileSystemScanJob>();
+                var progress = new Progress<FileSystemScanProgress>(p => scanState.UpdateProgress(p));
+                var result = await scanJob.ExecuteAsync(null, progress, cancellationToken);
+                scanState.Complete(result);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("File system scan was cancelled");
+                scanState.Complete(new FileSystemScanResult());
+            }
+            catch (Exception ex)
             {
                 logger.LogError(ex, "Error during file system scan");
+                scanState.Fail("An error occurred during the scan. Check the server logs for details.");
             }
+        });
 
-            return StatusCode(500, new { message = "An error occurred during the file system scan" });
-        }
+        return Accepted();
     }
 
     /// <summary>
-    /// Retry fetching platform metadata for a video flagged as needing review
+    /// Starts a background file system scan for a single channel.
+    /// Returns 202 Accepted immediately; poll /status for progress.
+    /// Returns 409 Conflict if a scan is already running.
+    /// </summary>
+    [HttpPost("channels/{channelId:int}/scan-filesystem")]
+    public IActionResult ScanFileSystemByChannel(int channelId)
+    {
+        if (!scanState.TryStart(out var cancellationToken))
+        {
+            return Conflict(new { message = "A file system scan is already in progress." });
+        }
+
+        string? userName = User.Identity?.Name;
+
+        _ = Task.Run(async () =>
+        {
+            logger.LogInformation("File system scan for channel {ChannelId} initiated by {User}", channelId, userName);
+
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var scanJob = scope.ServiceProvider.GetRequiredService<FileSystemScanJob>();
+                var progress = new Progress<FileSystemScanProgress>(p => scanState.UpdateProgress(p));
+                var result = await scanJob.ExecuteAsync(channelId, progress, cancellationToken);
+                scanState.Complete(result);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("File system scan for channel {ChannelId} was cancelled", channelId);
+                scanState.Complete(new FileSystemScanResult());
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error during file system scan for channel {ChannelId}", channelId);
+                scanState.Fail("An error occurred during the scan. Check the server logs for details.");
+            }
+        });
+
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Returns the current status of any running or recently completed file system scan.
+    /// </summary>
+    [HttpGet("scan-filesystem/status")]
+    public IActionResult GetScanStatus() => Ok(scanState.GetStatus());
+
+    /// <summary>
+    /// Requests cancellation of the currently running file system scan.
+    /// </summary>
+    [HttpPost("scan-filesystem/cancel")]
+    public IActionResult CancelScan()
+    {
+        scanState.Cancel();
+        return Ok(new { message = "Cancellation requested." });
+    }
+
+    /// <summary>
+    /// Retry fetching platform metadata for a video flagged as needing review.
     /// </summary>
     [HttpPost("videos/{videoId:int}/retry-metadata")]
     public async Task<IActionResult> RetryMetadata(
@@ -94,20 +173,13 @@ public class FileSystemScanApiController : ControllerBase
 
             await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
 
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("Successfully fetched metadata for video {VideoId}", videoId);
-            }
+            logger.LogInformation("Successfully fetched metadata for video {VideoId}", videoId);
 
             return Ok(new { success = true, message = "Metadata retrieved successfully" });
         }
         catch (Exception ex)
         {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error retrying metadata for video {VideoId}", videoId);
-            }
-
+            logger.LogError(ex, "Error retrying metadata for video {VideoId}", videoId);
             return StatusCode(500, new { message = "An error occurred while retrying metadata" });
         }
     }

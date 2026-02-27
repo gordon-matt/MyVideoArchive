@@ -71,6 +71,24 @@
                 <!-- /ko -->
             </select>
 
+            <!-- Scan Files button -->
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-outline-secondary" title="Scan files for this channel"
+                        data-bind="click: scanFiles, enable: !scanningFiles()">
+                    <span data-bind="visible: !scanningFiles()">
+                        <i class="bi bi-folder-symlink"></i> Scan Files
+                    </span>
+                    <span data-bind="visible: scanningFiles()" class="d-none">
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        Scanning&hellip;
+                    </span>
+                </button>
+                <button class="btn btn-outline-danger btn-sm" title="Cancel scan"
+                        data-bind="visible: scanningFiles(), click: cancelScan">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            </div>
+
             <div class="btn-group ms-auto">
                 <button class="btn btn-outline-secondary" title="List view"
                         data-bind="click: function(){ setVideoViewMode('list'); }, css: { active: videoViewMode() === 'list' }">
@@ -81,6 +99,12 @@
                     <i class="bi bi-grid-3x3-gap"></i>
                 </button>
             </div>
+        </div>
+
+        <!-- Scan result alert -->
+        <div data-bind="visible: scanMessage()" class="alert alert-info alert-dismissible mb-3">
+            <span data-bind="text: scanMessage()"></span>
+            <button type="button" class="btn-close" data-bind="click: function(){ scanMessage(null); }"></button>
         </div>
 
         <div data-bind="visible: loading" class="text-center">
