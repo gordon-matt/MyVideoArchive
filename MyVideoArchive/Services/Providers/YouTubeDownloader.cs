@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Http.HttpResults;
 using MyVideoArchive.Services.Abstractions;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Options;
@@ -70,21 +71,28 @@ public partial class YouTubeDownloader : IVideoDownloader
             // Note: Progress reporting via OutputReceived is not available in this version of YoutubeDLSharp
             // Progress will be logged but not reported via IProgress
 
-            var result = await ytdl.RunVideoDownload(videoUrl, overrideOptions: options, ct: cancellationToken);
+            RunResult<string?> result = null;
 
-            if (!result.Success && options.Format != Constants.BestDownloadQuality)
+            try
             {
-                if (logger.IsEnabled(LogLevel.Warning))
-                {
-                    logger.LogWarning("Failed to download video from {Url}. Attempting fallback to best quality", videoUrl);
-                }
-
-                // Fallback in case of failure with specified quality
-                options.Format = Constants.BestDownloadQuality;
                 result = await ytdl.RunVideoDownload(videoUrl, overrideOptions: options, ct: cancellationToken);
             }
+            catch
+            {
+                if (options.Format != Constants.BestDownloadQuality)
+                {
+                    if (logger.IsEnabled(LogLevel.Warning))
+                    {
+                        logger.LogWarning("Failed to download video from {Url}. Attempting fallback to best quality", videoUrl);
+                    }
 
-            if (!result.Success)
+                    // Fallback in case of failure with specified quality
+                    options.Format = Constants.BestDownloadQuality;
+                    result = await ytdl.RunVideoDownload(videoUrl, overrideOptions: options, ct: cancellationToken);
+                }
+            }
+
+            if (!result!.Success)
             {
                 string errorMessage = string.Join(", ", result.ErrorOutput);
                 if (logger.IsEnabled(LogLevel.Error))

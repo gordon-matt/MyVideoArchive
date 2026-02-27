@@ -77,7 +77,13 @@ public class FileSystemScanJob
 
             try
             {
-                await ProcessFileAsync(filePath, existingPaths, existingVideoIds, result, cancellationToken);
+                // Already tracked by path
+                if (existingPaths.Contains(filePath))
+                {
+                    continue;
+                }
+
+                await ProcessFileAsync(filePath, existingVideoIds, result, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -102,17 +108,10 @@ public class FileSystemScanJob
 
     private async Task ProcessFileAsync(
         string filePath,
-        HashSet<string> existingPaths,
         Dictionary<string, VideoIdEntry> existingVideoIds,
         FileSystemScanResult result,
         CancellationToken cancellationToken)
     {
-        // Already tracked by path
-        if (existingPaths.Contains(filePath))
-        {
-            return;
-        }
-
         string fileNameWithoutExt = Path.GetFileNameWithoutExtension(filePath);
         string parentFolderName = Path.GetFileName(Path.GetDirectoryName(filePath)) ?? "Unknown";
 

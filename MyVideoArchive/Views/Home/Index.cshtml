@@ -28,7 +28,7 @@
     <div class="col-md-3 col-sm-6 mb-4">
         <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
             <div class="video-card">
-                <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/320x180?text=No+Thumbnail', alt: Title }" class="video-thumbnail" />
+                <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }" class="video-thumbnail" />
                 <div class="video-info">
                     <div class="video-title" data-bind="text: Title, attr: { title: Title }"></div>
                     <div class="video-channel" data-bind="text: Channel ? Channel.Name : 'Unknown Channel'"></div>

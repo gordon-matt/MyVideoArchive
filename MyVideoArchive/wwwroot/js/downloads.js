@@ -37,7 +37,7 @@ class DownloadsViewModel {
     }
 
     loadChannels = async () => {
-        await fetch('/odata/ChannelOData?$orderby=Name')
+        await fetch(`/odata/ChannelOData?$filter=Platform ne 'Custom'&$orderby=Name`)
             .then(response => response.json())
             .then(data => {
                 this.channels(data.value || []);
@@ -56,7 +56,7 @@ class DownloadsViewModel {
     fetchVideos = async () => {
         this.loading(true);
 
-        var filter = 'DownloadedAt eq null';
+        var filter = `DownloadedAt eq null and IsIgnored eq false and Platform ne 'Custom'`;
 
         // Add status filter
         if (this.statusFilter() === 'available') {

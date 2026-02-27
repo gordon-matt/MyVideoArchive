@@ -61,7 +61,7 @@
         <div data-bind="visible: !loading() && videos().length > 0">
             <!-- ko foreach: videos -->
             <div class="video-download-item" data-bind="css: { queued: isQueued }">
-                <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/160x90?text=No+Thumbnail', alt: title }" class="video-thumbnail-list" />
+                <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/160x90?text=No+Thumbnail', alt: title }" class="video-thumbnail-list" />
                 <div class="video-details">
                     <div class="video-title-large">
                         <span data-bind="text: title"></span>

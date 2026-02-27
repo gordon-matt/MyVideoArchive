@@ -16,7 +16,7 @@
         <div data-bind="with: channel">
             <div class="channel-header-card">
                 <div class="d-flex align-items-center">
-                    <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/100?text=Custom', alt: Name }"
+                    <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/100?text=Custom', alt: Name }"
                          style="width: 100px; height: 100px; border-radius: 50%; margin-right: 20px;" />
                     <div style="flex: 1;">
                         <div class="d-flex align-items-center gap-2 mb-1">
@@ -92,7 +92,7 @@
         <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'list', foreach: videos">
             <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
                 <div class="video-item">
-                    <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: Title }"
+                    <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/120x68?text=No+Thumbnail', alt: Title }"
                          class="video-thumbnail-small" />
                     <div style="flex: 1;">
                         <h6 data-bind="text: Title"></h6>
@@ -114,7 +114,7 @@
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
                 <div class="video-grid-card card h-100">
                     <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
-                        <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/320x180?text=No+Thumbnail', alt: Title }"
+                        <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }"
                              class="card-img-top video-grid-thumbnail" />
                     </a>
                     <div class="card-body p-2">

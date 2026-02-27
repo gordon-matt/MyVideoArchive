@@ -15,7 +15,7 @@
         <div data-bind="with: channel">
             <div class="channel-header-card">
                 <div class="d-flex align-items-center">
-                    <img data-bind="attr: { src: ThumbnailUrl || 'https://via.placeholder.com/100?text=No+Image', alt: Name }" style="width: 100px; height: 100px; border-radius: 50%; margin-right: 20px;" />
+                    <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/100?text=No+Image', alt: Name }" style="width: 100px; height: 100px; border-radius: 50%; margin-right: 20px;" />
                     <div>
                         <h2 data-bind="text: Name"></h2>
                         <p data-bind="text: Description" style="opacity: 0.9;"></p>
@@ -97,7 +97,7 @@
         <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'list', foreach: videos">
             <div class="video-item">
                 <a data-bind="attr: { href: '/videos/' + id }" class="text-decoration-none d-flex align-items-center" style="flex: 1; min-width: 0;">
-                    <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/120x68?text=No+Thumbnail', alt: title }" class="video-thumbnail-small" />
+                    <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/120x68?text=No+Thumbnail', alt: title }" class="video-thumbnail-small" />
                     <div style="flex: 1; min-width: 0;">
                         <h6 class="mb-1">
                             <span data-bind="text: title"></span>
@@ -126,7 +126,7 @@
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
                 <div class="video-grid-card card h-100">
                     <a data-bind="attr: { href: '/videos/' + id }" class="text-decoration-none">
-                        <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/320x180?text=No+Thumbnail', alt: title }"
+                        <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: title }"
                              class="card-img-top video-grid-thumbnail" />
                     </a>
                     <div class="card-body p-2">
@@ -217,7 +217,7 @@
                                     <input type="checkbox" class="form-check-input video-checkbox" data-bind="checked: selected">
                                 </div>
                                 <div class="col-auto">
-                                    <img data-bind="attr: { src: thumbnailUrl || 'https://via.placeholder.com/160x90?text=No+Thumbnail', alt: title }" 
+                                    <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/160x90?text=No+Thumbnail', alt: title }" 
                                          style="width: 160px; height: 90px; object-fit: cover; border-radius: 4px;">
                                 </div>
                                 <div class="col">
