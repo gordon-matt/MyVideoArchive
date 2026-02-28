@@ -1,39 +1,57 @@
-﻿.channel-card {
+.channel-card {
     border: 1px solid #ddd;
     border-radius: 8px;
-    padding: 20px;
+    overflow: hidden;
     margin-bottom: 20px;
     transition: box-shadow 0.3s;
-    cursor: pointer;
+    background: #fff;
 }
 
-    .channel-card:hover {
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
+.channel-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
 
-.channel-thumbnail {
-    width: 88px;
-    height: 88px;
-    border-radius: 50%;
-    object-fit: cover;
+.channel-banner-wrap {
+    width: 100%;
+    height: 140px;
+    overflow: hidden;
+    cursor: pointer;
     background-color: #e0e0e0;
+}
+
+.channel-banner {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+}
+
+.channel-card-body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    flex-wrap: wrap;
 }
 
 .channel-info {
     flex: 1;
-    padding-left: 20px;
+    min-width: 0;
+    cursor: pointer;
 }
 
 .channel-name {
     font-weight: 600;
     font-size: 1.2em;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
 }
 
 .channel-url {
     color: #606060;
     font-size: 0.9em;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
     word-break: break-all;
 }
 
@@ -43,7 +61,5 @@
 }
 
 .channel-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
+    flex-shrink: 0;
 }

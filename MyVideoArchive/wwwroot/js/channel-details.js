@@ -23,11 +23,12 @@ class ChannelDetailsViewModel {
         this.availableVideos = ko.observableArray([]);
         this.availableLoading = ko.observable(false);
         this.currentPage = ko.observable(1);
-        this.pageSize = 20;
+        this.pageSize = 24;
         this.totalPages = ko.observable(1);
         this.totalCount = ko.observable(0);
         this.showIgnored = ko.observable(false);
         this.selectAll = ko.observable(false);
+        this.availableViewMode = ko.observable('list'); // 'list' | 'grid'
 
         // ── File system scan ──────────────────────────────────────────────────
         this.scanningFiles = ko.observable(false);
@@ -406,6 +407,10 @@ class ChannelDetailsViewModel {
         this.currentPage(1);
         await this.loadAvailableVideos();
         return true;
+    };
+
+    setAvailableViewMode = (mode) => {
+        this.availableViewMode(mode);
     };
 
     // ── Playlists tab ─────────────────────────────────────────────────────────

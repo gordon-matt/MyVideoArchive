@@ -197,22 +197,30 @@
     <!-- ── Available tab ──────────────────────────────────────────────────── -->
     <div class="tab-pane fade" id="available" role="tabpanel">
         <div id="available-grid">
-            <div class="mb-3">
-                <div class="form-check">
+            <!-- Toolbar: show ignored + actions + view mode -->
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <div class="form-check mb-0">
                     <input class="form-check-input" type="checkbox" id="showIgnoredCheck" data-bind="checked: showIgnored, click: toggleShowIgnored">
                     <label class="form-check-label" for="showIgnoredCheck">
                         Show Ignored Videos
                     </label>
                 </div>
-            </div>
-            
-            <div class="mb-3">
-                <button class="btn btn-primary me-2" data-bind="click: downloadSelected">
+                <button class="btn btn-primary" data-bind="click: downloadSelected">
                     <i class="bi bi-download"></i> Download Selected
                 </button>
                 <button class="btn btn-success" data-bind="click: downloadAll">
                     <i class="bi bi-cloud-download"></i> Download All
                 </button>
+                <div class="btn-group ms-auto">
+                    <button class="btn btn-outline-secondary" title="List view"
+                            data-bind="click: function(){ setAvailableViewMode('list'); }, css: { active: availableViewMode() === 'list' }">
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" title="Grid view"
+                            data-bind="click: function(){ setAvailableViewMode('grid'); }, css: { active: availableViewMode() === 'grid' }">
+                        <i class="bi bi-grid-3x3-gap"></i>
+                    </button>
+                </div>
             </div>
             
             <div data-bind="visible: availableLoading" class="text-center my-4">
@@ -233,44 +241,84 @@
                     </div>
                 </div>
                 
-                <div data-bind="foreach: availableVideos">
-                    <div class="available-video-item card mb-3">
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-auto">
-                                    <input type="checkbox" class="form-check-input video-checkbox" data-bind="checked: selected">
-                                </div>
-                                <div class="col-auto">
-                                    <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/160x90?text=No+Thumbnail', alt: title }" 
-                                         style="width: 160px; height: 90px; object-fit: cover; border-radius: 4px;">
-                                </div>
-                                <div class="col">
-                                    <h6>
-                                        <span data-bind="text: title"></span>
-                                        <a data-bind="attr: { href: url }" target="_blank" class="ms-2 text-muted" title="View original" onclick="event.stopPropagation();">
-                                            <i class="bi bi-box-arrow-up-right small"></i>
-                                        </a>
-                                    </h6>
-                                    <p class="text-muted small mb-1" data-bind="text: description" style="max-height: 60px; overflow: hidden;"></p>
-                                    <small class="text-muted">
-                                        Uploaded: <span data-bind="text: $parent.formatDate(uploadDate)"></span>
-                                        <span data-bind="if: duration"> | Duration: <span data-bind="text: $parent.formatDuration(duration)"></span></span>
-                                    </small>
-                                    <div data-bind="if: isDownloaded" class="mt-1">
-                                        <span class="badge bg-success">Downloaded</span>
+                <!-- Available list view -->
+                <div data-bind="visible: availableViewMode() === 'list'">
+                    <div data-bind="foreach: availableVideos">
+                        <div class="available-video-item card mb-3">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-auto">
+                                        <input type="checkbox" class="form-check-input video-checkbox" data-bind="checked: selected">
                                     </div>
-                                    <div data-bind="if: isIgnored" class="mt-1">
-                                        <span class="badge bg-secondary">Ignored</span>
+                                    <div class="col-auto">
+                                        <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/160x90?text=No+Thumbnail', alt: title }" 
+                                             style="width: 160px; height: 90px; object-fit: cover; border-radius: 4px;">
                                     </div>
-                                </div>
-                                <div class="col-auto d-flex align-items-center">
-                                    <button class="btn btn-sm btn-outline-danger" data-bind="click: $parent.ignoreVideo">
-                                        <span data-bind="text: isIgnored ? 'Unignore' : 'Ignore'"></span>
-                                    </button>
+                                    <div class="col">
+                                        <h6>
+                                            <span data-bind="text: title"></span>
+                                            <a data-bind="attr: { href: url }" target="_blank" class="ms-2 text-muted" title="View original" onclick="event.stopPropagation();">
+                                                <i class="bi bi-box-arrow-up-right small"></i>
+                                            </a>
+                                        </h6>
+                                        <p class="text-muted small mb-1" data-bind="text: description" style="max-height: 60px; overflow: hidden;"></p>
+                                        <small class="text-muted">
+                                            Uploaded: <span data-bind="text: $parent.formatDate(uploadDate)"></span>
+                                            <span data-bind="if: duration"> | Duration: <span data-bind="text: $parent.formatDuration(duration)"></span></span>
+                                        </small>
+                                        <div data-bind="if: isDownloaded" class="mt-1">
+                                            <span class="badge bg-success">Downloaded</span>
+                                        </div>
+                                        <div data-bind="if: isIgnored" class="mt-1">
+                                            <span class="badge bg-secondary">Ignored</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto d-flex align-items-center">
+                                        <button class="btn btn-sm btn-outline-danger" data-bind="click: $parent.ignoreVideo">
+                                            <span data-bind="text: isIgnored ? 'Unignore' : 'Ignore'"></span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Available grid view -->
+                <div data-bind="visible: availableViewMode() === 'grid'" class="row">
+                    <!-- ko foreach: availableVideos -->
+                    <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
+                        <div class="video-grid-card card h-100">
+                            <div class="position-relative">
+                                <input type="checkbox" class="form-check-input position-absolute top-0 start-0 m-2" style="z-index: 1;"
+                                       data-bind="checked: selected, click: function(data, event) { event.stopPropagation(); return true; }">
+                                <a data-bind="attr: { href: url }" target="_blank" class="text-decoration-none" onclick="event.stopPropagation();">
+                                    <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: title }"
+                                         class="card-img-top video-grid-thumbnail" />
+                                </a>
+                            </div>
+                            <div class="card-body p-2">
+                                <h6 class="video-grid-title mb-1" data-bind="text: title, attr: { title: title }"></h6>
+                                <small class="text-muted d-block">
+                                    <span data-bind="text: $parent.formatDate(uploadDate)"></span>
+                                    <span data-bind="if: duration"> &middot; <span data-bind="text: $parent.formatDuration(duration)"></span></span>
+                                </small>
+                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                    <span data-bind="if: isDownloaded" class="badge bg-success">Downloaded</span>
+                                    <span data-bind="if: isIgnored" class="badge bg-secondary">Ignored</span>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-transparent border-0 p-2 pt-0 d-flex gap-1">
+                                <a data-bind="attr: { href: url }" target="_blank" class="btn btn-sm btn-outline-secondary flex-fill" onclick="event.stopPropagation();">
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger" data-bind="click: $parent.ignoreVideo" title="Ignore">
+                                    <span data-bind="text: isIgnored ? 'Unignore' : 'Ignore'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- /ko -->
                 </div>
                 
                 <!-- Available pagination -->

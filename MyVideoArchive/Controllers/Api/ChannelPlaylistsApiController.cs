@@ -411,8 +411,7 @@ public class ChannelPlaylistsApiController : ControllerBase
             int newPlaylistsCount = 0;
             var existingPlaylists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
             {
-                Query = x => x.ChannelId == channelId,
-                Include = query => query.Include(p => p.Channel)
+                Query = x => x.ChannelId == channelId
             });
 
             var existingPlaylistIds = existingPlaylists.Select(p => p.PlaylistId).ToHashSet();
@@ -436,7 +435,7 @@ public class ChannelPlaylistsApiController : ControllerBase
                     // stored as a base64 data URL – external URLs expire and cause 404s.
                     if (!existingPlaylist.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
                     {
-                        string channelDirId = existingPlaylist.Channel.ChannelId;
+                        string channelDirId = channel.ChannelId;
                         string playlistThumbnailDir = Path.Combine(downloadPath, channelDirId, "Playlists");
 
                         existingPlaylist.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(

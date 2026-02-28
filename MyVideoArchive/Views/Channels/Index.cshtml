@@ -6,125 +6,129 @@
     <link rel="stylesheet" href="~/css/channel-index.css" />
 }
 
-<div class="row mb-3">
-    <div class="col-8">
-        <h2>My Channels</h2>
-        <p class="text-muted">Channels you are subscribed to</p>
-    </div>
-    <div class="col-4 text-end">
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addChannelModal">
-            <i class="bi bi-plus-circle"></i> Add Channel
-        </button>
-    </div>
-</div>
-
-<div class="row mb-4">
-    <div class="col-md-3">
-        <select class="form-select" data-bind="value: platformFilter">
-            <option value="">All Platforms</option>
-            <option value="YouTube">YouTube</option>
-            <option value="Custom">Custom</option>
-        </select>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-12">
-        <div id="channels-grid"></div>
-    </div>
-</div>
-
-<!-- Add Channel Modal -->
-<div class="modal fade" id="addChannelModal" tabindex="-1" aria-labelledby="addChannelModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addChannelModalLabel">Add Channel</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="addChannelForm">
-                    <div class="mb-3">
-                        <label for="platformSelect" class="form-label">Platform</label>
-                        <select class="form-select" id="platformSelect" data-bind="value: selectedPlatform">
-                            <option value="YouTube">YouTube</option>
-                            <option value="Custom">Custom (archive videos from any source)</option>
-                        </select>
-                    </div>
-
-                    <!-- YouTube fields -->
-                    <div data-bind="visible: selectedPlatform() === 'YouTube'">
-                        <div class="mb-3">
-                            <label for="channelUrl" class="form-label">Channel URL</label>
-                            <input type="text" class="form-control" id="channelUrl" data-bind="value: newChannelUrl"
-                                   placeholder="https://www.youtube.com/channel/..." />
-                            <div class="form-text">Enter a YouTube channel URL. Metadata will be fetched automatically.</div>
-                        </div>
-                    </div>
-
-                    <!-- Custom channel fields -->
-                    <div data-bind="visible: selectedPlatform() === 'Custom'">
-                        <div class="mb-3">
-                            <label for="customChannelName" class="form-label">Channel Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="customChannelName" data-bind="value: customChannelName"
-                                   placeholder="My Custom Channel" />
-                        </div>
-                        <div class="mb-3">
-                            <label for="customChannelDescription" class="form-label">Description</label>
-                            <textarea class="form-control" id="customChannelDescription" rows="3"
-                                      data-bind="value: customChannelDescription"
-                                      placeholder="Optional description"></textarea>
-                        </div>
-                        <div class="form-text text-muted">
-                            <i class="bi bi-info-circle"></i>
-                            Custom channels let you organise videos from platforms not supported by the automatic downloader.
-                            You can add metadata and upload files from the channel details page.
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary"
-                        data-bind="click: addChannel, enable: canSubmit()">
-                    Add Channel
-                </button>
-            </div>
+<div class="container">
+    <div class="row mb-3">
+        <div class="col-8">
+            <h2>My Channels</h2>
+            <p class="text-muted">Channels you are subscribed to</p>
+        </div>
+        <div class="col-4 text-end">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addChannelModal">
+                <i class="bi bi-plus-circle"></i> Add Channel
+            </button>
         </div>
     </div>
-</div>
 
-<div data-bind="visible: loading" class="text-center">
-    <div class="spinner-border" role="status">
-        <span class="visually-hidden">Loading...</span>
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <select class="form-select" data-bind="value: platformFilter">
+                <option value="">All Platforms</option>
+                <option value="YouTube">YouTube</option>
+                <option value="Custom">Custom</option>
+            </select>
+        </div>
     </div>
-</div>
 
-<div data-bind="visible: !loading() && channels().length === 0" class="alert alert-info">
-    <p>No channels yet. Click "Add Channel" to subscribe to your first channel.</p>
-</div>
+    <div class="row">
+        <div class="col-12">
+            <div id="channels-grid"></div>
+        </div>
+    </div>
 
-<div data-bind="visible: !loading() && channels().length > 0">
-    <!-- ko foreach: channels -->
-    <div class="channel-card">
-        <div class="d-flex align-items-center">
-            <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/88?text=No+Image', alt: Name }" class="channel-thumbnail" />
-            <div class="channel-info" data-bind="click: $parent.viewChannel">
-                <div class="channel-name" data-bind="text: Name"></div>
-                <div class="channel-url" data-bind="text: Url"></div>
-                <div class="channel-meta">
-                    <span data-bind="if: Platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
-                    Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span>
+    <!-- Add Channel Modal -->
+    <div class="modal fade" id="addChannelModal" tabindex="-1" aria-labelledby="addChannelModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addChannelModalLabel">Add Channel</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addChannelForm">
+                        <div class="mb-3">
+                            <label for="platformSelect" class="form-label">Platform</label>
+                            <select class="form-select" id="platformSelect" data-bind="value: selectedPlatform">
+                                <option value="YouTube">YouTube</option>
+                                <option value="Custom">Custom (archive videos from any source)</option>
+                            </select>
+                        </div>
+
+                        <!-- YouTube fields -->
+                        <div data-bind="visible: selectedPlatform() === 'YouTube'">
+                            <div class="mb-3">
+                                <label for="channelUrl" class="form-label">Channel URL</label>
+                                <input type="text" class="form-control" id="channelUrl" data-bind="value: newChannelUrl"
+                                       placeholder="https://www.youtube.com/channel/..." />
+                                <div class="form-text">Enter a YouTube channel URL. Metadata will be fetched automatically.</div>
+                            </div>
+                        </div>
+
+                        <!-- Custom channel fields -->
+                        <div data-bind="visible: selectedPlatform() === 'Custom'">
+                            <div class="mb-3">
+                                <label for="customChannelName" class="form-label">Channel Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="customChannelName" data-bind="value: customChannelName"
+                                       placeholder="My Custom Channel" />
+                            </div>
+                            <div class="mb-3">
+                                <label for="customChannelDescription" class="form-label">Description</label>
+                                <textarea class="form-control" id="customChannelDescription" rows="3"
+                                          data-bind="value: customChannelDescription"
+                                          placeholder="Optional description"></textarea>
+                            </div>
+                            <div class="form-text text-muted">
+                                <i class="bi bi-info-circle"></i>
+                                Custom channels let you organise videos from platforms not supported by the automatic downloader.
+                                You can add metadata and upload files from the channel details page.
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary"
+                            data-bind="click: addChannel, enable: canSubmit()">
+                        Add Channel
+                    </button>
                 </div>
             </div>
-            <div class="channel-actions">
-                <button class="btn btn-danger btn-sm" data-bind="click: $parent.deleteChannel" onclick="event.stopPropagation();">
-                    Unsubscribe
-                </button>
-            </div>
         </div>
     </div>
-    <!-- /ko -->
+
+    <div data-bind="visible: loading" class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <div data-bind="visible: !loading() && channels().length === 0" class="alert alert-info">
+        <p>No channels yet. Click "Add Channel" to subscribe to your first channel.</p>
+    </div>
+
+    <div data-bind="visible: !loading() && channels().length > 0">
+        <!-- ko foreach: channels -->
+        <div class="channel-card">
+            <div class="channel-banner-wrap" data-bind="click: $parent.viewChannel">
+                <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/1200x200?text=' + Name, alt: Name }" class="channel-banner" />
+            </div>
+            <div class="channel-card-body">
+                <div class="channel-info" data-bind="click: $parent.viewChannel">
+                    <div class="channel-name" data-bind="text: Name"></div>
+                    <div class="channel-url" data-bind="text: Url"></div>
+                    <div class="channel-meta">
+                        <span data-bind="if: Platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
+                        Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span>
+                    </div>
+                </div>
+                <div class="channel-actions">
+                    <button class="btn btn-danger btn-sm" data-bind="click: $parent.deleteChannel" onclick="event.stopPropagation();">
+                        Unsubscribe
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- /ko -->
+    </div>
 </div>
 
 @section Scripts {
