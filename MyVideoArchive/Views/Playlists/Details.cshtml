@@ -141,7 +141,7 @@
                                 </div>
                                 <!-- /ko -->
                             </div>
-                            <div data-bind="if: !downloadedAt && title != '@Constants.PrivateVideoTitle'" class="ms-2">
+                            <div data-bind="if: !downloadedAt && title != '@Constants.PrivateVideoTitle' && title != '@Constants.DeletedVideoTitle'" class="ms-2">
                                 <button class="btn btn-sm btn-primary" data-bind="click: $parent.downloadVideo">
                                     <i class="bi bi-download"></i>
                                 </button>

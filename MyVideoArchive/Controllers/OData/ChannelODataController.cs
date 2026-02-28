@@ -1,6 +1,7 @@
 using Hangfire;
 using Microsoft.AspNetCore.OData.Query;
 using Microsoft.AspNetCore.OData.Routing.Controllers;
+using MyVideoArchive.Models.Metadata;
 
 namespace MyVideoArchive.Controllers.OData;
 
@@ -140,36 +141,46 @@ public class ChannelODataController : ODataController
                 return BadRequest(ModelState);
             }
 
-            var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
-            if (provider is null)
-            {
-                if (logger.IsEnabled(LogLevel.Error))
-                {
-                    logger.LogError("No metadata provider found for platform: {Platform}", channel.Platform);
-                }
+            ChannelMetadata? channelMetadata = null;
 
-                return BadRequest();
-            }
-
-            // Update channel metadata
-            var channelMetadata = await provider.GetChannelMetadataAsync(channel.Url);
-            if (channelMetadata is null)
-            {
-                if (logger.IsEnabled(LogLevel.Error))
-                {
-                    logger.LogError("Unable to retrieve metadata for channel: {Url}", channel.Url);
-                }
-
-                return BadRequest();
-            }
-
-            int channelDbId;
-
-            // Check if channel already exists by Url
             var existingChannel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
             {
                 Query = x => x.Url == channel.Url
             });
+
+            if (existingChannel is null)
+            {
+                var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
+                if (provider is null)
+                {
+                    if (logger.IsEnabled(LogLevel.Error))
+                    {
+                        logger.LogError("No metadata provider found for platform: {Platform}", channel.Platform);
+                    }
+
+                    return BadRequest();
+                }
+
+                // Update channel metadata
+                channelMetadata = await provider.GetChannelMetadataAsync(channel.Url);
+                if (channelMetadata is null)
+                {
+                    if (logger.IsEnabled(LogLevel.Error))
+                    {
+                        logger.LogError("Unable to retrieve metadata for channel: {Url}", channel.Url);
+                    }
+
+                    return BadRequest();
+                }
+
+                // Check if channel already exists by Url
+                existingChannel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
+                {
+                    Query = x => x.ChannelId == channelMetadata.ChannelId
+                });
+            }
+
+            int channelDbId;
 
             if (existingChannel is not null)
             {
@@ -183,7 +194,7 @@ public class ChannelODataController : ODataController
             else
             {
                 // Create new channel
-                channel.ChannelId = channelMetadata.ChannelId;
+                channel.ChannelId = channelMetadata!.ChannelId;
                 channel.Name = channelMetadata.Name;
                 channel.Description = channelMetadata.Description;
                 channel.ThumbnailUrl = channelMetadata.ThumbnailUrl;
@@ -278,8 +289,7 @@ public class ChannelODataController : ODataController
             // Optionally: If no users are subscribed to this channel, delete it
             // (Only if admin or if this was the last subscription)
             bool hasRemainingSubscriptions = await userChannelRepository.ExistsAsync(x => x.ChannelId == key);
-
-            if (hasRemainingSubscriptions)
+            if (!hasRemainingSubscriptions)
             {
                 // No one is subscribed, delete the channel
                 var channelExists = await channelRepository.ExistsAsync(x => x.Id == key);

@@ -197,10 +197,20 @@
     <!-- ── Available tab ──────────────────────────────────────────────────── -->
     <div class="tab-pane fade" id="available" role="tabpanel">
         <div id="available-grid">
-            <!-- Toolbar: show ignored + actions + view mode -->
+            <!-- Toolbar: search + show ignored + actions + view mode -->
             <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <div class="input-group" style="max-width: 340px;">
+                    <input type="text" id="availableVideosSearchInput" class="form-control" placeholder="Search available videos…"
+                           data-bind="value: availableVideosSearchInput, valueUpdate: 'input'" />
+                    <button class="btn btn-primary" data-bind="click: searchAvailableVideos">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" data-bind="click: clearAvailableSearch, visible: availableVideosSearch()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
                 <div class="form-check mb-0">
-                    <input class="form-check-input" type="checkbox" id="showIgnoredCheck" data-bind="checked: showIgnored, click: toggleShowIgnored">
+                    <input class="form-check-input" type="checkbox" id="showIgnoredCheck" data-bind="checked: showIgnored">
                     <label class="form-check-label" for="showIgnoredCheck">
                         Show Ignored Videos
                     </label>
@@ -350,7 +360,7 @@
         <div id="playlists-grid">
             <div class="mb-3">
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="showIgnoredPlaylistsCheck" data-bind="checked: showIgnoredPlaylists, click: toggleShowIgnoredPlaylists">
+                    <input class="form-check-input" type="checkbox" id="showIgnoredPlaylistsCheck" data-bind="checked: showIgnoredPlaylists">
                     <label class="form-check-label" for="showIgnoredPlaylistsCheck">
                         Show Ignored Playlists
                     </label>
@@ -358,20 +368,27 @@
             </div>
             
             <div class="mb-3">
-                <button class="btn btn-info me-2" data-bind="click: refreshPlaylists, enable: !refreshingPlaylists()">
+                <button class="btn btn-info me-2" data-bind="click: refreshPlaylists, enable: !refreshingPlaylists() && !subscribingPlaylists()">
                     <span data-bind="visible: !refreshingPlaylists()"><i class="bi bi-arrow-clockwise"></i> Refresh from YouTube</span>
                     <span data-bind="visible: refreshingPlaylists()">
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                         Refreshing…
                     </span>
                 </button>
-                <button class="btn btn-primary me-2" data-bind="click: subscribeSelectedPlaylists">
+                <button class="btn btn-primary me-2" data-bind="click: subscribeSelectedPlaylists, enable: !subscribingPlaylists()">
                     <i class="bi bi-plus-circle"></i> Subscribe Selected
                 </button>
-                <button class="btn btn-success" data-bind="click: subscribeAllPlaylists">
+                <button class="btn btn-success" data-bind="click: subscribeAllPlaylists, enable: !subscribingPlaylists()">
                     <i class="bi bi-check-circle"></i> Subscribe All
                 </button>
             </div>
+
+            <!-- ko if: subscribingPlaylists -->
+            <div class="alert alert-info d-flex align-items-center gap-2 mb-3">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span>Subscribing. Please wait…</span>
+            </div>
+            <!-- /ko -->
             
             <div data-bind="visible: playlistsLoading" class="text-center my-4">
                 <div class="spinner-border" role="status">

@@ -29,6 +29,8 @@ class ChannelDetailsViewModel {
         this.showIgnored = ko.observable(false);
         this.selectAll = ko.observable(false);
         this.availableViewMode = ko.observable('list'); // 'list' | 'grid'
+        this.availableVideosSearch = ko.observable('');
+        this.availableVideosSearchInput = ko.observable('');
 
         // ── File system scan ──────────────────────────────────────────────────
         this.scanningFiles = ko.observable(false);
@@ -45,6 +47,7 @@ class ChannelDetailsViewModel {
         this.playlistsPageSize = 24;
         this.playlistsTotalPages = ko.observable(1);
         this.playlistsTotalCount = ko.observable(0);
+        this.subscribingPlaylists = ko.observable(false);
 
         // ── Checkbox sync ─────────────────────────────────────────────────────
         this.selectAll.subscribe((newValue) => {
@@ -59,6 +62,17 @@ class ChannelDetailsViewModel {
         this.videosPlaylistFilter.subscribe(async () => {
             this.videosCurrentPage(1);
             await this.loadVideos();
+        });
+
+        // ── React to "show ignored" checkbox changes (no click handler needed) ─
+        this.showIgnored.subscribe(() => {
+            this.currentPage(1);
+            this.loadAvailableVideos();
+        });
+
+        this.showIgnoredPlaylists.subscribe(() => {
+            this.playlistsCurrentPage(1);
+            this.loadPlaylists();
         });
 
         // ── Computed page numbers ─────────────────────────────────────────────
@@ -305,8 +319,14 @@ class ChannelDetailsViewModel {
     loadAvailableVideos = async () => {
         this.availableLoading(true);
         try {
+            const params = new URLSearchParams({
+                page: this.currentPage(),
+                pageSize: this.pageSize,
+                showIgnored: this.showIgnored()
+            });
+            if (this.availableVideosSearch()) params.set('search', this.availableVideosSearch());
             const response = await fetch(
-                `/api/channels/${this.channelId}/videos/available?page=${this.currentPage()}&pageSize=${this.pageSize}&showIgnored=${this.showIgnored()}`
+                `/api/channels/${this.channelId}/videos/available?${params}`
             );
             const data = await response.json();
             const videos = data.videos.map(v => {
@@ -403,10 +423,17 @@ class ChannelDetailsViewModel {
         }
     };
 
-    toggleShowIgnored = async () => {
+    searchAvailableVideos = async () => {
+        this.availableVideosSearch(this.availableVideosSearchInput());
         this.currentPage(1);
         await this.loadAvailableVideos();
-        return true;
+    };
+
+    clearAvailableSearch = async () => {
+        this.availableVideosSearchInput('');
+        this.availableVideosSearch('');
+        this.currentPage(1);
+        await this.loadAvailableVideos();
     };
 
     setAvailableViewMode = (mode) => {
@@ -466,6 +493,7 @@ class ChannelDetailsViewModel {
             return;
         }
 
+        this.subscribingPlaylists(true);
         try {
             const response = await fetch(`/api/channels/${this.channelId}/playlists/subscribe`, {
                 method: 'POST',
@@ -478,6 +506,8 @@ class ChannelDetailsViewModel {
         } catch (error) {
             console.error('Error subscribing to playlists:', error);
             alert('Error subscribing to playlists. Please try again.');
+        } finally {
+            this.subscribingPlaylists(false);
         }
     };
 
@@ -486,6 +516,7 @@ class ChannelDetailsViewModel {
             return;
         }
 
+        this.subscribingPlaylists(true);
         try {
             const response = await fetch(`/api/channels/${this.channelId}/playlists/subscribe-all`, {
                 method: 'POST',
@@ -497,6 +528,8 @@ class ChannelDetailsViewModel {
         } catch (error) {
             console.error('Error subscribing to all playlists:', error);
             alert('Error subscribing to playlists. Please try again.');
+        } finally {
+            this.subscribingPlaylists(false);
         }
     };
 
@@ -512,12 +545,6 @@ class ChannelDetailsViewModel {
             console.error('Error ignoring playlist:', error);
             alert('Error updating playlist status. Please try again.');
         }
-    };
-
-    toggleShowIgnoredPlaylists = async () => {
-        this.playlistsCurrentPage(1);
-        await this.loadPlaylists();
-        return true;
     };
 
     refreshPlaylists = async () => {
@@ -567,8 +594,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Allow pressing Enter in the search box
+    // Allow pressing Enter in the search boxes
     document.getElementById('videosSearchInput')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') viewModel.searchVideos();
+    });
+    document.getElementById('availableVideosSearchInput')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') viewModel.searchAvailableVideos();
     });
 });

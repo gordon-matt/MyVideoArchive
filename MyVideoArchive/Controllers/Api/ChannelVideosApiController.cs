@@ -154,7 +154,8 @@ public class ChannelVideosApiController : ControllerBase
         int channelId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
-        [FromQuery] bool showIgnored = false)
+        [FromQuery] bool showIgnored = false,
+        [FromQuery] string? search = null)
     {
         try
         {
@@ -182,6 +183,12 @@ public class ChannelVideosApiController : ControllerBase
             if (!showIgnored)
             {
                 predicate = predicate.And(x => !x.IsIgnored);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.Trim().ToLower();
+                predicate = predicate.And(x => x.Title.ToLower().Contains(searchLower));
             }
 
             var options = new SearchOptions<Video>
