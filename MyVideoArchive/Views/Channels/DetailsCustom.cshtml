@@ -15,22 +15,21 @@
 
         <div data-bind="with: channel">
             <div class="channel-header-card">
-                <div class="d-flex align-items-center">
-                    <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/100?text=Custom', alt: Name }"
-                         style="width: 100px; height: 100px; border-radius: 50%; margin-right: 20px;" />
-                    <div style="flex: 1;">
-                        <div class="d-flex align-items-center gap-2 mb-1">
+                <div class="channel-details-banner-wrap">
+                    <img class="channel-details-banner" data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/1200x200?text=' + Name, alt: Name }" />
+                </div>
+                <div class="channel-header-body">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
                             <h2 data-bind="text: Name" class="mb-0"></h2>
                             <span class="badge bg-secondary">Custom</span>
                         </div>
-                        <p data-bind="text: Description" style="opacity: 0.9;"></p>
-                        <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
-                    </div>
-                    <div class="ms-auto">
                         <button class="btn btn-outline-light btn-sm" data-bind="click: $parent.openEditChannel">
                             <i class="bi bi-pencil"></i> Edit
                         </button>
                     </div>
+                    <p data-bind="text: Description" class="channel-header-desc"></p>
+                    <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
                 </div>
             </div>
         </div>
