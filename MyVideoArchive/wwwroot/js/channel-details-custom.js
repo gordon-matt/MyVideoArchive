@@ -29,6 +29,10 @@ class CustomChannelViewModel {
         this.editDescription = ko.observable('');
         this.editThumbnailUrl = ko.observable('');
 
+        // Channel thumbnail upload (in edit modal)
+        this.channelThumbnailPreviewUrl = ko.observable(null);
+        this.channelThumbnailFile = ko.observable(null);
+
         // Create playlist form
         this.newPlaylistName = ko.observable('');
         this.newPlaylistDescription = ko.observable('');
@@ -197,18 +201,37 @@ class CustomChannelViewModel {
         this.editName(ch.Name || '');
         this.editDescription(ch.Description || '');
         this.editThumbnailUrl(ch.ThumbnailUrl || '');
+        this.channelThumbnailPreviewUrl(ch.ThumbnailUrl ? ch.ThumbnailUrl + '?t=' + Date.now() : null);
+        this.channelThumbnailFile(null);
         new bootstrap.Modal(document.getElementById('editChannelModal')).show();
     };
 
     saveChannel = async () => {
         try {
+            let thumbnailUrl = this.editThumbnailUrl() || null;
+            const file = this.channelThumbnailFile();
+            if (file) {
+                const form = new FormData();
+                form.append('file', file);
+                const uploadRes = await fetch(`/api/custom/channels/${this.channelId}/thumbnail`, {
+                    method: 'POST',
+                    body: form
+                });
+                if (!uploadRes.ok) {
+                    alert('Failed to upload thumbnail. Please try again.');
+                    return;
+                }
+                const data = await uploadRes.json();
+                thumbnailUrl = data.thumbnailUrl;
+            }
+
             const response = await fetch(`/api/custom/channels/${this.channelId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: this.editName(),
                     description: this.editDescription() || null,
-                    thumbnailUrl: this.editThumbnailUrl() || null
+                    thumbnailUrl
                 })
             });
             if (response.ok) {
@@ -221,6 +244,38 @@ class CustomChannelViewModel {
             console.error('Error saving channel:', error);
             alert('Failed to update channel.');
         }
+    };
+
+    // Channel thumbnail upload (in edit modal)
+    onChannelThumbnailDragOver = (data, event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        return true;
+    };
+
+    onChannelThumbnailDrop = (data, event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const file = event.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) this._setChannelThumbnailFile(file);
+        return true;
+    };
+
+    triggerChannelThumbnailInput = () => {
+        document.getElementById('channelThumbnailInput').click();
+    };
+
+    onChannelThumbnailFileSelected = (data, event) => {
+        const file = event.target.files?.[0];
+        if (file) this._setChannelThumbnailFile(file);
+        event.target.value = '';
+    };
+
+    _setChannelThumbnailFile = (file) => {
+        this.channelThumbnailFile(file);
+        const reader = new FileReader();
+        reader.onload = (e) => this.channelThumbnailPreviewUrl(e.target.result);
+        reader.readAsDataURL(file);
     };
 
     // ── Create playlist ───────────────────────────────────────────────────────

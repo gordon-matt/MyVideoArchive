@@ -242,9 +242,21 @@
                     <textarea class="form-control" rows="3" data-bind="value: editDescription"></textarea>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Thumbnail URL</label>
-                    <input type="text" class="form-control" data-bind="value: editThumbnailUrl"
-                           placeholder="https://..." />
+                    <label class="form-label">Thumbnail</label>
+                    <div id="channelThumbnailDropZone"
+                         class="border rounded p-4 text-center position-relative"
+                         style="border-style: dashed !important; cursor: pointer; min-height: 120px;"
+                         data-bind="event: { dragover: onChannelThumbnailDragOver, drop: onChannelThumbnailDrop, click: triggerChannelThumbnailInput }">
+                        <div data-bind="visible: !channelThumbnailPreviewUrl()">
+                            <i class="bi bi-cloud-arrow-up fs-1 text-muted"></i>
+                            <p class="text-muted mt-2 mb-0">Drag &amp; drop an image here, or click to browse</p>
+                            <small class="text-muted">JPG, PNG or WebP &mdash; max 10 MB</small>
+                        </div>
+                        <img data-bind="visible: channelThumbnailPreviewUrl(), attr: { src: channelThumbnailPreviewUrl }"
+                             style="max-width: 100%; max-height: 160px; object-fit: contain;" />
+                    </div>
+                    <input type="file" id="channelThumbnailInput" accept="image/*" style="display:none;"
+                           data-bind="event: { change: onChannelThumbnailFileSelected }" />
                 </div>
             </div>
             <div class="modal-footer">

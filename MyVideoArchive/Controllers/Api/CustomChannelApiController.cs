@@ -125,6 +125,82 @@ public class CustomChannelApiController : ControllerBase
         }
     }
 
+    /// <summary>Serves the locally stored thumbnail for a custom channel.</summary>
+    [HttpGet("channels/{channelId:int}/thumbnail")]
+    public async Task<IActionResult> GetChannelThumbnail(int channelId)
+    {
+        var (canAccess, channel) = await CanAccessChannel(channelId);
+        if (!canAccess)
+        {
+            return Forbid();
+        }
+
+        if (channel is null || channel.Platform != "Custom")
+        {
+            return NotFound();
+        }
+
+        string dir = GetCustomChannelThumbnailDirectory(channel);
+        return ServeImageFromDirectory(dir, "channel");
+    }
+
+    /// <summary>Accepts an uploaded image and saves it as the channel thumbnail (file: channel + extension).</summary>
+    [HttpPost("channels/{channelId:int}/thumbnail")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
+    public async Task<IActionResult> UploadChannelThumbnail(int channelId, IFormFile file)
+    {
+        try
+        {
+            var (canAccess, channel) = await CanAccessChannel(channelId);
+            if (!canAccess)
+            {
+                return Forbid();
+            }
+
+            if (channel is null || channel.Platform != "Custom")
+            {
+                return NotFound();
+            }
+
+            string dir = GetCustomChannelThumbnailDirectory(channel);
+            Directory.CreateDirectory(dir);
+
+            string ext = NormaliseImageExtension(Path.GetExtension(file.FileName));
+            string thumbPath = Path.Combine(dir, "channel" + ext);
+
+            await using (var stream = System.IO.File.Create(thumbPath))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            // Remove any previous thumbnail with other extension
+            foreach (string other in AllowedImageExtensions)
+            {
+                if (other == ext) continue;
+                string otherPath = Path.Combine(dir, "channel" + other);
+                if (System.IO.File.Exists(otherPath))
+                {
+                    System.IO.File.Delete(otherPath);
+                    break;
+                }
+            }
+
+            channel.ThumbnailUrl = $"/api/custom/channels/{channelId}/thumbnail";
+            await channelRepository.UpdateAsync(channel);
+
+            return Ok(new { thumbnailUrl = channel.ThumbnailUrl });
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error uploading thumbnail for channel {ChannelId}", channelId);
+            }
+
+            return StatusCode(500, new { message = "An error occurred while saving the thumbnail" });
+        }
+    }
+
     // ── Playlists ────────────────────────────────────────────────────────────
 
     /// <summary>Creates a new playlist within a custom channel.</summary>
@@ -598,6 +674,9 @@ public class CustomChannelApiController : ControllerBase
 
     private string GetPlaylistThumbnailDirectory(Playlist playlist) =>
         Path.Combine(GetDownloadPath(), playlist.Channel.ChannelId, "Playlists");
+
+    private string GetCustomChannelThumbnailDirectory(Channel channel) =>
+        Path.Combine(GetDownloadPath(), "_Custom", channel.ChannelId);
 
     private IActionResult ServeImageFromDirectory(string directory, string stem)
     {
