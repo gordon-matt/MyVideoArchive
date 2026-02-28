@@ -96,6 +96,20 @@ public class MetadataReviewJob
                     continue;
                 }
 
+                if (metadata.Title == Constants.DeletedVideoTitle)
+                {
+                    if (logger.IsEnabled(LogLevel.Debug))
+                    {
+                        logger.LogDebug("Video {VideoId} is deleted; setting NeedsMetadataReview to false", video.VideoId);
+                    }
+
+                    // TODO: We need a way to mark videos as deleted, so we can display in UI
+                    video.NeedsMetadataReview = false;
+                    await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+
+                    continue;
+                }
+
                 // Metadata is now available — update the video
                 video.Title = metadata.Title;
                 video.Description = metadata.Description;

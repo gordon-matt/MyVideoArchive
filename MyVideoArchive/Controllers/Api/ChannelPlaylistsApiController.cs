@@ -1,5 +1,7 @@
 using Hangfire;
+using Humanizer;
 using MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Metadata;
 
 namespace MyVideoArchive.Controllers.Api;
 
@@ -12,8 +14,10 @@ namespace MyVideoArchive.Controllers.Api;
 public class ChannelPlaylistsApiController : ControllerBase
 {
     private readonly ILogger<ChannelPlaylistsApiController> logger;
+    private readonly IConfiguration configuration;
     private readonly IUserContextService userContextService;
     private readonly IBackgroundJobClient backgroundJobClient;
+    private readonly ThumbnailService thumbnailService;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<Playlist> playlistRepository;
@@ -22,8 +26,10 @@ public class ChannelPlaylistsApiController : ControllerBase
 
     public ChannelPlaylistsApiController(
         ILogger<ChannelPlaylistsApiController> logger,
+        IConfiguration configuration,
         IUserContextService userContextService,
         IBackgroundJobClient backgroundJobClient,
+        ThumbnailService thumbnailService,
         VideoMetadataProviderFactory metadataProviderFactory,
         IRepository<Channel> channelRepository,
         IRepository<Playlist> playlistRepository,
@@ -31,8 +37,10 @@ public class ChannelPlaylistsApiController : ControllerBase
         IRepository<UserPlaylist> userPlaylistRepository)
     {
         this.logger = logger;
+        this.configuration = configuration;
         this.userContextService = userContextService;
         this.backgroundJobClient = backgroundJobClient;
+        this.thumbnailService = thumbnailService;
         this.metadataProviderFactory = metadataProviderFactory;
         this.channelRepository = channelRepository;
         this.playlistRepository = playlistRepository;
@@ -403,10 +411,14 @@ public class ChannelPlaylistsApiController : ControllerBase
             int newPlaylistsCount = 0;
             var existingPlaylists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
             {
-                Query = x => x.ChannelId == channelId
+                Query = x => x.ChannelId == channelId,
+                Include = query => query.Include(p => p.Channel)
             });
 
             var existingPlaylistIds = existingPlaylists.Select(p => p.PlaylistId).ToHashSet();
+
+            string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
+                ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
             var playlistUpdates = new List<Playlist>();
             var playlistInserts = new List<Playlist>();
@@ -424,7 +436,12 @@ public class ChannelPlaylistsApiController : ControllerBase
                     // stored as a base64 data URL – external URLs expire and cause 404s.
                     if (!existingPlaylist.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
                     {
-                        existingPlaylist.ThumbnailUrl = playlistMetadata.ThumbnailUrl;
+                        string channelDirId = existingPlaylist.Channel.ChannelId;
+                        string playlistThumbnailDir = Path.Combine(downloadPath, channelDirId, "Playlists");
+
+                        existingPlaylist.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
+                            playlistMetadata.ThumbnailUrl, playlistThumbnailDir, existingPlaylist.PlaylistId)
+                            ?? playlistMetadata.ThumbnailUrl;
                     }
 
                     playlistUpdates.Add(existingPlaylist);

@@ -200,8 +200,9 @@ try
     var context = services.GetRequiredService<ApplicationDbContext>();
     var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
+    var configuration = services.GetRequiredService<IConfiguration>();
 
-    await DbInitializer.InitializeAsync(context, userManager, roleManager);
+    await DbInitializer.InitializeAsync(context, userManager, roleManager, configuration);
 }
 catch (Exception ex)
 {

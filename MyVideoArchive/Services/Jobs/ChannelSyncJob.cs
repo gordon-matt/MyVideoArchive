@@ -109,28 +109,28 @@ public class ChannelSyncJob
             {
                 if (existingVideoIds.Contains(videoMetadata.VideoId))
                 {
-                    // Update existing video metadata
-                    var existingVideo = channel.Videos.First(v => v.VideoId == videoMetadata.VideoId);
-                    existingVideo.Title = videoMetadata.Title;
-                    existingVideo.Description = videoMetadata.Description;
-                    existingVideo.Duration = videoMetadata.Duration;
-                    existingVideo.ViewCount = videoMetadata.ViewCount;
-                    existingVideo.LikeCount = videoMetadata.LikeCount;
-
-                    if (videoMetadata.Title == Constants.PrivateVideoTitle)
+                    // We don't want to overwrite metadata for videos that have been deleted or made private....
+                    if (videoMetadata.Title != Constants.DeletedVideoTitle &&
+                        videoMetadata.Title != Constants.PrivateVideoTitle)
                     {
-                        existingVideo.NeedsMetadataReview = true;
-                    }
+                        // Update existing video metadata
+                        var existingVideo = channel.Videos.First(v => v.VideoId == videoMetadata.VideoId);
+                        existingVideo.Title = videoMetadata.Title;
+                        existingVideo.Description = videoMetadata.Description;
+                        existingVideo.Duration = videoMetadata.Duration;
+                        existingVideo.ViewCount = videoMetadata.ViewCount;
+                        existingVideo.LikeCount = videoMetadata.LikeCount;
 
-                    // Only download thumbnail if not already stored as a data URL
-                    if (!existingVideo.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
-                    {
-                        existingVideo.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
-                            videoMetadata.ThumbnailUrl, videoThumbnailDir, existingVideo.VideoId, cancellationToken)
-                            ?? videoMetadata.ThumbnailUrl;
-                    }
+                        // Only download thumbnail if not already stored as a data URL
+                        if (!existingVideo.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
+                        {
+                            existingVideo.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
+                                videoMetadata.ThumbnailUrl, videoThumbnailDir, existingVideo.VideoId, cancellationToken)
+                                ?? videoMetadata.ThumbnailUrl;
+                        }
 
-                    videoUpdates.Add(existingVideo);
+                        videoUpdates.Add(existingVideo);
+                    }
                 }
                 else
                 {

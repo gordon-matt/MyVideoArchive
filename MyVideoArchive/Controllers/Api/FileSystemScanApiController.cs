@@ -156,9 +156,17 @@ public class FileSystemScanApiController : ControllerBase
             }
 
             var metadata = await provider.GetVideoMetadataAsync(video.VideoId, cancellationToken);
-            if (metadata is null)
+            if (metadata is null || metadata.Title == Constants.PrivateVideoTitle)
             {
                 return Ok(new { success = false, message = "Metadata still unavailable from platform" });
+            }
+
+            if (metadata.Title == Constants.DeletedVideoTitle)
+            {
+                // TODO: We need a way to mark videos as deleted, so we can display in UI
+                video.NeedsMetadataReview = false;
+                await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+                return Ok(new { success = false, message = "Video was deleted from platform" });
             }
 
             video.Title = metadata.Title;
@@ -170,7 +178,6 @@ public class FileSystemScanApiController : ControllerBase
             video.LikeCount = metadata.LikeCount;
             video.Url = metadata.Url;
             video.NeedsMetadataReview = false;
-
             await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
 
             logger.LogInformation("Successfully fetched metadata for video {VideoId}", videoId);

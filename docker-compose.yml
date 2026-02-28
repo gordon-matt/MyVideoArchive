@@ -12,6 +12,9 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=myvideoarchive;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
+      # Optional: initial admin created on first run (defaults: admin@myvideoarchive.local / Admin@123)
+      # SeedAdmin__Email: admin@example.com
+      # SeedAdmin__Password: "${ADMIN_PASSWORD}"
       # Linux path for downloads; override in appsettings on Windows
       VideoDownload__VideoQuality: bestvideo[height=720]+bestaudio/bestvideo[height=720]+bestaudio/bestvideo[height=480]+bestaudio/best
       VideoDownload__OutputPath: /app/data

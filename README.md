@@ -31,4 +31,6 @@ For now, just run it as you would any standard .NET app. I will build an officia
 
 - **Docker**: The container reads settings from environment variables in `docker-compose.yml` or from a `.env` file.
 
+- **Initial admin user**: On first run, an admin user is seeded. Configure via `SeedAdmin:Email` and `SeedAdmin:Password` (User Secrets or appsettings) or `SeedAdmin__Email` and `SeedAdmin__Password` (environment/Docker). Defaults: `admin@myvideoarchive.local` / `Admin@123`.
+
 **NOTE:** The application will automatically download yt-dlp and ffmpeg binaries on first run.

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 
 namespace MyVideoArchive.Data;
 
@@ -7,10 +8,17 @@ namespace MyVideoArchive.Data;
 /// </summary>
 public static class DbInitializer
 {
+    /// <summary>
+    /// Configuration keys for initial admin user (override via User Secrets or env e.g. SeedAdmin__Email, SeedAdmin__Password).
+    /// </summary>
+    public const string SeedAdminEmailKey = "SeedAdmin:Email";
+    public const string SeedAdminPasswordKey = "SeedAdmin:Password";
+
     public static async Task InitializeAsync(
         ApplicationDbContext context,
         UserManager<ApplicationUser> userManager,
-        RoleManager<ApplicationRole> roleManager)
+        RoleManager<ApplicationRole> roleManager,
+        IConfiguration configuration)
     {
         // Ensure database is created
         await context.Database.MigrateAsync();
@@ -20,7 +28,7 @@ public static class DbInitializer
         if (isFirstRun)
         {
             // Seed default admin user
-            await SeedAdminUserAsync(userManager);
+            await SeedAdminUserAsync(userManager, configuration);
         }
     }
 
@@ -42,10 +50,15 @@ public static class DbInitializer
         return isFirstRun;
     }
 
-    private static async Task SeedAdminUserAsync(UserManager<ApplicationUser> userManager)
+    private static async Task SeedAdminUserAsync(UserManager<ApplicationUser> userManager, IConfiguration configuration)
     {
-        const string adminEmail = "admin@myvideoarchive.local";
-        const string adminPassword = "Admin@123"; // Change this in production!
+        string adminEmail = string.IsNullOrEmpty(configuration[SeedAdminEmailKey])
+            ? "admin@myvideoarchive.local"
+            : configuration[SeedAdminEmailKey]!;
+            
+        string adminPassword = string.IsNullOrEmpty(configuration[SeedAdminPasswordKey])
+            ? "Admin@123"
+            : configuration[SeedAdminPasswordKey]!;
 
         var adminUser = await userManager.FindByEmailAsync(adminEmail);
 
