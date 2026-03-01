@@ -145,7 +145,7 @@ class ChannelDetailsViewModel {
                         const watchedSet = new Set(watchedData.watchedIds || []);
                         this.videos().forEach(v => v.watched(watchedSet.has(v.id)));
                     })
-                    .catch(() => {});
+                    .catch(() => { });
             }
         } catch (error) {
             console.error('Error loading downloaded videos:', error);
@@ -180,8 +180,9 @@ class ChannelDetailsViewModel {
         await this.loadVideos();
     };
 
-    setVideoViewMode = (mode) => {
+    setVideoViewMode = async (mode) => {
         this.videoViewMode(mode);
+        await this._saveViewModeSettings();
     };
 
     // Videos pagination
@@ -436,8 +437,37 @@ class ChannelDetailsViewModel {
         await this.loadAvailableVideos();
     };
 
-    setAvailableViewMode = (mode) => {
+    setAvailableViewMode = async (mode) => {
         this.availableViewMode(mode);
+        await this._saveViewModeSettings();
+    };
+
+    loadUserSettings = async () => {
+        try {
+            const response = await fetch('/api/user/settings');
+            if (response.ok) {
+                const settings = await response.json();
+                this.videoViewMode(settings.videosTabViewMode || 'list');
+                this.availableViewMode(settings.availableTabViewMode || 'list');
+            }
+        } catch (error) {
+            console.error('Error loading user settings:', error);
+        }
+    };
+
+    _saveViewModeSettings = async () => {
+        try {
+            await fetch('/api/user/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    videosTabViewMode: this.videoViewMode(),
+                    availableTabViewMode: this.availableViewMode()
+                })
+            });
+        } catch (error) {
+            console.error('Error saving user settings:', error);
+        }
     };
 
     // ── Playlists tab ─────────────────────────────────────────────────────────
@@ -576,6 +606,7 @@ var viewModel;
 document.addEventListener('DOMContentLoaded', async () => {
     viewModel = new ChannelDetailsViewModel(channelId);
     ko.applyBindings(viewModel);
+    await viewModel.loadUserSettings();
     await viewModel.loadChannel();
     await viewModel.loadVideos();
     await viewModel.loadSubscribedPlaylists();

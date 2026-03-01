@@ -128,26 +128,16 @@
             <!-- /ko -->
         </div>
 
-        <!-- Videos pagination -->
-        <nav aria-label="Videos pagination" data-bind="visible: !loading() && videosTotalPages() > 1" class="mt-3">
-            <ul class="pagination justify-content-center">
-                <li class="page-item" data-bind="css: { disabled: videosCurrentPage() === 1 }">
-                    <a class="page-link" href="#" data-bind="click: videosPreviousPage">Previous</a>
-                </li>
-                <!-- ko foreach: videosPageNumbers -->
-                <li class="page-item" data-bind="css: { active: $data === $parent.videosCurrentPage() }">
-                    <a class="page-link" href="#" data-bind="text: $data, click: function() { $parent.videosGoToPage($data); }"></a>
-                </li>
-                <!-- /ko -->
-                <li class="page-item" data-bind="css: { disabled: videosCurrentPage() === videosTotalPages() }">
-                    <a class="page-link" href="#" data-bind="click: videosNextPage">Next</a>
-                </li>
-            </ul>
-            <p class="text-center text-muted small">
-                Page <span data-bind="text: videosCurrentPage"></span> of <span data-bind="text: videosTotalPages"></span>
-                (<span data-bind="text: videosTotalCount"></span> total)
-            </p>
-        </nav>
+        @await Html.PartialAsync("_Pager", new MyVideoArchive.Models.PagerViewModel(
+            AriaLabel: "Videos pagination",
+            CurrentPageExpr: "videosCurrentPage",
+            TotalPagesExpr: "videosTotalPages",
+            TotalCountExpr: "videosTotalCount",
+            PageNumbersExpr: "videosPageNumbers",
+            PreviousPageFn: "videosPreviousPage",
+            NextPageFn: "videosNextPage",
+            GoToPageFn: "videosGoToPage",
+            ItemLabel: "videos"))
     </div>
 
     <!-- ── Playlists tab ──────────────────────────────────────────────────── -->
@@ -201,26 +191,16 @@
             <!-- /ko -->
         </div>
 
-        <!-- Playlists pagination -->
-        <nav aria-label="Playlists pagination" data-bind="visible: !playlistsLoading() && playlistsTotalPages() > 1" class="mt-3">
-            <ul class="pagination justify-content-center">
-                <li class="page-item" data-bind="css: { disabled: playlistsCurrentPage() === 1 }">
-                    <a class="page-link" href="#" data-bind="click: playlistsPreviousPage">Previous</a>
-                </li>
-                <!-- ko foreach: playlistsPageNumbers -->
-                <li class="page-item" data-bind="css: { active: $data === $parent.playlistsCurrentPage() }">
-                    <a class="page-link" href="#" data-bind="text: $data, click: function() { $parent.playlistsGoToPage($data); }"></a>
-                </li>
-                <!-- /ko -->
-                <li class="page-item" data-bind="css: { disabled: playlistsCurrentPage() === playlistsTotalPages() }">
-                    <a class="page-link" href="#" data-bind="click: playlistsNextPage">Next</a>
-                </li>
-            </ul>
-            <p class="text-center text-muted small">
-                Page <span data-bind="text: playlistsCurrentPage"></span> of <span data-bind="text: playlistsTotalPages"></span>
-                (<span data-bind="text: playlistsTotalCount"></span> total playlists)
-            </p>
-        </nav>
+        @await Html.PartialAsync("_Pager", new MyVideoArchive.Models.PagerViewModel(
+            AriaLabel: "Playlists pagination",
+            CurrentPageExpr: "playlistsCurrentPage",
+            TotalPagesExpr: "playlistsTotalPages",
+            TotalCountExpr: "playlistsTotalCount",
+            PageNumbersExpr: "playlistsPageNumbers",
+            PreviousPageFn: "playlistsPreviousPage",
+            NextPageFn: "playlistsNextPage",
+            GoToPageFn: "playlistsGoToPage",
+            ItemLabel: "playlists"))
     </div>
 </div>
 

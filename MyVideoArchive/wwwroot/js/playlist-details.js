@@ -10,7 +10,12 @@ class PlaylistDetailsViewModel {
         this.loading = ko.observable(true);
         this.loadingVideos = ko.observable(false);
         this.useCustomOrder = ko.observable(false);
+        this.showHidden = ko.observable(false);
         this.sortableInstance = null;
+
+        this.visibleVideoCount = ko.computed(() =>
+            this.playlistVideos().filter(v => !v.isHidden).length
+        );
 
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
@@ -19,14 +24,12 @@ class PlaylistDetailsViewModel {
 
     loadPlaylist = async () => {
         try {
-            const response = await fetch(`/odata/PlaylistOData(${this.playlistId})?$expand=Channel`);
+            // Load order setting and playlist data in parallel
+            const [, orderSetting] = await Promise.all([
+                this._fetchPlaylist(),
+                this._loadOrderSetting()
+            ]);
 
-            if (!response.ok) {
-                throw new Error('Playlist not found');
-            }
-
-            const data = await response.json();
-            this.playlist(data);
             this.loading(false);
             await this.loadPlaylistVideos();
         } catch (error) {
@@ -35,10 +38,27 @@ class PlaylistDetailsViewModel {
         }
     };
 
+    _fetchPlaylist = async () => {
+        const response = await fetch(`/odata/PlaylistOData(${this.playlistId})?$expand=Channel`);
+        if (!response.ok) throw new Error('Playlist not found');
+        this.playlist(await response.json());
+    };
+
+    _loadOrderSetting = async () => {
+        try {
+            const response = await fetch(`/api/playlists/${this.playlistId}/order-setting`);
+            if (response.ok) {
+                const data = await response.json();
+                this.useCustomOrder(data.useCustomOrder);
+            }
+        } catch (error) {
+            console.error('Error loading order setting:', error);
+        }
+    };
+
     loadPlaylistVideos = async () => {
         this.loadingVideos(true);
 
-        // Load playlist
         await fetch(`/odata/PlaylistOData(${this.playlistId})?$expand=Channel`)
             .then(response => response.json())
             .then(playlistData => {
@@ -48,12 +68,9 @@ class PlaylistDetailsViewModel {
                 console.error('Error loading playlist:', error);
             });
 
-        // Load videos with proper ordering
-        await fetch(`/api/playlists/${this.playlistId}/videos?useCustomOrder=${this.useCustomOrder()}`)
+        await fetch(`/api/playlists/${this.playlistId}/videos?useCustomOrder=${this.useCustomOrder()}&showHidden=${this.showHidden()}`)
             .then(response => response.json())
             .then(async data => {
-                // Initialise watched as a plain boolean on every video before setting
-                // the observable array so the KO binding is always defined on render.
                 const videos = (data.videos || []).map(v => {
                     v.watched = false;
                     return v;
@@ -61,7 +78,6 @@ class PlaylistDetailsViewModel {
                 this.playlistVideos(videos);
                 this.loadingVideos(false);
 
-                // Load watched status and update
                 if (videos.length > 0) {
                     try {
                         const params = new URLSearchParams();
@@ -78,14 +94,12 @@ class PlaylistDetailsViewModel {
                     }
                 }
 
-                // Initialize drag-drop after data is loaded
                 setTimeout(() => {
                     this.initializeSortable();
                 }, 100);
 
-                // Auto-play first downloaded video (only on initial load, not after reorder)
                 if (this.playlistVideos().length > 0 && !this.currentVideo()) {
-                    var firstDownloaded = this.playlistVideos().find(function (v) { return v.downloadedAt; });
+                    var firstDownloaded = this.playlistVideos().find(function (v) { return v.downloadedAt && !v.isHidden; });
                     if (firstDownloaded) {
                         this.playVideo(firstDownloaded);
                     }
@@ -98,14 +112,13 @@ class PlaylistDetailsViewModel {
     };
 
     playVideo = async (video) => {
-        if (!video.downloadedAt) {
-            return; // Just don't play if not downloaded, don't show alert
+        if (!video.downloadedAt || video.isHidden) {
+            return;
         }
 
         this.currentVideo(video);
         this.currentVideoUrl(`/api/videos/${video.id}/stream`);
 
-        // Mark as watched
         try {
             await fetch(`/api/user/videos/${video.id}/watched`, { method: 'POST' });
             video.watched = true;
@@ -113,12 +126,11 @@ class PlaylistDetailsViewModel {
             console.error('Error marking video as watched:', error);
         }
 
-        // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     downloadVideo = async (video, event) => {
-        event.stopPropagation(); // Prevent triggering playVideo
+        event.stopPropagation();
 
         if (video.isQueued) {
             alert('This video is already queued for download.');
@@ -145,17 +157,44 @@ class PlaylistDetailsViewModel {
         }
     };
 
+    hideVideo = async (video) => {
+        try {
+            await fetch(`/api/playlists/${this.playlistId}/videos/${video.id}/hidden`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isHidden: true })
+            });
+            await this.loadPlaylistVideos();
+        } catch (error) {
+            console.error('Error hiding video:', error);
+        }
+    };
+
+    unhideVideo = async (video) => {
+        try {
+            await fetch(`/api/playlists/${this.playlistId}/videos/${video.id}/hidden`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isHidden: false })
+            });
+            await this.loadPlaylistVideos();
+        } catch (error) {
+            console.error('Error unhiding video:', error);
+        }
+    };
+
+    toggleShowHidden = () => {
+        // KO checked binding already toggled the value; reload to apply
+        this.loadPlaylistVideos();
+        return true;
+    };
+
     toggleOrderMode = () => {
-        // The checked binding already toggles the value
-        var isNowCustomOrder = this.useCustomOrder(); // Get the NEW value (after toggle)
+        var isNowCustomOrder = this.useCustomOrder();
 
         if (!isNowCustomOrder) {
-            // Switching FROM custom TO original - delete custom orders and reload
             this.clearCustomOrder();
         } else {
-            // Switching FROM original TO custom
-            // If there's no saved custom order, create one with current order
-            // Otherwise, just reload to get the saved custom order
             this.enableCustomOrder();
         }
 
@@ -165,25 +204,20 @@ class PlaylistDetailsViewModel {
     enableCustomOrder = async () => {
         try {
             const response = await fetch(`/api/playlists/${this.playlistId}/order-setting`);
-
             const data = await response.json();
 
-            if (!data.useCustomOrder) {
-                // No custom order exists, save current order
+            if (!data.hasCustomOrder) {
                 await this.saveCustomOrder(true);
             } else {
-                // Custom order exists, reload to show it
                 await this.loadPlaylistVideos();
             }
         } catch (error) {
             console.error('Error checking custom order:', error);
-            // Just save current order as fallback
             await this.saveCustomOrder(true);
         }
     };
 
     clearCustomOrder = async () => {
-        // Delete custom orders by saving with useCustomOrder: false
         await this.saveCustomOrder(true);
     };
 
@@ -191,18 +225,15 @@ class PlaylistDetailsViewModel {
         var container = document.getElementById('videoListContainer');
         if (!container) return;
 
-        // Destroy existing instance if any
         if (this.sortableInstance) {
             this.sortableInstance.destroy();
         }
 
-        // Create new Sortable instance
         this.sortableInstance = new Sortable(container, {
             handle: '.drag-handle',
             animation: 150,
             disabled: !this.useCustomOrder(),
             onEnd: async (evt) => {
-                // Get the new order from the DOM
                 var items = container.querySelectorAll('.playlist-video-item');
                 var newOrder = [];
 
@@ -214,10 +245,7 @@ class PlaylistDetailsViewModel {
                     }
                 });
 
-                // Update the observable array with the new order
                 this.playlistVideos(newOrder);
-
-                // Save the new order
                 await this.saveCustomOrder();
             }
         });
@@ -227,13 +255,15 @@ class PlaylistDetailsViewModel {
         var videoOrders = [];
 
         if (this.useCustomOrder()) {
-            // Build the order array
-            videoOrders = this.playlistVideos().map(function (video, index) {
-                return {
-                    videoId: video.id,
-                    order: index + 1
-                };
-            });
+            // Only include visible (non-hidden) videos in the order
+            videoOrders = this.playlistVideos()
+                .filter(v => !v.isHidden)
+                .map(function (video, index) {
+                    return {
+                        videoId: video.id,
+                        order: index + 1
+                    };
+                });
         }
 
         try {
@@ -252,14 +282,10 @@ class PlaylistDetailsViewModel {
                 });
             }
 
-            const data = await response.json();
-
-            // Update sortable state
             if (this.sortableInstance) {
                 this.sortableInstance.option('disabled', !this.useCustomOrder());
             }
 
-            // Reload videos if requested (when toggling order mode)
             if (reloadAfterSave) {
                 await this.loadPlaylistVideos();
             }

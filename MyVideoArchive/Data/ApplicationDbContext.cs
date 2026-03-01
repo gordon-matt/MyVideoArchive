@@ -12,7 +12,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<UserPlaylist> UserPlaylists { get; set; }
 
-    public DbSet<UserVideoOrder> UserVideoOrders { get; set; }
+    public DbSet<UserPlaylistVideo> UserPlaylistVideos { get; set; }
+
+    public DbSet<UserSettingsEntry> UserSettings { get; set; }
 
     public DbSet<UserVideo> UserVideos { get; set; }
 

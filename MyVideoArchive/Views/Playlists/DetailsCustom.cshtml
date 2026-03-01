@@ -60,19 +60,27 @@
                     <div class="card-body">
                         <p class="text-muted small mb-2" data-bind="text: playlist() && playlist().Description"></p>
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span><strong><span data-bind="text: playlistVideos().length"></span></strong> videos</span>
+                            <span><strong><span data-bind="text: visibleVideoCount()"></span></strong> videos</span>
                             <a data-bind="attr: { href: '/channels/' + (playlist() && playlist().ChannelId) }" class="btn btn-sm btn-outline-secondary">View Channel</a>
                         </div>
 
                         <!-- Order Toggle -->
-                        <div class="form-check form-switch">
+                        <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="useCustomOrderSwitch" data-bind="checked: useCustomOrder, click: toggleOrderMode">
                             <label class="form-check-label" for="useCustomOrderSwitch">
                                 <span data-bind="text: useCustomOrder() ? 'My Custom Order' : 'Original Order'"></span>
                             </label>
                         </div>
-                        <div data-bind="visible: useCustomOrder" class="mt-2">
+                        <div data-bind="visible: useCustomOrder" class="mb-2">
                             <small class="text-muted"><i class="bi bi-info-circle"></i> Drag videos to reorder</small>
+                        </div>
+
+                        <!-- Show Hidden Toggle -->
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showHiddenSwitch" data-bind="checked: showHidden, click: toggleShowHidden">
+                            <label class="form-check-label" for="showHiddenSwitch">
+                                Show Hidden Videos
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -94,9 +102,26 @@
                             <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/120x68?text=No+Thumbnail', alt: title }"
                                  class="playlist-video-thumbnail" />
                             <div class="playlist-video-info flex-grow-1">
-                                <div class="playlist-video-title" data-bind="text: title"></div>
+                                <div class="playlist-video-title">
+                                    <span data-bind="text: title"></span>
+                                    <!-- ko if: isHidden -->
+                                    <span class="badge bg-warning text-dark ms-1">Hidden</span>
+                                    <!-- /ko -->
+                                </div>
                                 <!-- ko if: duration -->
                                 <small class="text-muted" data-bind="text: $parent.formatDuration(duration)"></small>
+                                <!-- /ko -->
+                            </div>
+                            <div class="d-flex flex-column gap-1 ms-2" onclick="event.stopPropagation()">
+                                <!-- ko if: isHidden -->
+                                <button class="btn btn-sm btn-outline-warning" title="Unhide" data-bind="click: function(data, event) { event.stopPropagation(); $parent.unhideVideo(data); }">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <!-- /ko -->
+                                <!-- ko ifnot: isHidden -->
+                                <button class="btn btn-sm btn-outline-secondary" title="Hide" data-bind="click: function(data, event) { event.stopPropagation(); $parent.hideVideo(data); }">
+                                    <i class="bi bi-eye-slash"></i>
+                                </button>
                                 <!-- /ko -->
                             </div>
                         </div>

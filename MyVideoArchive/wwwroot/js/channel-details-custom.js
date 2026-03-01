@@ -124,8 +124,33 @@ class CustomChannelViewModel {
         await this.loadVideos();
     };
 
-    setVideoViewMode = (mode) => {
+    setVideoViewMode = async (mode) => {
         this.videoViewMode(mode);
+        await this._saveViewModeSettings();
+    };
+
+    loadUserSettings = async () => {
+        try {
+            const response = await fetch('/api/user/settings');
+            if (response.ok) {
+                const settings = await response.json();
+                this.videoViewMode(settings.videosTabViewMode || 'list');
+            }
+        } catch (error) {
+            console.error('Error loading user settings:', error);
+        }
+    };
+
+    _saveViewModeSettings = async () => {
+        try {
+            await fetch('/api/user/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videosTabViewMode: this.videoViewMode() })
+            });
+        } catch (error) {
+            console.error('Error saving user settings:', error);
+        }
     };
 
     // Videos pagination
@@ -404,6 +429,7 @@ class CustomChannelViewModel {
 document.addEventListener('DOMContentLoaded', async () => {
     const viewModel = new CustomChannelViewModel(channelId);
     ko.applyBindings(viewModel);
+    await viewModel.loadUserSettings();
     await viewModel.load();
 
     // Allow pressing Enter in the search box

@@ -10,7 +10,12 @@ class CustomPlaylistDetailsViewModel {
         this.loading = ko.observable(true);
         this.loadingVideos = ko.observable(false);
         this.useCustomOrder = ko.observable(false);
+        this.showHidden = ko.observable(false);
         this.sortableInstance = null;
+
+        this.visibleVideoCount = ko.computed(() =>
+            this.playlistVideos().filter(v => !v.isHidden).length
+        );
 
         // Edit playlist form
         this.editPlaylistName = ko.observable('');
@@ -22,11 +27,11 @@ class CustomPlaylistDetailsViewModel {
 
     loadPlaylist = async () => {
         try {
-            const response = await fetch(`/odata/PlaylistOData(${this.playlistId})?$expand=Channel`);
-            if (!response.ok) throw new Error('Playlist not found');
+            const [,] = await Promise.all([
+                this._fetchPlaylist(),
+                this._loadOrderSetting()
+            ]);
 
-            const data = await response.json();
-            this.playlist(data);
             this.loading(false);
             await this.loadPlaylistVideos();
         } catch (error) {
@@ -35,17 +40,37 @@ class CustomPlaylistDetailsViewModel {
         }
     };
 
+    _fetchPlaylist = async () => {
+        const response = await fetch(`/odata/PlaylistOData(${this.playlistId})?$expand=Channel`);
+        if (!response.ok) throw new Error('Playlist not found');
+        this.playlist(await response.json());
+    };
+
+    _loadOrderSetting = async () => {
+        try {
+            const response = await fetch(`/api/playlists/${this.playlistId}/order-setting`);
+            if (response.ok) {
+                const data = await response.json();
+                this.useCustomOrder(data.useCustomOrder);
+            }
+        } catch (error) {
+            console.error('Error loading order setting:', error);
+        }
+    };
+
     loadPlaylistVideos = async () => {
         this.loadingVideos(true);
         try {
-            const response = await fetch(`/api/playlists/${this.playlistId}/videos?useCustomOrder=${this.useCustomOrder()}`);
+            const response = await fetch(`/api/playlists/${this.playlistId}/videos?useCustomOrder=${this.useCustomOrder()}&showHidden=${this.showHidden()}`);
             const data = await response.json();
             this.playlistVideos(data.videos || []);
 
             setTimeout(() => this.initializeSortable(), 100);
 
-            const firstDownloaded = this.playlistVideos().find(v => v.downloadedAt);
-            if (firstDownloaded) this.playVideo(firstDownloaded);
+            if (!this.currentVideo()) {
+                const firstDownloaded = this.playlistVideos().find(v => v.downloadedAt && !v.isHidden);
+                if (firstDownloaded) this.playVideo(firstDownloaded);
+            }
         } catch (error) {
             console.error('Error loading videos:', error);
         } finally {
@@ -54,10 +79,41 @@ class CustomPlaylistDetailsViewModel {
     };
 
     playVideo = (video) => {
-        if (!video.downloadedAt) return;
+        if (!video.downloadedAt || video.isHidden) return;
         this.currentVideo(video);
         this.currentVideoUrl(`/api/videos/${video.id}/stream`);
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    hideVideo = async (video) => {
+        try {
+            await fetch(`/api/playlists/${this.playlistId}/videos/${video.id}/hidden`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isHidden: true })
+            });
+            await this.loadPlaylistVideos();
+        } catch (error) {
+            console.error('Error hiding video:', error);
+        }
+    };
+
+    unhideVideo = async (video) => {
+        try {
+            await fetch(`/api/playlists/${this.playlistId}/videos/${video.id}/hidden`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isHidden: false })
+            });
+            await this.loadPlaylistVideos();
+        } catch (error) {
+            console.error('Error unhiding video:', error);
+        }
+    };
+
+    toggleShowHidden = () => {
+        this.loadPlaylistVideos();
+        return true;
     };
 
     toggleOrderMode = () => {
@@ -74,7 +130,7 @@ class CustomPlaylistDetailsViewModel {
         try {
             const response = await fetch(`/api/playlists/${this.playlistId}/order-setting`);
             const data = await response.json();
-            if (!data.useCustomOrder) {
+            if (!data.hasCustomOrder) {
                 await this.saveCustomOrder(true);
             } else {
                 await this.loadPlaylistVideos();
@@ -113,7 +169,9 @@ class CustomPlaylistDetailsViewModel {
 
     saveCustomOrder = async (reloadAfterSave = false) => {
         const videoOrders = this.useCustomOrder()
-            ? this.playlistVideos().map((v, i) => ({ videoId: v.id, order: i + 1 }))
+            ? this.playlistVideos()
+                .filter(v => !v.isHidden)
+                .map((v, i) => ({ videoId: v.id, order: i + 1 }))
             : [];
 
         try {
@@ -155,7 +213,7 @@ class CustomPlaylistDetailsViewModel {
 
             if (response.ok) {
                 bootstrap.Modal.getInstance(document.getElementById('editPlaylistModal')).hide();
-                await this.loadPlaylist();
+                await this._fetchPlaylist();
             } else {
                 alert('Failed to update playlist. Please try again.');
             }

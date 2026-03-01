@@ -15,6 +15,8 @@ public class UserPlaylist : IEntity
 
     public DateTime SubscribedAt { get; set; }
 
+    public bool UseCustomOrder { get; set; }
+
     public ApplicationUser User { get; set; } = null!;
 
     public Playlist Playlist { get; set; } = null!;
@@ -42,6 +44,8 @@ public class UserPlaylistMap : IEntityTypeConfiguration<UserPlaylist>
             .WithMany()
             .HasForeignKey(up => up.PlaylistId)
             .OnDelete(DeleteBehavior.ClientNoAction);
+
+        builder.Property(m => m.UseCustomOrder).IsRequired();
 
         // Default value for SubscribedAt
         builder.Property(up => up.SubscribedAt)

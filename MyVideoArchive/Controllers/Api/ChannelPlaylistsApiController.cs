@@ -1,7 +1,5 @@
 using Hangfire;
-using Humanizer;
 using MyVideoArchive.Models.Api;
-using MyVideoArchive.Models.Metadata;
 
 namespace MyVideoArchive.Controllers.Api;
 
@@ -114,7 +112,7 @@ public class ChannelPlaylistsApiController : ControllerBase
                 CancellationToken = HttpContext.RequestAborted,
                 Query = predicate,
                 OrderBy = query => query
-                    .OrderByDescending(p => p.SubscribedAt)
+                    .OrderBy(p => p.SubscribedAt == default)
                     .ThenBy(p => p.Name),
                 PageNumber = page,
                 PageSize = pageSize
