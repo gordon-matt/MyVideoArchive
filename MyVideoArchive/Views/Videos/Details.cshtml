@@ -5,6 +5,7 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/video-details.css" />
+    <link rel="stylesheet" href="~/lib/yaireo/tagify/dist/tagify.min.css" />
 }
 
 <div class="container-fluid px-0">
@@ -35,6 +36,27 @@
     
     <div class="row mt-4" data-bind="visible: video()">
         <div class="col-12 col-lg-8">
+            <!-- Standalone video banner -->
+            <!-- ko if: isStandalone() && !standaloneInfo().isSubscribed -->
+            <div class="alert alert-info d-flex align-items-center justify-content-between mb-3">
+                <div>
+                    <i class="bi bi-collection-play me-2"></i>
+                    You have archived <strong data-bind="text: standaloneInfo().channelVideoCount"></strong>
+                    video<span data-bind="visible: standaloneInfo().channelVideoCount !== 1">s</span>
+                    from this channel.
+                </div>
+                <button class="btn btn-sm btn-primary ms-3"
+                        data-bind="click: subscribeToChannel, enable: !subscribing()">
+                    <span data-bind="visible: !subscribing()">
+                        <i class="bi bi-person-plus"></i> Subscribe
+                    </span>
+                    <span data-bind="visible: subscribing()">
+                        <span class="spinner-border spinner-border-sm"></span>
+                    </span>
+                </button>
+            </div>
+            <!-- /ko -->
+
             <!-- Manual import warning -->
             <!-- ko if: video() && ko.unwrap(video().NeedsMetadataReview) -->
             <div class="alert alert-danger d-flex align-items-center justify-content-between mb-3">
@@ -86,6 +108,18 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Tags -->
+            <div class="card mt-3">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h6 class="mb-0"><i class="bi bi-tags"></i> Tags</h6>
+                </div>
+                <div class="card-body">
+                    <input id="videoTagsInput" class="form-control" placeholder="Add tags..." />
+                    <div class="form-text">Press Enter or comma to add a tag. Changes are saved automatically.</div>
+                </div>
+            </div>
+
         </div>
         
         <div class="col-12 col-lg-4 mt-4 mt-lg-0">
@@ -121,10 +155,11 @@
                 </div>
             </div>
 
+            <!-- Channel playlists -->
             <!-- ko if: playlists().length > 0 -->
             <div class="card mt-3">
                 <div class="card-header">
-                    <h5 class="mb-0">Appears in Playlists</h5>
+                    <h5 class="mb-0"><i class="bi bi-collection"></i> Channel Playlists</h5>
                 </div>
                 <div class="card-body p-0">
                     <ul class="list-group list-group-flush">
@@ -140,11 +175,60 @@
                 </div>
             </div>
             <!-- /ko -->
+
+            <!-- My Playlists -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-collection-play"></i> My Playlists</h5>
+                </div>
+                <div class="card-body">
+                    <!-- ko if: videoInPlaylists().length > 0 -->
+                    <ul class="list-group list-group-flush mb-3">
+                        <!-- ko foreach: videoInPlaylists -->
+                        <li class="list-group-item d-flex align-items-center justify-content-between px-0">
+                            <a data-bind="attr: { href: '/my-playlists/' + id }, text: name"
+                               class="text-decoration-none fw-semibold"></a>
+                            <button class="btn btn-sm btn-outline-danger" title="Remove from this playlist"
+                                    data-bind="click: $parent.removeFromPlaylist">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </li>
+                        <!-- /ko -->
+                    </ul>
+                    <!-- /ko -->
+                    <!-- ko if: customPlaylists().length > 0 -->
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" data-bind="value: selectedPlaylistId,
+                            options: customPlaylists,
+                            optionsText: 'name',
+                            optionsValue: 'id',
+                            optionsCaption: 'Add to playlist...'">
+                        </select>
+                        <button class="btn btn-sm btn-outline-primary"
+                                data-bind="click: addToPlaylist, enable: selectedPlaylistId() && !addingToPlaylist()">
+                            <span data-bind="visible: !addingToPlaylist()"><i class="bi bi-plus"></i></span>
+                            <span data-bind="visible: addingToPlaylist()">
+                                <span class="spinner-border spinner-border-sm"></span>
+                            </span>
+                        </button>
+                    </div>
+                    <!-- /ko -->
+                    <!-- ko if: customPlaylists().length === 0 -->
+                    <p class="text-muted small mb-0">
+                        <a href="/my-playlists">Create a playlist</a> to start organising your videos.
+                    </p>
+                    <!-- /ko -->
+                    <div data-bind="visible: addToPlaylistMessage" class="mt-2">
+                        <small class="text-danger" data-bind="text: addToPlaylistMessage"></small>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 @section Scripts {
+    <script src="~/lib/yaireo/tagify/dist/tagify.min.js"></script>
     <script type="text/javascript">
         const videoId = @videoId;
     </script>

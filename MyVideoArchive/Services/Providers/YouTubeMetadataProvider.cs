@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using MyVideoArchive.Extensions;
 using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Services.Abstractions;
 using YoutubeDLSharp;
@@ -103,10 +104,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 Url = data.WebpageUrl ?? videoUrl,
                 ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
                 Duration = data.Duration.HasValue ? TimeSpan.FromSeconds(data.Duration.Value) : null,
-                UploadDate = data.UploadDate,
+                UploadDate = data.UploadDate.AsUtc(),
                 ViewCount = data.ViewCount.HasValue ? (int?)data.ViewCount : null,
                 LikeCount = data.LikeCount.HasValue ? (int?)data.LikeCount : null,
-                ChannelId = data.Channel ?? data.Uploader ?? data.ID ?? string.Empty,
+                ChannelId = data.ChannelID,
                 ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
                 Platform = PlatformName,
                 PlaylistId = null
@@ -213,10 +214,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                     Url = x.Url ?? string.Empty,
                     ThumbnailUrl = GetBestThumbnail(x.Thumbnails),
                     Duration = x.Duration.HasValue ? TimeSpan.FromSeconds(x.Duration.Value) : null,
-                    UploadDate = x.UploadDate,
+                    UploadDate = x.UploadDate.AsUtc(),
                     ViewCount = x.ViewCount.HasValue ? (int?)x.ViewCount : null,
                     LikeCount = x.LikeCount.HasValue ? (int?)x.LikeCount : null,
-                    ChannelId = x.Channel ?? x.Uploader ?? string.Empty,
+                    ChannelId = x.ChannelID,
                     ChannelName = x.Channel ?? x.Uploader ?? "Unknown Channel",
                     Platform = PlatformName,
                     PlaylistId = null
@@ -266,10 +267,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                     Url = x.Url ?? string.Empty,
                     ThumbnailUrl = GetBestThumbnail(x.Thumbnails),
                     Duration = x.Duration.HasValue ? TimeSpan.FromSeconds(x.Duration.Value) : null,
-                    UploadDate = x.UploadDate,
+                    UploadDate = x.UploadDate.AsUtc(),
                     ViewCount = x.ViewCount.HasValue ? (int?)x.ViewCount : null,
                     LikeCount = x.LikeCount.HasValue ? (int?)x.LikeCount : null,
-                    ChannelId = x.Channel ?? x.Uploader ?? string.Empty,
+                    ChannelId = x.ChannelID,
                     ChannelName = x.Channel ?? x.Uploader ?? "Unknown Channel",
                     Platform = PlatformName,
                     PlaylistId = null

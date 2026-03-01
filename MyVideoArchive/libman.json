@@ -33,6 +33,10 @@
     {
       "library": "bootswatch@5.3.8",
       "destination": "wwwroot/lib/bootswatch/"
+    },
+    {
+      "library": "@yaireo/tagify@4.36.0",
+      "destination": "wwwroot/lib/yaireo/tagify/"
     }
   ]
 }

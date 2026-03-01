@@ -1,0 +1,181 @@
+@{
+    ViewData["Title"] = "My Playlists";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/video-index.css" />
+}
+
+<div class="container-fluid">
+    <div class="row mb-3 align-items-center">
+        <div class="col">
+            <h2>My Playlists</h2>
+            <p class="text-muted mb-0">Your personal cross-channel playlists</p>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPlaylistModal">
+                <i class="bi bi-plus-circle"></i> New Playlist
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div data-bind="visible: loading" class="text-center py-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Empty state -->
+    <div data-bind="visible: !loading() && playlists().length === 0" class="alert alert-info">
+        <i class="bi bi-collection-play me-2"></i>
+        No playlists yet. Create your first one to start grouping videos across channels.
+    </div>
+
+    <!-- Playlist grid -->
+    <div data-bind="visible: !loading() && playlists().length > 0">
+        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
+            <!-- ko foreach: playlists -->
+            <div class="col">
+                <div class="card h-100 video-card">
+                    <div class="video-thumb-wrap" data-bind="click: $parent.openPlaylist">
+                        <!-- ko if: thumbnailUrl -->
+                        <img class="card-img-top video-thumb"
+                             data-bind="attr: { src: thumbnailUrl, alt: name }" />
+                        <!-- /ko -->
+                        <!-- ko ifnot: thumbnailUrl -->
+                        <div class="video-thumb-placeholder d-flex align-items-center justify-content-center bg-info-subtle text-info">
+                            <i class="bi bi-collection-play fs-1"></i>
+                        </div>
+                        <!-- /ko -->
+                        <span class="badge bg-dark video-duration"
+                              data-bind="text: videoCount + ' video' + (videoCount === 1 ? '' : 's')"></span>
+                    </div>
+                    <div class="card-body p-2" data-bind="click: $parent.openPlaylist">
+                        <p class="card-text video-title fw-semibold" data-bind="text: name"></p>
+                        <!-- ko if: description -->
+                        <p class="card-text text-muted small text-truncate" data-bind="text: description"></p>
+                        <!-- /ko -->
+                        <p class="card-text text-muted small" data-bind="text: $parent.formatDate(createdAt)"></p>
+                    </div>
+                    <div class="card-footer p-1 d-flex justify-content-end gap-1" onclick="event.stopPropagation()">
+                        <button class="btn btn-sm btn-outline-secondary" title="Edit"
+                                data-bind="click: $parent.openEditPlaylist">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" title="Delete"
+                                data-bind="click: $parent.deletePlaylist">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- /ko -->
+        </div>
+
+        <!-- Pager -->
+        @await Html.PartialAsync("_Pager", new MyVideoArchive.Models.PagerViewModel(
+            "Playlists pagination",
+            "currentPage", "totalPages", "totalCount", "pageNumbers",
+            "previousPage", "nextPage", "goToPage",
+            "playlists"))
+    </div>
+</div>
+
+<!-- Create Playlist Modal -->
+<div class="modal fade" id="createPlaylistModal" tabindex="-1" aria-labelledby="createPlaylistModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createPlaylistModalLabel">New Playlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" data-bind="value: newPlaylistName"
+                           placeholder="My Favourites" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="2" data-bind="value: newPlaylistDescription"
+                              placeholder="Optional description"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Thumbnail</label>
+                    <div id="newPlaylistDropZone"
+                         class="border rounded p-4 text-center position-relative"
+                         style="border-style: dashed !important; cursor: pointer; min-height: 120px;"
+                         data-bind="event: { dragover: onNewThumbnailDragOver, drop: onNewThumbnailDrop, click: triggerNewThumbnailInput }">
+                        <div data-bind="visible: !newPlaylistThumbnailPreview()">
+                            <i class="bi bi-cloud-arrow-up fs-1 text-muted"></i>
+                            <p class="text-muted mt-2 mb-0">Drag &amp; drop an image here, or click to browse</p>
+                            <small class="text-muted">JPG, PNG or WebP &mdash; max 10 MB</small>
+                        </div>
+                        <img data-bind="visible: newPlaylistThumbnailPreview(), attr: { src: newPlaylistThumbnailPreview }"
+                             style="max-width: 100%; max-height: 160px; object-fit: contain;" />
+                    </div>
+                    <input type="file" id="newPlaylistThumbnailInput" accept="image/*" style="display:none;"
+                           data-bind="event: { change: onNewThumbnailFileSelected }" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        data-bind="click: createPlaylist, enable: newPlaylistName().length > 0">
+                    Create
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Playlist Modal -->
+<div class="modal fade" id="editPlaylistModal" tabindex="-1" aria-labelledby="editPlaylistModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPlaylistModalLabel">Edit Playlist</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" data-bind="value: editPlaylistName" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="2" data-bind="value: editPlaylistDescription"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Thumbnail</label>
+                    <div id="editPlaylistDropZone"
+                         class="border rounded p-4 text-center position-relative"
+                         style="border-style: dashed !important; cursor: pointer; min-height: 120px;"
+                         data-bind="event: { dragover: onEditThumbnailDragOver, drop: onEditThumbnailDrop, click: triggerEditThumbnailInput }">
+                        <div data-bind="visible: !editPlaylistThumbnailPreview()">
+                            <i class="bi bi-cloud-arrow-up fs-1 text-muted"></i>
+                            <p class="text-muted mt-2 mb-0">Drag &amp; drop an image here, or click to browse</p>
+                            <small class="text-muted">JPG, PNG or WebP &mdash; max 10 MB</small>
+                        </div>
+                        <img data-bind="visible: editPlaylistThumbnailPreview(), attr: { src: editPlaylistThumbnailPreview }"
+                             style="max-width: 100%; max-height: 160px; object-fit: contain;" />
+                    </div>
+                    <input type="file" id="editPlaylistThumbnailInput" accept="image/*" style="display:none;"
+                           data-bind="event: { change: onEditThumbnailFileSelected }" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        data-bind="click: saveEditPlaylist, enable: editPlaylistName().length > 0">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/custom-playlist-index.js"></script>
+}

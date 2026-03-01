@@ -11,6 +11,9 @@ public class VideosController : Controller
         this.videoRepository = videoRepository;
     }
 
+    [Route("")]
+    public IActionResult Index() => View();
+
     [Route("{id}")]
     public async Task<IActionResult> Details(int id)
     {

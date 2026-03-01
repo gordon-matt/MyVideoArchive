@@ -8,16 +8,22 @@ public class VideoODataController : BaseODataController<Video, int>
 {
     private readonly IUserContextService userContextService;
     private readonly IRepository<UserChannel> userChannelRepository;
+    private readonly IRepository<Tag> tagRepository;
+    private readonly IRepository<VideoTag> videoTagRepository;
 
     public VideoODataController(
         IAuthorizationService authorizationService,
         IUserContextService userContextService,
         IRepository<Video> repository,
-        IRepository<UserChannel> userChannelRepository)
+        IRepository<UserChannel> userChannelRepository,
+        IRepository<Tag> tagRepository,
+        IRepository<VideoTag> videoTagRepository)
         : base(authorizationService, repository)
     {
         this.userContextService = userContextService;
         this.userChannelRepository = userChannelRepository;
+        this.tagRepository = tagRepository;
+        this.videoTagRepository = videoTagRepository;
     }
 
     protected override int GetId(Video entity) => entity.Id;
@@ -33,7 +39,7 @@ public class VideoODataController : BaseODataController<Video, int>
             return Unauthorized();
         }
 
-        var userId = userContextService.GetCurrentUserId();
+        string? userId = userContextService.GetCurrentUserId();
 
         var connection = GetDisposableConnection();
         var userChannelConnection = userChannelRepository.UseConnection(connection);
@@ -59,7 +65,27 @@ public class VideoODataController : BaseODataController<Video, int>
             return true;
         }
 
-        var userId = userContextService.GetCurrentUserId();
-        return await userChannelRepository.ExistsAsync(x => x.UserId == userId && x.ChannelId == entity.ChannelId);
+        string? userId = userContextService.GetCurrentUserId();
+        bool canView = await userChannelRepository.ExistsAsync(x =>
+            x.UserId == userId &&
+            x.ChannelId == entity.ChannelId);
+
+        if (!canView)
+        {
+            // Standalone videos (any download state)
+            int standaloneTagId = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+            {
+                Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
+            }, x => x.Id);
+
+            if (standaloneTagId > 0)
+            {
+                return await videoTagRepository.ExistsAsync(x =>
+                    x.VideoId == entity.Id &&
+                    x.TagId == standaloneTagId);
+            }
+        }
+
+        return canView;
     }
 }

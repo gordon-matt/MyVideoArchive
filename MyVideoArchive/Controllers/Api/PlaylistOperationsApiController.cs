@@ -1,3 +1,4 @@
+using Extenso;
 using MyVideoArchive.Models.Api;
 
 namespace MyVideoArchive.Controllers.Api;
@@ -284,7 +285,9 @@ public class PlaylistOperationsApiController : ControllerBase
             {
                 x.Video.Id,
                 x.Video.VideoId,
-                x.Video.Title,
+                Title = x.Video.Title.In(Constants.PrivateVideoTitle, Constants.DeletedVideoTitle)
+                    ? $"{x.Video.Title} - {x.Video.VideoId}"
+                    : x.Video.Title,
                 x.Video.Description,
                 x.Video.Url,
                 x.Video.ThumbnailUrl,

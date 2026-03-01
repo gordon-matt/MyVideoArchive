@@ -20,6 +20,7 @@ public class UserSettingsEntryMap : IEntityTypeConfiguration<UserSettingsEntry>
     {
         builder.ToTable("UserSettings", "app");
         builder.HasKey(m => m.Id);
+        builder.Property(m => m.UserId).IsRequired();
         builder.Property(m => m.VideosTabViewMode).IsRequired();
         builder.Property(m => m.AvailableTabViewMode).IsRequired();
 

@@ -1,0 +1,93 @@
+@{
+    ViewData["Title"] = "Playlist";
+    var playlistId = ViewBag.PlaylistId;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/video-index.css" />
+}
+
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-3 align-items-start" data-bind="visible: playlist()">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/my-playlists">My Playlists</a></li>
+                    <li class="breadcrumb-item active" data-bind="text: playlist() && playlist().name"></li>
+                </ol>
+            </nav>
+            <h2 data-bind="text: playlist() && playlist().name"></h2>
+            <!-- ko if: playlist() && playlist().description -->
+            <p class="text-muted" data-bind="text: playlist().description"></p>
+            <!-- /ko -->
+        </div>
+        <div class="col-auto">
+            <span class="text-muted small" data-bind="text: totalCount() + ' video' + (totalCount() === 1 ? '' : 's')"></span>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div data-bind="visible: loading" class="text-center py-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Empty state -->
+    <div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        This playlist is empty. Go to a video's detail page and use <strong>Add to Playlist</strong> to populate it.
+    </div>
+
+    <!-- Video grid -->
+    <div data-bind="visible: !loading() && videos().length > 0">
+        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
+            <!-- ko foreach: videos -->
+            <div class="col">
+                <div class="card h-100 video-card">
+                    <div class="video-thumb-wrap" data-bind="click: $parent.openVideo">
+                        <!-- ko if: video.thumbnailUrl -->
+                        <img class="card-img-top video-thumb"
+                             data-bind="attr: { src: video.thumbnailUrl, alt: video.title }" />
+                        <!-- /ko -->
+                        <!-- ko ifnot: video.thumbnailUrl -->
+                        <div class="video-thumb-placeholder d-flex align-items-center justify-content-center bg-secondary text-white">
+                            <i class="bi bi-play-circle fs-1"></i>
+                        </div>
+                        <!-- /ko -->
+                        <!-- ko if: video.duration -->
+                        <span class="badge bg-dark video-duration"
+                              data-bind="text: $parent.formatDuration(video.duration)"></span>
+                        <!-- /ko -->
+                    </div>
+                    <div class="card-body p-2" data-bind="click: $parent.openVideo">
+                        <p class="card-text video-title fw-semibold" data-bind="text: video.title"></p>
+                        <p class="card-text text-muted small" data-bind="text: video.channel && video.channel.name"></p>
+                    </div>
+                    <div class="card-footer p-1 text-end">
+                        <button class="btn btn-sm btn-outline-danger"
+                                data-bind="click: $parent.removeVideo" title="Remove from playlist">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- /ko -->
+        </div>
+
+        <!-- Pager -->
+        @await Html.PartialAsync("_Pager", new MyVideoArchive.Models.PagerViewModel(
+            "Videos pagination",
+            "currentPage", "totalPages", "totalCount", "pageNumbers",
+            "previousPage", "nextPage", "goToPage",
+            "videos"))
+    </div>
+</div>
+
+@section Scripts {
+    <script type="text/javascript">
+        const playlistId = @playlistId;
+    </script>
+    <script type="module" src="~/js/custom-playlist-details.js"></script>
+}

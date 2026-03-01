@@ -14,6 +14,9 @@ public class ChannelODataController : ODataController
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
+    private readonly IRepository<Video> videoRepository;
+    private readonly IRepository<Tag> tagRepository;
+    private readonly IRepository<VideoTag> videoTagRepository;
 
     public ChannelODataController(
         ILogger<ChannelODataController> logger,
@@ -21,7 +24,10 @@ public class ChannelODataController : ODataController
         VideoMetadataProviderFactory metadataProviderFactory,
         IBackgroundJobClient backgroundJobClient,
         IRepository<Channel> channelRepository,
-        IRepository<UserChannel> userChannelRepository)
+        IRepository<UserChannel> userChannelRepository,
+        IRepository<Video> videoRepository,
+        IRepository<Tag> tagRepository,
+        IRepository<VideoTag> videoTagRepository)
     {
         this.logger = logger;
         this.userContextService = userContextService;
@@ -29,6 +35,9 @@ public class ChannelODataController : ODataController
         this.metadataProviderFactory = metadataProviderFactory;
         this.channelRepository = channelRepository;
         this.userChannelRepository = userChannelRepository;
+        this.videoRepository = videoRepository;
+        this.tagRepository = tagRepository;
+        this.videoTagRepository = videoTagRepository;
     }
 
     [EnableQuery]
@@ -232,6 +241,9 @@ public class ChannelODataController : ODataController
                 }
             }
 
+            // Remove "standalone" tags from user's videos in this channel now that they're subscribed
+            await RemoveStandaloneTagsForChannelAsync(userId, channelDbId);
+
             // Queue sync job for the channel
             backgroundJobClient.Enqueue<ChannelSyncJob>(job => job.ExecuteAsync(channelDbId, CancellationToken.None));
 
@@ -247,6 +259,52 @@ public class ChannelODataController : ODataController
             }
 
             return StatusCode(500, "An error occurred while subscribing to the channel");
+        }
+    }
+
+    private async Task RemoveStandaloneTagsForChannelAsync(string userId, int channelDbId)
+    {
+        try
+        {
+            var standaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+            {
+                Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
+            });
+
+            if (standaloneTag is null) return;
+
+            // Get all video IDs in this channel
+            var videoIds = (await videoRepository.FindAsync(
+                new SearchOptions<Video> { Query = x => x.ChannelId == channelDbId },
+                x => x.Id)).ToList();
+
+            if (videoIds.Count == 0) return;
+
+            // Remove standalone VideoTag entries for those videos
+            var tagsToRemove = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>
+            {
+                Query = x => x.TagId == standaloneTag.Id && videoIds.Contains(x.VideoId)
+            });
+
+            foreach (var vt in tagsToRemove)
+            {
+                await videoTagRepository.DeleteAsync(vt);
+            }
+
+            if (logger.IsEnabled(LogLevel.Information) && tagsToRemove.Count > 0)
+            {
+                logger.LogInformation(
+                    "Removed standalone tags from {Count} video(s) in channel {ChannelId} for user {UserId}",
+                    tagsToRemove.Count, channelDbId, userId);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Failed to remove standalone tags for channel {ChannelId} user {UserId}",
+                    channelDbId, userId);
+            }
         }
     }
 

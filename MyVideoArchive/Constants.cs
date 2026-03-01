@@ -7,6 +7,8 @@ public static class Constants
     public const string DeletedVideoTitle = "[Deleted video]";
     public const string PrivateVideoTitle = "[Private video]";
 
+    public const string StandaloneTag = "standalone";
+
     public static class Roles
     {
         public const string Administrator = "Administrator";

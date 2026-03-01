@@ -15,9 +15,15 @@ class CustomVideoViewModel {
         this.editDuration = ko.observable('');
         this.editFilePath = ko.observable('');
 
-        // Playlist checkboxes
-        this.channelPlaylists = ko.observableArray([]);  // [{ Id, Name }]
-        this.editPlaylistIds = ko.observableArray([]);   // currently selected playlist IDs
+        // Channel playlist checkboxes (used in Playlists section)
+        this.channelPlaylists = ko.observableArray([]);
+        this.editPlaylistIds = ko.observableArray([]);
+
+        // My custom playlists
+        this.customPlaylists = ko.observableArray([]);
+        this.videoInPlaylists = ko.observableArray([]);
+        this.selectedPlaylistId = ko.observable('');
+        this.addingToPlaylist = ko.observable(false);
 
         // Thumbnail upload
         this.thumbnailFile = ko.observable(null);
@@ -27,6 +33,8 @@ class CustomVideoViewModel {
             const v = this.video();
             return v && v.FilePath && v.FilePath.length > 0;
         });
+
+        this._tagifyInstance = null;
 
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
@@ -42,20 +50,14 @@ class CustomVideoViewModel {
             if (data.FilePath) this.videoUrl(`/api/videos/${data.Id}/stream`);
             this.populateEditForm(data);
 
-            // Load channel playlists and current memberships in parallel
             if (data.ChannelId) {
                 const [playlistsRes, membershipRes] = await Promise.all([
                     fetch(`/api/custom/channels/${data.ChannelId}/playlists`),
                     fetch(`/api/custom/videos/${this.videoId}/playlists`)
                 ]);
 
-                if (playlistsRes.ok) {
-                    this.channelPlaylists(await playlistsRes.json());
-                }
-
-                if (membershipRes.ok) {
-                    this.editPlaylistIds(await membershipRes.json());
-                }
+                if (playlistsRes.ok) this.channelPlaylists(await playlistsRes.json());
+                if (membershipRes.ok) this.editPlaylistIds(await membershipRes.json());
             }
         } catch (error) {
             console.error('Error loading video:', error);
@@ -64,12 +66,81 @@ class CustomVideoViewModel {
         }
     };
 
+    loadCustomPlaylists = async () => {
+        try {
+            const response = await fetch('/api/custom-playlists?pageSize=100');
+            const data = await response.json();
+            this.customPlaylists(data.playlists || []);
+        } catch (error) {
+            console.error('Error loading custom playlists:', error);
+        }
+    };
+
+    loadVideoPlaylists = async () => {
+        try {
+            const response = await fetch(`/api/custom-playlists/for-video/${this.videoId}`);
+            const data = await response.json();
+            this.videoInPlaylists(data.playlists || []);
+        } catch (error) {
+            console.error('Error loading video playlists:', error);
+        }
+    };
+
+    initTags = async () => {
+        try {
+            const [tagsRes, videoTagsRes] = await Promise.all([
+                fetch('/api/tags'),
+                fetch(`/api/videos/${this.videoId}/tags`)
+            ]);
+
+            const allTagNames = tagsRes.ok
+                ? (await tagsRes.json()).tags?.map(t => t.name) ?? []
+                : [];
+            const currentTags = videoTagsRes.ok
+                ? (await videoTagsRes.json()).tags?.map(t => t.name) ?? []
+                : [];
+
+            const input = document.getElementById('videoTagsInput');
+            if (!input) return;
+
+            this._tagifyInstance = new Tagify(input, {
+                whitelist: allTagNames,
+                enforceWhitelist: false,
+                maxTags: 20,
+                dropdown: { maxItems: 20, classname: 'tags-look', enabled: 1, closeOnSelect: false }
+            });
+
+            if (currentTags.length > 0) this._tagifyInstance.addTags(currentTags);
+
+            let saveTimeout = null;
+            this._tagifyInstance.on('change', () => {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => this.saveTags(), 600);
+            });
+        } catch (error) {
+            console.error('Error initialising tags:', error);
+        }
+    };
+
+    saveTags = async () => {
+        if (!this._tagifyInstance) return;
+        const tagNames = this._tagifyInstance.value.map(t => t.value);
+        try {
+            await fetch(`/api/videos/${this.videoId}/tags`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tagNames })
+            });
+        } catch (error) {
+            console.error('Error saving tags:', error);
+        }
+    };
+
     populateEditForm = (video) => {
         this.editTitle(video.Title || '');
         this.editDescription(video.Description || '');
         this.editFilePath(video.FilePath || '');
         this.thumbnailFile(null);
-        // editPlaylistIds is populated separately after fetching memberships from the API
 
         if (video.UploadDate) {
             const d = new Date(video.UploadDate);
@@ -118,7 +189,7 @@ class CustomVideoViewModel {
                 body: JSON.stringify({
                     title: this.editTitle(),
                     description: this.editDescription() || null,
-                    thumbnailUrl: this.video()?.ThumbnailUrl ?? null, // preserve existing
+                    thumbnailUrl: this.video()?.ThumbnailUrl ?? null,
                     uploadDate: this.editUploadDate() ? new Date(this.editUploadDate()).toISOString() : null,
                     duration: this.hmsToDuration(this.editDuration()),
                     filePath: this.editFilePath() || null,
@@ -131,7 +202,6 @@ class CustomVideoViewModel {
                 return;
             }
 
-            // If a thumbnail file was chosen, upload it now
             if (this.thumbnailFile()) {
                 await this._uploadThumbnail();
             } else {
@@ -142,6 +212,61 @@ class CustomVideoViewModel {
         } catch (error) {
             console.error('Error saving metadata:', error);
             alert('Failed to save metadata.');
+        }
+    };
+
+    saveChannelPlaylistMemberships = async () => {
+        try {
+            await fetch(`/api/custom/videos/${this.videoId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: this.editTitle() || this.video()?.Title,
+                    description: this.editDescription() || this.video()?.Description || null,
+                    thumbnailUrl: this.video()?.ThumbnailUrl ?? null,
+                    uploadDate: this.video()?.UploadDate ?? null,
+                    duration: this.video()?.Duration ?? null,
+                    filePath: this.editFilePath() || this.video()?.FilePath || null,
+                    playlistIds: this.editPlaylistIds()
+                })
+            });
+        } catch (error) {
+            console.error('Error saving playlist memberships:', error);
+        }
+    };
+
+    addToPlaylist = async () => {
+        const playlistId = this.selectedPlaylistId();
+        if (!playlistId) return;
+
+        this.addingToPlaylist(true);
+        try {
+            const response = await fetch(`/api/custom-playlists/${playlistId}/videos/${this.videoId}`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                this.selectedPlaylistId('');
+                await this.loadVideoPlaylists();
+            }
+        } catch (error) {
+            console.error('Error adding to playlist:', error);
+        } finally {
+            this.addingToPlaylist(false);
+        }
+    };
+
+    removeFromPlaylist = async (playlist) => {
+        try {
+            const response = await fetch(`/api/custom-playlists/${playlist.id}/videos/${this.videoId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                this.videoInPlaylists.remove(playlist);
+            }
+        } catch (error) {
+            console.error('Error removing from playlist:', error);
         }
     };
 
@@ -168,7 +293,7 @@ class CustomVideoViewModel {
     onThumbnailFileSelected = (data, event) => {
         const file = event.target.files?.[0];
         if (file) this.thumbnailFile(file);
-        event.target.value = ''; // allow re-selecting same file
+        event.target.value = '';
     };
 
     _uploadThumbnail = async () => {
@@ -197,4 +322,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.viewModel = new CustomVideoViewModel(videoId);
     ko.applyBindings(window.viewModel);
     await window.viewModel.loadVideo();
+    await Promise.all([
+        window.viewModel.loadCustomPlaylists(),
+        window.viewModel.loadVideoPlaylists(),
+        window.viewModel.initTags()
+    ]);
 });

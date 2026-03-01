@@ -5,6 +5,7 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/video-details.css" />
+    <link rel="stylesheet" href="~/lib/yaireo/tagify/dist/tagify.min.css" />
 }
 
 <div class="container-fluid px-0">
@@ -59,6 +60,17 @@
                     <div class="description-box p-3 bg-light rounded" data-bind="if: video() && video().Description">
                         <p class="mb-0" data-bind="text: video().Description" style="white-space: pre-wrap;"></p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Tags -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-tags"></i> Tags</h6>
+                </div>
+                <div class="card-body">
+                    <input id="videoTagsInput" class="form-control" placeholder="Add tags..." />
+                    <div class="form-text">Press Enter or comma to add a tag. Changes are saved automatically.</div>
                 </div>
             </div>
 
@@ -123,19 +135,6 @@
                                placeholder="C:\Videos\my-video.mp4" />
                         <div class="form-text">Absolute path to the video file on disk.</div>
                     </div>
-                    <div class="mb-3" data-bind="visible: channelPlaylists().length > 0">
-                        <label class="form-label">Playlists</label>
-                        <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
-                            <!-- ko foreach: channelPlaylists -->
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input"
-                                       data-bind="checked: $parent.editPlaylistIds, checkedValue: id, attr: { id: 'playlist-' + id }" />
-                                <label class="form-check-label" data-bind="text: name, attr: { for: 'playlist-' + id }"></label>
-                            </div>
-                            <!-- /ko -->
-                        </div>
-                        <div class="form-text">Select which playlists in this channel contain this video.</div>
-                    </div>
                     <div class="d-flex gap-2">
                         <button class="btn btn-primary" data-bind="click: saveMetadata, enable: editTitle().length > 0">
                             <i class="bi bi-save"></i> Save
@@ -178,11 +177,81 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Playlists Section -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-collection-play"></i> Playlists</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Channel Playlists -->
+                    <div data-bind="visible: channelPlaylists().length > 0" class="mb-3">
+                        <h6 class="text-muted small text-uppercase fw-semibold mb-2">Channel Playlists</h6>
+                        <ul class="list-group list-group-flush">
+                            <!-- ko foreach: channelPlaylists -->
+                            <li class="list-group-item d-flex align-items-center gap-2 px-0">
+                                <input type="checkbox" class="form-check-input mt-0"
+                                       data-bind="checked: $parent.editPlaylistIds, checkedValue: id, attr: { id: 'cpl-' + id }" />
+
+                                <label><a data-bind="attr: { href: '/playlists/' + id }, text: name" class="text-decoration-none fw-semibold"></a> </label>
+                                @* <label class="form-check-label flex-grow-1" data-bind="text: name, attr: { for: 'cpl-' + id }"></label> *@
+                            </li>
+                            <!-- /ko -->
+                        </ul>
+                        <button class="btn btn-sm btn-outline-primary mt-2"
+                                data-bind="click: saveChannelPlaylistMemberships">
+                            <i class="bi bi-save"></i> Save
+                        </button>
+                    </div>
+
+                    <!-- My Playlists -->
+                    <div>
+                        <h6 class="text-muted small text-uppercase fw-semibold mb-2">My Playlists</h6>
+                        <!-- ko if: videoInPlaylists().length > 0 -->
+                        <ul class="list-group list-group-flush mb-2">
+                            <!-- ko foreach: videoInPlaylists -->
+                            <li class="list-group-item d-flex align-items-center justify-content-between px-0">
+                                <a data-bind="attr: { href: '/my-playlists/' + id }, text: name"
+                                   class="text-decoration-none fw-semibold"></a>
+                                <button class="btn btn-sm btn-outline-danger" title="Remove from this playlist"
+                                        data-bind="click: $parent.removeFromPlaylist">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </li>
+                            <!-- /ko -->
+                        </ul>
+                        <!-- /ko -->
+                        <!-- ko if: customPlaylists().length > 0 -->
+                        <div class="d-flex gap-2">
+                            <select class="form-select form-select-sm" data-bind="value: selectedPlaylistId,
+                                options: customPlaylists,
+                                optionsText: 'name',
+                                optionsValue: 'id',
+                                optionsCaption: 'Add to playlist...'">
+                            </select>
+                            <button class="btn btn-sm btn-outline-primary"
+                                    data-bind="click: addToPlaylist, enable: selectedPlaylistId() && !addingToPlaylist()">
+                                <span data-bind="visible: !addingToPlaylist()"><i class="bi bi-plus"></i></span>
+                                <span data-bind="visible: addingToPlaylist()">
+                                    <span class="spinner-border spinner-border-sm"></span>
+                                </span>
+                            </button>
+                        </div>
+                        <!-- /ko -->
+                        <!-- ko if: customPlaylists().length === 0 -->
+                        <p class="text-muted small mb-0">
+                            <a href="/my-playlists">Create a playlist</a> to start organising your videos.
+                        </p>
+                        <!-- /ko -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 @section Scripts {
+    <script src="~/lib/yaireo/tagify/dist/tagify.min.js"></script>
     <script type="text/javascript">
         const videoId = @videoId;
     </script>
