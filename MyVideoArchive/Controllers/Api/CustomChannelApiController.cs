@@ -685,9 +685,12 @@ public class CustomChannelApiController : ControllerBase
             string path = Path.Combine(directory, stem + ext);
             if (System.IO.File.Exists(path))
             {
-                string contentType = ext == ".png" ? "image/png"
-                    : ext == ".webp" ? "image/webp"
-                    : "image/jpeg";
+                string contentType = ext == ".png"
+                    ? "image/png"
+                    : ext == ".webp"
+                        ? "image/webp"
+                        : "image/jpeg";
+
                 return PhysicalFile(path, contentType);
             }
         }
