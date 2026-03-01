@@ -11,6 +11,11 @@ class ChannelsViewModel {
         this.customChannelName = ko.observable('');
         this.customChannelDescription = ko.observable('');
 
+        this.isAdmin = window.isAdminUser === true;
+        this.channelToDelete = ko.observable(null);
+        this.adminDeleteMetadata = ko.observable(false);
+        this.adminDeleteFiles = ko.observable(false);
+
         this.formatDate = formatDate;
 
         this.canSubmit = ko.computed(() => {
@@ -124,7 +129,48 @@ class ChannelsViewModel {
         window.location.href = `/channels/${channel.Id}`;
     };
 
-    deleteChannel = async (channel) => {
+    deleteChannel = (channel) => {
+        if (this.isAdmin) {
+            this.channelToDelete(channel);
+            this.adminDeleteMetadata(false);
+            this.adminDeleteFiles(false);
+            const modalEl = document.getElementById('adminDeleteChannelModal');
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        } else {
+            this._unsubscribeChannel(channel);
+        }
+    };
+
+    confirmAdminDelete = async () => {
+        const channel = this.channelToDelete();
+        if (!channel) return;
+
+        const deleteMetadata = this.adminDeleteMetadata();
+        const deleteFiles = this.adminDeleteFiles();
+
+        const params = new URLSearchParams({ deleteMetadata, deleteFiles });
+
+        const modalEl = document.getElementById('adminDeleteChannelModal');
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+
+        await fetch(`/api/channels/${channel.Id}?${params}`, {
+            method: 'DELETE'
+        })
+        .then(response => {
+            if (response.ok) {
+                this.channels.remove(channel);
+                this.channelToDelete(null);
+            } else {
+                alert('Failed to delete channel.');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting channel:', error);
+            alert('Failed to delete channel.');
+        });
+    };
+
+    _unsubscribeChannel = async (channel) => {
         if (!confirm(`Are you sure you want to unsubscribe from ${channel.Name}?`)) {
             return;
         }
@@ -136,12 +182,12 @@ class ChannelsViewModel {
             if (response.ok) {
                 this.channels.remove(channel);
             } else {
-                alert('Failed to delete channel.');
+                alert('Failed to unsubscribe from channel.');
             }
         })
         .catch(error => {
-            console.error('Error deleting channel:', error);
-            alert('Failed to delete channel.');
+            console.error('Error unsubscribing from channel:', error);
+            alert('Failed to unsubscribe from channel.');
         });
     };
 }

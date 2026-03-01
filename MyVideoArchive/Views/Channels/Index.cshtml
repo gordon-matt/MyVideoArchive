@@ -1,5 +1,7 @@
+@using MyVideoArchive
 @{
     ViewData["Title"] = "Channels";
+    bool isAdmin = User.IsInRole(Constants.Roles.Administrator);
 }
 
 @section Styles {
@@ -9,8 +11,8 @@
 <div class="container">
     <div class="row mb-3">
         <div class="col-8">
-            <h2>My Channels</h2>
-            <p class="text-muted">Channels you are subscribed to</p>
+            <h2>@(isAdmin ? "All Channels" : "My Channels")</h2>
+            <p class="text-muted">@(isAdmin ? "All channels in the archive" : "Channels you are subscribed to")</p>
         </div>
         <div class="col-4 text-end">
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addChannelModal">
@@ -102,7 +104,7 @@
     </div>
 
     <div data-bind="visible: !loading() && channels().length === 0" class="alert alert-info">
-        <p>No channels yet. Click "Add Channel" to subscribe to your first channel.</p>
+        <p>@(isAdmin ? "No channels in the archive yet." : "No channels yet. Click \"Add Channel\" to subscribe to your first channel.")</p>
     </div>
 
     <div data-bind="visible: !loading() && channels().length > 0">
@@ -121,16 +123,59 @@
                     </div>
                 </div>
                 <div class="channel-actions">
-                    <button class="btn btn-danger btn-sm" data-bind="click: $parent.deleteChannel" onclick="event.stopPropagation();">
-                        Unsubscribe
-                    </button>
+                    <button class="btn btn-danger btn-sm" data-bind="click: $parent.deleteChannel, text: $parent.isAdmin ? 'Delete' : 'Unsubscribe'" onclick="event.stopPropagation();"></button>
                 </div>
             </div>
         </div>
         <!-- /ko -->
     </div>
+
+    <!-- Admin Delete Channel Modal -->
+    <div class="modal fade" id="adminDeleteChannelModal" tabindex="-1" aria-labelledby="adminDeleteChannelModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="adminDeleteChannelModalLabel">Delete Channel</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to unsubscribe all users from <strong data-bind="text: channelToDelete() ? channelToDelete().Name : ''"></strong>?</p>
+                    <p class="fw-semibold">Actions:</p>
+                    <div class="mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="adminDeleteUnsubscribeAll" checked disabled>
+                            <label class="form-check-label" for="adminDeleteUnsubscribeAll">
+                                Unsubscribe all users
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="adminDeleteMetadata" data-bind="checked: adminDeleteMetadata">
+                            <label class="form-check-label" for="adminDeleteMetadata">
+                                Delete all metadata
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="adminDeleteFiles" data-bind="checked: adminDeleteFiles">
+                            <label class="form-check-label" for="adminDeleteFiles">
+                                Delete video files
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" data-bind="click: confirmAdminDelete">
+                        Confirm Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {
+    <script>
+        window.isAdminUser = @(isAdmin ? "true" : "false");
+    </script>
     <script type="module" src="~/js/channel-index.js"></script>
 }
