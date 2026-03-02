@@ -35,7 +35,7 @@ public class VideoService : IVideoService
 
             if (video is null)
             {
-                return Result.NotFound();
+                return Result.NotFound("Video not found");
             }
 
             if (!string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath))
@@ -58,7 +58,7 @@ public class VideoService : IVideoService
                 logger.LogError(ex, "Error deleting video file for video {VideoId}", videoId);
             }
 
-            return Result.Error();
+            return Result.Error("An error occurred while deleting the video file");
         }
     }
 
@@ -81,7 +81,7 @@ public class VideoService : IVideoService
 
             if (video is null)
             {
-                return Result.NotFound();
+                return Result.NotFound("Video not found");
             }
 
             video.IsIgnored = request.IsIgnored;
@@ -96,7 +96,7 @@ public class VideoService : IVideoService
                 logger.LogError(ex, "Error toggling ignore status for video {VideoId}", videoId);
             }
 
-            return Result.Error();
+            return Result.Error("An error occurred while updating video status");
         }
     }
 }

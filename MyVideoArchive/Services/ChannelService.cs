@@ -62,7 +62,7 @@ public class ChannelService : IChannelService
             var channel = await channelRepository.FindOneAsync(id);
             if (channel is null)
             {
-                return Result.NotFound();
+                return Result.NotFound("Channel not found");
             }
 
             // Always: remove all user subscriptions & related playlist/video associations for the channel
@@ -142,7 +142,7 @@ public class ChannelService : IChannelService
                 logger.LogError(ex, "Error performing admin delete for channel {ChannelId}", id);
             }
 
-            return Result.Error();
+            return Result.Error("An error occurred while deleting the channel");
         }
     }
 
@@ -170,7 +170,7 @@ public class ChannelService : IChannelService
 
             if (videos.Count == 0)
             {
-                return Result.NotFound();
+                return Result.NotFound("No videos found");
             }
 
             var videoUpdates = new List<Video>();
@@ -200,7 +200,7 @@ public class ChannelService : IChannelService
                 logger.LogError(ex, "Error queueing video downloads for channel {ChannelId}", channelId);
             }
 
-            return Result.Error();
+            return Result.Error("An error occurred while queueing downloads");
         }
     }
 
@@ -249,13 +249,12 @@ public class ChannelService : IChannelService
                 logger.LogError(ex, "Error queueing all video downloads for channel {ChannelId}", channelId);
             }
 
-            return Result.Error();
+            return Result.Error("An error occurred while queueing downloads");
         }
     }
 
-    public async Task<Result<IPagedCollection<TResult>>> GetAvailableVideosAsync<TResult>(
+    public async Task<Result<IPagedCollection<AvailableVideo>>> GetAvailableVideosAsync(
         int channelId,
-        Expression<Func<Video, TResult>> projection,
         int page = 1,
         int pageSize = 20,
         bool showIgnored = false,
@@ -273,7 +272,7 @@ public class ChannelService : IChannelService
             var channel = await channelRepository.FindOneAsync(channelId);
             if (channel is null)
             {
-                return Result.NotFound();
+                return Result.NotFound("Channel not found");
             }
 
             var predicate = PredicateBuilder.New<Video>(x => x.ChannelId == channelId);
@@ -304,7 +303,19 @@ public class ChannelService : IChannelService
                 OrderBy = query => query.OrderByDescending(x => x.UploadDate),
                 PageNumber = page,
                 PageSize = pageSize
-            }, projection);
+            }, x => new AvailableVideo(x.Id,
+                x.VideoId,
+                x.Title,
+                x.Description,
+                x.Url,
+                x.ThumbnailUrl,
+                x.Duration,
+                x.UploadDate,
+                x.ViewCount,
+                x.LikeCount,
+                x.DownloadedAt,
+                x.IsIgnored,
+                x.DownloadedAt != null));
 
             return Result.Success(videos);
         }
@@ -315,13 +326,12 @@ public class ChannelService : IChannelService
                 logger.LogError(ex, "Error retrieving available videos for channel {ChannelId}", channelId);
             }
 
-            return Result.Error();
+            return Result.Error("An error occurred while retrieving videos");
         }
     }
 
-    public async Task<Result<IPagedCollection<TResult>>> GetDownloadedVideosAsync<TResult>(
+    public async Task<Result<IPagedCollection<DownloadedVideo>>> GetDownloadedVideosAsync(
         int channelId,
-        Expression<Func<Video, TResult>> projection,
         int page = 1,
         int pageSize = 24,
         string? search = null,
@@ -338,7 +348,7 @@ public class ChannelService : IChannelService
             bool channelExists = await channelRepository.ExistsAsync(x => x.Id == channelId);
             if (!channelExists)
             {
-                return Result.NotFound();
+                return Result.NotFound("Channel not found");
             }
 
             var predicate = PredicateBuilder.New<Video>(x => x.ChannelId == channelId && x.DownloadedAt != null);
@@ -369,7 +379,14 @@ public class ChannelService : IChannelService
                 OrderBy = query => query.OrderByDescending(x => x.UploadDate),
                 PageNumber = page,
                 PageSize = pageSize
-            }, projection);
+            }, x => new DownloadedVideo(x.Id,
+                x.VideoId,
+                x.Title,
+                x.Url,
+                x.ThumbnailUrl,
+                x.Duration,
+                x.UploadDate,
+                x.DownloadedAt));
 
             return Result.Success(videos);
         }
@@ -380,7 +397,7 @@ public class ChannelService : IChannelService
                 logger.LogError(ex, "Error retrieving downloaded videos for channel {ChannelId}", channelId);
             }
 
-            return Result.Error();
+            return Result.Error("An error occurred while retrieving videos");
         }
     }
 
@@ -405,7 +422,7 @@ public class ChannelService : IChannelService
                 logger.LogError(ex, "Error queueing sync job for all channels");
             }
 
-            return Result.Error();
+            return Result.Error("An error occurred while queueing sync job for all channels");
         }
     }
 
@@ -424,3 +441,28 @@ public class ChannelService : IChannelService
                 x.ChannelId == channelId);
     }
 }
+
+public record AvailableVideo(
+    int Id,
+    string VideoId,
+    string Title,
+    string? Description,
+    string Url,
+    string? ThumbnailUrl,
+    TimeSpan? Duration,
+    DateTime? UploadDate,
+    int? ViewCount,
+    int? LikeCount,
+    DateTime? DownloadedAt,
+    bool IsIgnored,
+    bool IsDownloaded);
+
+public record DownloadedVideo(
+    int Id,
+    string VideoId,
+    string Title,
+    string Url,
+    string? ThumbnailUrl,
+    TimeSpan? Duration,
+    DateTime? UploadDate,
+    DateTime? DownloadedAt);

@@ -25,9 +25,8 @@ public interface IChannelService
     /// <summary>
     /// Get available videos for a channel (paginated)
     /// </summary>
-    Task<Result<IPagedCollection<TResult>>> GetAvailableVideosAsync<TResult>(
+    Task<Result<IPagedCollection<AvailableVideo>>> GetAvailableVideosAsync(
         int channelId,
-        Expression<Func<Video, TResult>> projection,
         int page = 1,
         int pageSize = 20,
         bool showIgnored = false,
@@ -37,9 +36,8 @@ public interface IChannelService
     /// <summary>
     /// Get downloaded videos for a channel with optional search and playlist filtering (paginated)
     /// </summary>
-    Task<Result<IPagedCollection<TResult>>> GetDownloadedVideosAsync<TResult>(
+    Task<Result<IPagedCollection<DownloadedVideo>>> GetDownloadedVideosAsync(
         int channelId,
-        Expression<Func<Video, TResult>> projection,
         int page = 1,
         int pageSize = 24,
         string? search = null,

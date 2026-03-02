@@ -5,6 +5,7 @@ global using Microsoft.AspNetCore.Authorization;
 global using Microsoft.AspNetCore.Mvc;
 global using Microsoft.EntityFrameworkCore;
 global using MyVideoArchive.Data.Entities;
+global using MyVideoArchive.Extensions;
 global using MyVideoArchive.Services;
 global using MyVideoArchive.Services.Content;
 global using MyVideoArchive.Services.Content.Providers;

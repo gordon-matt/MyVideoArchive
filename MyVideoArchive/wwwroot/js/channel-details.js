@@ -297,7 +297,7 @@ class ChannelDetailsViewModel {
         }
 
         try {
-            const response = await fetch(`/api/channels/${this.channelId}/videos/${video.Id}/file`, {
+            const response = await fetch(`/api/channels/${this.channelId}/videos/${video.id}/file`, {
                 method: 'DELETE'
             });
 

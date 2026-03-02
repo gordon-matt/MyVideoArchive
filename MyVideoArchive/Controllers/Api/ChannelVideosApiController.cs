@@ -1,4 +1,4 @@
-using Ardalis.Result;
+using Ardalis.Result.AspNetCore;
 using MyVideoArchive.Models.Api;
 
 namespace MyVideoArchive.Controllers.Api;
@@ -32,41 +32,23 @@ public class ChannelVideosApiController : ControllerBase
     {
         var result = await channelService.GetDownloadedVideosAsync(
             channelId,
-            x => new
-            {
-                x.Id,
-                x.VideoId,
-                x.Title,
-                x.Url,
-                x.ThumbnailUrl,
-                x.Duration,
-                x.UploadDate,
-                x.DownloadedAt
-            },
             page,
             pageSize,
             search,
             playlistId,
             HttpContext.RequestAborted);
 
-        return result.IsSuccess
-            ? Ok(new
+        return result.ToActionResult(this, value => Ok(new
+        {
+            videos = value,
+            pagination = new
             {
-                videos = result.Value,
-                pagination = new
-                {
-                    currentPage = page,
-                    pageSize,
-                    totalCount = result.Value.ItemCount,
-                    totalPages = result.Value.PageCount
-                }
-            })
-            : result.Status switch
-            {
-                ResultStatus.Forbidden => Forbid(),
-                ResultStatus.NotFound => NotFound(new { message = "Channel not found" }),
-                _ => StatusCode(500, new { message = "An error occurred while retrieving videos" })
-            };
+                currentPage = page,
+                pageSize,
+                totalCount = value.ItemCount,
+                totalPages = value.PageCount
+            }
+        }));
     }
 
     [HttpGet("available")]
@@ -79,46 +61,23 @@ public class ChannelVideosApiController : ControllerBase
     {
         var result = await channelService.GetAvailableVideosAsync(
             channelId,
-            x => new
-            {
-                x.Id,
-                x.VideoId,
-                x.Title,
-                x.Description,
-                x.Url,
-                x.ThumbnailUrl,
-                x.Duration,
-                x.UploadDate,
-                x.ViewCount,
-                x.LikeCount,
-                x.DownloadedAt,
-                x.IsIgnored,
-                IsDownloaded = x.DownloadedAt != null
-            },
             page,
             pageSize,
             showIgnored,
             search,
             HttpContext.RequestAborted);
 
-        return result.IsSuccess
-            ? Ok(new
+        return result.ToActionResult(this, value => Ok(new
+        {
+            videos = value,
+            pagination = new
             {
-                videos = result.Value,
-                pagination = new
-                {
-                    currentPage = page,
-                    pageSize,
-                    totalCount = result.Value.ItemCount,
-                    totalPages = result.Value.PageCount
-                }
-            })
-            : result.Status switch
-            {
-                ResultStatus.Forbidden => Forbid(),
-                ResultStatus.NotFound => NotFound(new { message = "Channel not found" }),
-                _ => StatusCode(500, new { message = "An error occurred while retrieving videos" })
-            };
+                currentPage = page,
+                pageSize,
+                totalCount = value.ItemCount,
+                totalPages = value.PageCount
+            }
+        }));
     }
 
     [HttpPost("download")]
@@ -126,19 +85,11 @@ public class ChannelVideosApiController : ControllerBase
     {
         var result = await channelService.DownloadVideosAsync(channelId, request);
 
-        return result.IsSuccess
-            ? Ok(new
-            {
-                message = $"Queued {result.Value} video(s) for download",
-                queuedCount = result.Value
-            })
-            : result.Status switch
-            {
-                ResultStatus.Forbidden => Forbid(),
-                ResultStatus.Invalid => BadRequest(new { message = result.ValidationErrors?.First()?.ErrorMessage }),
-                ResultStatus.NotFound => NotFound(new { message = "No videos found" }),
-                _ => StatusCode(500, new { message = "An error occurred while queueing downloads" })
-            };
+        return result.ToActionResult(this, value => Ok(new
+        {
+            message = $"Queued {value} video(s) for download",
+            queuedCount = value
+        }));
     }
 
     [HttpPost("download-all")]
@@ -146,20 +97,13 @@ public class ChannelVideosApiController : ControllerBase
     {
         var result = await channelService.DownloadAllVideosAsync(channelId);
 
-        return result.IsSuccess
-            ? result.Value == 0
-                ? Ok(new { message = "No videos available to download", queuedCount = 0 })
-                : Ok(new
-                {
-                    message = $"Queued {result.Value} video(s) for download",
-                    queuedCount = result.Value
-                })
-            : result.Status switch
+        return result.ToActionResult(this, value => Ok(value == 0
+            ? Ok(new { message = "No videos available to download", queuedCount = 0 })
+            : Ok(new
             {
-                ResultStatus.Forbidden => Forbid(),
-                ResultStatus.NotFound => NotFound(new { message = "No videos found" }),
-                _ => StatusCode(500, new { message = "An error occurred while queueing downloads" })
-            };
+                message = $"Queued {value} video(s) for download",
+                queuedCount = value
+            })));
     }
 
     [HttpDelete("{videoId}/file")]
@@ -167,14 +111,10 @@ public class ChannelVideosApiController : ControllerBase
     {
         var result = await videoService.DeleteVideoFileAsync(channelId, videoId);
 
-        return result.IsSuccess
-            ? Ok(new { message = "Video file deleted successfully" })
-            : result.Status switch
-            {
-                ResultStatus.Forbidden => Forbid(),
-                ResultStatus.NotFound => NotFound(new { message = "Video not found" }),
-                _ => StatusCode(500, new { message = "An error occurred while deleting the video file" })
-            };
+        return result.ToActionResult(this, () => Ok(new
+        {
+            message = "Video file deleted successfully"
+        }));
     }
 
     [HttpPut("{videoId}/ignore")]
@@ -182,17 +122,10 @@ public class ChannelVideosApiController : ControllerBase
     {
         var result = await videoService.ToggleIgnoreAsync(channelId, videoId, request);
 
-        return result.IsSuccess
-            ? Ok(new
-            {
-                message = result.Value ? "Video ignored" : "Video unignored",
-                isIgnored = result.Value
-            })
-            : result.Status switch
-            {
-                ResultStatus.Forbidden => Forbid(),
-                ResultStatus.NotFound => NotFound(new { message = "Video not found" }),
-                _ => StatusCode(500, new { message = "An error occurred while updating video status" })
-            };
+        return result.ToActionResult(this, value => Ok(new
+        {
+            message = value ? "Video ignored" : "Video unignored",
+            isIgnored = value
+        }));
     }
 }

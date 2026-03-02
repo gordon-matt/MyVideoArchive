@@ -1,5 +1,3 @@
-using Ardalis.Result;
-
 namespace MyVideoArchive.Controllers.Api;
 
 [Authorize]
@@ -18,13 +16,7 @@ public class ChannelOperationsApiController : ControllerBase
     public IActionResult SyncAllChannels()
     {
         var result = channelService.SyncAllChannels();
-
-        return result.IsSuccess
-            ? Ok(new { message = "Sync job queued successfully for all channels" })
-            : result.Status switch
-            {
-                _ => StatusCode(500, new { message = "An error occurred while deleting the channel" })
-            };
+        return result.ToActionResult(this, () => Ok(new { message = "Sync job queued successfully for all channels" }));
     }
 
     [HttpDelete("{id:int}")]
@@ -35,14 +27,6 @@ public class ChannelOperationsApiController : ControllerBase
         [FromQuery] bool deleteFiles = false)
     {
         var result = await channelService.DeleteChannelAsync(id, deleteMetadata, deleteFiles);
-
-        return result.IsSuccess
-            ? NoContent()
-            : result.Status switch
-            {
-                ResultStatus.NotFound => NotFound(new { message = "Channel not found" }),
-                ResultStatus.Invalid => BadRequest(result.ValidationErrors),
-                _ => StatusCode(500, new { message = "An error occurred while deleting the channel" })
-            };
+        return result.ToActionResult(this, NoContent);
     }
 }
