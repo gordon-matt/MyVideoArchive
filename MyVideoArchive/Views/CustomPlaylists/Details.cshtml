@@ -4,84 +4,171 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/video-index.css" />
+    <link rel="stylesheet" href="~/css/playlist-details.css" />
 }
 
-<div class="container-fluid">
-    <!-- Header -->
-    <div class="row mb-3 align-items-start" data-bind="visible: playlist()">
-        <div class="col">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="/my-playlists">My Playlists</a></li>
-                    <li class="breadcrumb-item active" data-bind="text: playlist() && playlist().name"></li>
-                </ol>
-            </nav>
-            <h2 data-bind="text: playlist() && playlist().name"></h2>
-            <!-- ko if: playlist() && playlist().description -->
-            <p class="text-muted" data-bind="text: playlist().description"></p>
-            <!-- /ko -->
+<div class="container-fluid px-0">
+    <div class="row g-0" data-bind="visible: playlist()">
+        <div class="col-lg-8">
+            <!-- Current Video Player -->
+            <div id="video-player-container" class="bg-dark" style="min-height: 400px;">
+                <div class="text-center text-white py-5" data-bind="visible: !currentVideo()">
+                    <h3>Select a video from the playlist</h3>
+                    <p>Click on any video in the playlist to start watching</p>
+                </div>
+
+                <div data-bind="visible: currentVideo()">
+                    <video id="videoPlayer" class="w-100" controls data-bind="attr: { src: currentVideoUrl }">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+
+            <!-- Current Video Info -->
+            <div class="card mt-3" data-bind="visible: currentVideo()">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h3 class="card-title mb-0" data-bind="text: currentVideo() && currentVideo().title"></h3>
+                        <a class="btn btn-sm btn-outline-secondary ms-3 flex-shrink-0"
+                           title="Open full video details"
+                           data-bind="click: openVideoDetails">
+                            <i class="bi bi-box-arrow-up-right"></i> Details
+                        </a>
+                    </div>
+
+                    <div class="d-flex align-items-center mb-3 text-muted flex-wrap gap-2">
+                        <span data-bind="if: currentVideo() && currentVideo().viewCount">
+                            <i class="bi bi-eye"></i>
+                            <span data-bind="text: formatNumber(currentVideo().viewCount)"></span> views
+                        </span>
+                        <span data-bind="if: currentVideo() && currentVideo().likeCount">
+                            <i class="bi bi-hand-thumbs-up"></i>
+                            <span data-bind="text: formatNumber(currentVideo().likeCount)"></span> likes
+                        </span>
+                        <span data-bind="if: currentVideo() && currentVideo().uploadDate">
+                            <i class="bi bi-calendar"></i>
+                            <span data-bind="text: formatDate(currentVideo().uploadDate)"></span>
+                        </span>
+                    </div>
+
+                    <div class="description-box p-3 bg-light rounded" data-bind="if: currentVideo() && currentVideo().description">
+                        <p class="mb-0" data-bind="text: currentVideo().description" style="white-space: pre-wrap;"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Information -->
+            <div class="card mt-3" data-bind="visible: currentVideo()">
+                <div class="card-header">
+                    <h5 class="mb-0">Video Information</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr data-bind="if: currentVideo() && currentVideo().duration">
+                                <th>Duration</th>
+                                <td data-bind="text: formatDuration(currentVideo().duration)"></td>
+                            </tr>
+                            <tr data-bind="if: currentVideo() && currentVideo().downloadedAt">
+                                <th>Downloaded</th>
+                                <td data-bind="text: formatDate(currentVideo().downloadedAt)"></td>
+                            </tr>
+                            <tr data-bind="if: currentVideo() && currentVideo().url">
+                                <th>Original URL</th>
+                                <td>
+                                    <a data-bind="attr: { href: currentVideo().url }" target="_blank"
+                                       class="text-truncate d-block" style="max-width: 300px;">Open Original</a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        <div class="col-auto">
-            <span class="text-muted small" data-bind="text: totalCount() + ' video' + (totalCount() === 1 ? '' : 's')"></span>
+
+        <div class="col-lg-4">
+            <!-- Playlist Info & Video List -->
+            <div class="playlist-sidebar">
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <nav aria-label="breadcrumb" class="mb-1">
+                            <ol class="breadcrumb breadcrumb-sm mb-0">
+                                <li class="breadcrumb-item">
+                                    <a href="/my-playlists" class="text-white-50">My Playlists</a>
+                                </li>
+                                <li class="breadcrumb-item active text-white"
+                                    data-bind="text: playlist() && playlist().name"></li>
+                            </ol>
+                        </nav>
+                        <h5 class="mb-0" data-bind="text: playlist() && playlist().name"></h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- ko if: playlist() && playlist().description -->
+                        <p class="text-muted small mb-2" data-bind="text: playlist().description"></p>
+                        <!-- /ko -->
+                        <span class="text-muted small">
+                            <strong><span data-bind="text: playlistVideos().length"></span></strong>
+                            <!-- ko if: playlistVideos().length === 1 -->video<!-- /ko -->
+                            <!-- ko ifnot: playlistVideos().length === 1 -->videos<!-- /ko -->
+                        </span>
+                    </div>
+                </div>
+
+                <div class="video-list">
+                    <div data-bind="visible: loadingVideos" class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+
+                    <div data-bind="visible: !loadingVideos() && playlistVideos().length === 0" class="alert alert-info mx-2">
+                        <p class="small mb-0">No videos in this playlist yet.</p>
+                    </div>
+
+                    <div data-bind="visible: !loadingVideos() && playlistVideos().length > 0, foreach: playlistVideos">
+                        <div class="playlist-video-item"
+                             data-bind="click: $parent.playVideo,
+                                        css: { active: $parent.currentVideo() && $parent.currentVideo().id === video.id,
+                                               'not-downloaded': !video.downloadedAt }">
+                            <img data-bind="attr: { src: video.thumbnailUrl || 'https://placehold.co/120x68?text=No+Thumbnail', alt: video.title }"
+                                 class="playlist-video-thumbnail" />
+                            <div class="playlist-video-info flex-grow-1">
+                                <div class="playlist-video-title" data-bind="text: video.title"></div>
+                                <!-- ko if: video.channel -->
+                                <div class="playlist-video-channel" data-bind="text: video.channel.name"></div>
+                                <!-- /ko -->
+                                <!-- ko if: video.duration -->
+                                <small class="text-muted" data-bind="text: $parent.formatDuration(video.duration)"></small>
+                                <!-- /ko -->
+                                <!-- ko ifnot: video.downloadedAt -->
+                                <div class="mt-1">
+                                    <span class="badge bg-warning text-dark small">Not Downloaded</span>
+                                </div>
+                                <!-- /ko -->
+                            </div>
+                            <div class="d-flex flex-column gap-1 ms-2" onclick="event.stopPropagation()">
+                                <button class="btn btn-sm btn-outline-danger" title="Remove from playlist"
+                                        data-bind="click: function(data, event) { event.stopPropagation(); $parent.removeVideo(data); }">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Loading -->
     <div data-bind="visible: loading" class="text-center py-5">
         <div class="spinner-border" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
     </div>
 
-    <!-- Empty state -->
-    <div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
-        <i class="bi bi-info-circle me-2"></i>
-        This playlist is empty. Go to a video's detail page and use <strong>Add to Playlist</strong> to populate it.
-    </div>
-
-    <!-- Video grid -->
-    <div data-bind="visible: !loading() && videos().length > 0">
-        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
-            <!-- ko foreach: videos -->
-            <div class="col">
-                <div class="card h-100 video-card">
-                    <div class="video-thumb-wrap" data-bind="click: $parent.openVideo">
-                        <!-- ko if: video.thumbnailUrl -->
-                        <img class="card-img-top video-thumb"
-                             data-bind="attr: { src: video.thumbnailUrl, alt: video.title }" />
-                        <!-- /ko -->
-                        <!-- ko ifnot: video.thumbnailUrl -->
-                        <div class="video-thumb-placeholder d-flex align-items-center justify-content-center bg-secondary text-white">
-                            <i class="bi bi-play-circle fs-1"></i>
-                        </div>
-                        <!-- /ko -->
-                        <!-- ko if: video.duration -->
-                        <span class="badge bg-dark video-duration"
-                              data-bind="text: $parent.formatDuration(video.duration)"></span>
-                        <!-- /ko -->
-                    </div>
-                    <div class="card-body p-2" data-bind="click: $parent.openVideo">
-                        <p class="card-text video-title fw-semibold" data-bind="text: video.title"></p>
-                        <p class="card-text text-muted small" data-bind="text: video.channel && video.channel.name"></p>
-                    </div>
-                    <div class="card-footer p-1 text-end">
-                        <button class="btn btn-sm btn-outline-danger"
-                                data-bind="click: $parent.removeVideo" title="Remove from playlist">
-                            <i class="bi bi-x-circle"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <!-- /ko -->
-        </div>
-
-        <!-- Pager -->
-        @await Html.PartialAsync("_Pager", new MyVideoArchive.Models.PagerViewModel(
-            "Videos pagination",
-            "currentPage", "totalPages", "totalCount", "pageNumbers",
-            "previousPage", "nextPage", "goToPage",
-            "videos"))
+    <div data-bind="visible: !loading() && !playlist()" class="text-center py-5">
+        <h3>Playlist not found</h3>
+        <p>This playlist may not exist or you may not have access to it.</p>
+        <a href="/my-playlists" class="btn btn-primary">Back to My Playlists</a>
     </div>
 </div>
 

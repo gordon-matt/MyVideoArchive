@@ -86,32 +86,38 @@ public class VideoTagsApiController : ControllerBase
                 return Unauthorized();
             }
 
-            var video = await videoRepository.FindOneAsync(videoId);
-
-            if (video is null)
+            bool videoExists = await videoRepository.ExistsAsync(x => x.Id == videoId);
+            if (!videoExists)
             {
                 return NotFound();
             }
 
+            var selectedTags = request.TagNames
+                ?.Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim().ToLowerInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? [];
+
             var standaloneTag = await GetOrCreateTagAsync(userId, Constants.StandaloneTag);
 
-            // Remove all existing tags for this user on this video
-            await videoTagRepository.DeleteAsync(x =>
-                x.TagId != standaloneTag.Id &&
-                x.VideoId == videoId &&
-                x.Tag.UserId == userId);
-
-            if (!request.TagNames.IsNullOrEmpty())
+            var toDelete = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>
             {
-                foreach (string? tagName in request.TagNames.Distinct(StringComparer.OrdinalIgnoreCase))
-                {
-                    string trimmed = tagName.Trim();
-                    if (string.IsNullOrEmpty(trimmed))
-                    {
-                        continue;
-                    }
+                Query = x =>
+                    x.TagId != standaloneTag.Id &&
+                    x.VideoId == videoId &&
+                    x.Tag.UserId == userId &&
+                    !selectedTags.Contains(x.Tag.Name)
+            });
 
-                    var tag = await GetOrCreateTagAsync(userId, trimmed);
+            var toAdd = selectedTags
+                .Where(t => !toDelete.Any(td => td.Tag.Name.Equals(t, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            if (!toAdd.IsNullOrEmpty())
+            {
+                foreach (string tagName in toAdd)
+                {
+                    var tag = await GetOrCreateTagAsync(userId, tagName);
                     await videoTagRepository.InsertAsync(new VideoTag
                     {
                         VideoId = videoId,

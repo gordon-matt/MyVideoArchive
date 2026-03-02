@@ -1,39 +1,27 @@
-import { formatDuration } from './utils.js';
+import { formatDate, formatDuration, formatNumber } from './utils.js';
 
-const PAGE_SIZE = 60;
+// Load all videos into the sidebar in one shot (custom playlists typically stay small)
+const PAGE_SIZE = 500;
 
 class CustomPlaylistDetailsViewModel {
     constructor(playlistId) {
         this.playlistId = playlistId;
         this.playlist = ko.observable(null);
-        this.videos = ko.observableArray([]);
+        this.playlistVideos = ko.observableArray([]);
+        this.currentVideo = ko.observable(null);
+        this.currentVideoUrl = ko.observable(null);
         this.loading = ko.observable(true);
+        this.loadingVideos = ko.observable(false);
 
-        // Paging
-        this.currentPage = ko.observable(1);
-        this.totalPages = ko.observable(0);
-        this.totalCount = ko.observable(0);
-        this.pageNumbers = ko.computed(() => this._buildPageNumbers());
-
+        this.formatDate = formatDate;
         this.formatDuration = formatDuration;
-    }
-
-    _buildPageNumbers() {
-        const total = this.totalPages();
-        const current = this.currentPage();
-        if (total <= 1) return [];
-        const delta = 2;
-        const pages = [];
-        for (let i = Math.max(1, current - delta); i <= Math.min(total, current + delta); i++) {
-            pages.push(i);
-        }
-        return pages;
+        this.formatNumber = formatNumber;
     }
 
     loadPlaylist = async () => {
         this.loading(true);
         try {
-            const params = new URLSearchParams({ page: this.currentPage(), pageSize: PAGE_SIZE });
+            const params = new URLSearchParams({ page: 1, pageSize: PAGE_SIZE });
             const response = await fetch(`/api/custom-playlists/${this.playlistId}/videos?${params}`);
 
             if (!response.ok) {
@@ -43,11 +31,14 @@ class CustomPlaylistDetailsViewModel {
 
             const data = await response.json();
             this.playlist(data.playlist);
-            this.videos(data.videos || []);
-            this.totalCount(data.pagination?.totalCount ?? 0);
-            this.totalPages(data.pagination?.totalPages ?? 0);
+            this.playlistVideos(data.videos || []);
 
             document.title = `${data.playlist?.name ?? 'Playlist'} - MyVideoArchive`;
+
+            const firstDownloaded = this.playlistVideos().find(item => item.video.downloadedAt);
+            if (firstDownloaded) {
+                this.playVideo(firstDownloaded);
+            }
         } catch (error) {
             console.error('Error loading playlist:', error);
         } finally {
@@ -55,8 +46,20 @@ class CustomPlaylistDetailsViewModel {
         }
     };
 
-    openVideo = (item) => {
-        window.location.href = `/videos/${item.video.id}`;
+    playVideo = (item) => {
+        if (!item.video.downloadedAt) return;
+
+        this.currentVideo(item.video);
+        this.currentVideoUrl(`/api/videos/${item.video.id}/stream`);
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    openVideoDetails = () => {
+        const video = this.currentVideo();
+        if (video) {
+            window.location.href = `/videos/${video.id}`;
+        }
     };
 
     removeVideo = async (item) => {
@@ -68,36 +71,17 @@ class CustomPlaylistDetailsViewModel {
                 { method: 'DELETE' });
 
             if (response.ok) {
-                this.videos.remove(item);
-                this.totalCount(this.totalCount() - 1);
+                this.playlistVideos.remove(item);
+                if (this.currentVideo()?.id === item.video.id) {
+                    this.currentVideo(null);
+                    this.currentVideoUrl(null);
+                }
             } else {
                 alert('Failed to remove video from playlist.');
             }
         } catch (error) {
             console.error('Error removing video:', error);
             alert('An error occurred. Please try again.');
-        }
-    };
-
-    // Paging
-    previousPage = () => {
-        if (this.currentPage() > 1) {
-            this.currentPage(this.currentPage() - 1);
-            this.loadPlaylist();
-        }
-    };
-
-    nextPage = () => {
-        if (this.currentPage() < this.totalPages()) {
-            this.currentPage(this.currentPage() + 1);
-            this.loadPlaylist();
-        }
-    };
-
-    goToPage = (page) => {
-        if (page >= 1 && page <= this.totalPages()) {
-            this.currentPage(page);
-            this.loadPlaylist();
         }
     };
 }

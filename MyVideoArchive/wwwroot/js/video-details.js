@@ -135,12 +135,10 @@ class VideoPlayerViewModel {
                 }
             });
 
-            // Set existing tags
             if (currentTags.length > 0) {
                 this._tagifyInstance.addTags(currentTags);
             }
 
-            // Auto-save on change (debounced)
             let saveTimeout = null;
             this._tagifyInstance.on('change', () => {
                 clearTimeout(saveTimeout);

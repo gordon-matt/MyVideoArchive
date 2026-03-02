@@ -630,6 +630,11 @@ public class CustomPlaylistsApiController : ControllerBase
                     x.Video.Duration,
                     x.Video.DownloadedAt,
                     x.Video.Platform,
+                    x.Video.Url,
+                    x.Video.ViewCount,
+                    x.Video.LikeCount,
+                    x.Video.UploadDate,
+                    x.Video.Description,
                     Channel = new { x.Video.Channel.Id, x.Video.Channel.Name }
                 }
             }).ToList();
