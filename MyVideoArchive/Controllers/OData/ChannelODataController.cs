@@ -309,7 +309,7 @@ public class ChannelODataController : ODataController
     }
 
     [HttpDelete]
-    public async Task<IActionResult> Delete([FromRoute] int key)
+    public async Task<IActionResult> Delete([FromRoute] int key) // Ubsubscribe
     {
         try
         {
@@ -319,8 +319,6 @@ public class ChannelODataController : ODataController
                 return Unauthorized();
             }
 
-            bool isAdmin = userContextService.IsAdministrator();
-
             // Find the user's subscription
             var userChannel = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
             {
@@ -329,36 +327,16 @@ public class ChannelODataController : ODataController
                     x.ChannelId == key
             });
 
-            if (userChannel is null && !isAdmin)
+            if (userChannel is null)
             {
                 return NotFound();
             }
 
-            if (userChannel is not null)
+            // Remove user's subscription
+            await userChannelRepository.DeleteAsync(userChannel);
+            if (logger.IsEnabled(LogLevel.Information))
             {
-                // Remove user's subscription
-                await userChannelRepository.DeleteAsync(userChannel);
-                if (logger.IsEnabled(LogLevel.Information))
-                {
-                    logger.LogInformation("User {UserId} unsubscribed from channel {ChannelId}", userId, key);
-                }
-            }
-
-            // Optionally: If no users are subscribed to this channel, delete it
-            // (Only if admin or if this was the last subscription)
-            bool hasRemainingSubscriptions = await userChannelRepository.ExistsAsync(x => x.ChannelId == key);
-            if (!hasRemainingSubscriptions)
-            {
-                // No one is subscribed, delete the channel
-                var channelExists = await channelRepository.ExistsAsync(x => x.Id == key);
-                if (channelExists)
-                {
-                    await channelRepository.DeleteAsync(x => x.Id == key);
-                    if (logger.IsEnabled(LogLevel.Information))
-                    {
-                        logger.LogInformation("Deleted channel {ChannelId} as no users are subscribed", key);
-                    }
-                }
+                logger.LogInformation("User {UserId} unsubscribed from channel {ChannelId}", userId, key);
             }
 
             return NoContent();
