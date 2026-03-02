@@ -12,7 +12,10 @@
             <h2>My Playlists</h2>
             <p class="text-muted mb-0">Your personal cross-channel playlists</p>
         </div>
-        <div class="col-auto">
+        <div class="col-auto d-flex gap-2">
+            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#clonePlaylistModal">
+                <i class="bi bi-copy"></i> Clone from YouTube
+            </button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPlaylistModal">
                 <i class="bi bi-plus-circle"></i> New Playlist
             </button>
@@ -172,6 +175,190 @@
                     Save
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Clone Playlist Modal -->
+<div class="modal fade" id="clonePlaylistModal" tabindex="-1" aria-labelledby="clonePlaylistModalLabel" aria-hidden="true"
+     data-bind="event: { 'hidden.bs.modal': resetCloneModal }">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="clonePlaylistModalLabel">
+                    <i class="bi bi-copy me-2"></i>Clone from YouTube
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
+                        data-bind="disable: cloneState() === 'fetching' || cloneState() === 'cloning'"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <!-- ── Input ── -->
+                <div data-bind="visible: cloneState() === 'input'">
+                    <p class="text-muted small mb-3">
+                        Paste a YouTube playlist URL. We'll fetch the video list so you can choose which ones to include.
+                    </p>
+                    <label class="form-label">YouTube Playlist URL <span class="text-danger">*</span></label>
+                    <input type="url" class="form-control" data-bind="value: cloneUrl, valueUpdate: 'input'"
+                           placeholder="https://www.youtube.com/playlist?list=..." />
+                </div>
+
+                <!-- ── Fetching ── -->
+                <div data-bind="visible: cloneState() === 'fetching'" class="text-center py-5">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading…</span>
+                    </div>
+                    <p class="text-muted mb-1">Fetching playlist info from YouTube&hellip;</p>
+                    <small class="text-muted">This may take a moment for large playlists.</small>
+                </div>
+
+                <!-- ── Select ── -->
+                <div data-bind="visible: cloneState() === 'select'">
+                    <!-- Playlist header -->
+                    <div class="d-flex gap-3 mb-3 align-items-start">
+                        <!-- ko if: clonePreviewThumbnail() -->
+                        <img data-bind="attr: { src: clonePreviewThumbnail() }"
+                             class="rounded flex-shrink-0" style="width:100px;height:56px;object-fit:cover;" />
+                        <!-- /ko -->
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="mb-0 fw-semibold" data-bind="text: clonePreviewName"></h6>
+                            <!-- ko if: clonePreviewDescription() -->
+                            <p class="text-muted small mb-0 text-truncate" data-bind="text: clonePreviewDescription"></p>
+                            <!-- /ko -->
+                            <small class="text-muted">
+                                <span data-bind="text: clonePreviewVideos().length"></span> video<span data-bind="visible: clonePreviewVideos().length !== 1">s</span>
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Select all / none -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small fw-semibold text-uppercase" style="letter-spacing:.04em;">Videos</span>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" data-bind="click: selectAllVideos">All</button>
+                            <button class="btn btn-sm btn-outline-secondary" data-bind="click: deselectAllVideos">None</button>
+                        </div>
+                    </div>
+
+                    <!-- Video checklist -->
+                    <div class="border rounded" style="max-height:400px;overflow-y:auto;">
+                        <!-- ko foreach: clonePreviewVideos -->
+                        <label class="d-flex align-items-center gap-3 p-2 border-bottom cursor-pointer"
+                               style="cursor:pointer;"
+                               data-bind="css: { 'bg-body-secondary': !selected() }">
+                            <input type="checkbox" class="form-check-input flex-shrink-0 mt-0"
+                                   data-bind="checked: selected" />
+                            <!-- ko if: thumbnailUrl -->
+                            <img data-bind="attr: { src: thumbnailUrl, alt: title }"
+                                 class="rounded flex-shrink-0" style="width:80px;height:45px;object-fit:cover;" />
+                            <!-- /ko -->
+                            <!-- ko ifnot: thumbnailUrl -->
+                            <div class="rounded flex-shrink-0 bg-secondary-subtle d-flex align-items-center justify-content-center"
+                                 style="width:80px;height:45px;">
+                                <i class="bi bi-play-circle text-secondary"></i>
+                            </div>
+                            <!-- /ko -->
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="fw-semibold text-truncate small" data-bind="text: title"></div>
+                                <div class="text-muted" style="font-size:.75rem;">
+                                    <span data-bind="text: channelName"></span>
+                                    <!-- ko if: durationSeconds -->
+                                    <span class="ms-2" data-bind="text: $parent.formatDuration(durationSeconds())"></span>
+                                    <!-- /ko -->
+                                </div>
+                            </div>
+                            <!-- ko if: isInLibrary -->
+                            <span class="badge text-bg-success flex-shrink-0" title="Already in your library">
+                                <i class="bi bi-check2"></i> In library
+                            </span>
+                            <!-- /ko -->
+                        </label>
+                        <!-- /ko -->
+                    </div>
+
+                    <div class="mt-2 text-muted small">
+                        <span data-bind="text: cloneSelectedCount()"></span> of
+                        <span data-bind="text: clonePreviewVideos().length"></span> selected
+                    </div>
+                </div>
+
+                <!-- ── Cloning ── -->
+                <div data-bind="visible: cloneState() === 'cloning'" class="text-center py-5">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading…</span>
+                    </div>
+                    <p class="text-muted mb-1">Creating playlist and queuing downloads&hellip;</p>
+                </div>
+
+                <!-- ── Success ── -->
+                <div data-bind="visible: cloneState() === 'success'">
+                    <div class="alert alert-success mb-3">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <strong data-bind="text: cloneResultName"></strong> cloned successfully!
+                    </div>
+                    <ul class="list-unstyled ms-2 mb-0">
+                        <li class="mb-1">
+                            <i class="bi bi-collection-play me-2 text-primary"></i>
+                            <span data-bind="text: cloneResultTotal"></span>
+                            video<span data-bind="visible: cloneResultTotal() !== 1">s</span> added to the playlist
+                        </li>
+                        <li class="mb-1" data-bind="visible: cloneResultNew() > 0">
+                            <i class="bi bi-download me-2 text-success"></i>
+                            <span data-bind="text: cloneResultNew"></span>
+                            new video<span data-bind="visible: cloneResultNew() !== 1">s</span> queued for download
+                        </li>
+                        <li data-bind="visible: cloneResultExisting() > 0">
+                            <i class="bi bi-check2 me-2 text-muted"></i>
+                            <span data-bind="text: cloneResultExisting"></span> already in your library
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- ── Error ── -->
+                <div data-bind="visible: cloneState() === 'error'">
+                    <div class="alert alert-danger mb-0">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <span data-bind="text: cloneError"></span>
+                    </div>
+                </div>
+
+            </div><!-- /modal-body -->
+
+            <div class="modal-footer">
+                <!-- ko if: cloneState() === 'input' -->
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        data-bind="click: fetchClonePreview, enable: cloneUrl().trim().length > 0">
+                    <i class="bi bi-search me-1"></i>Fetch Playlist
+                </button>
+                <!-- /ko -->
+
+                <!-- ko if: cloneState() === 'select' -->
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        data-bind="click: confirmClone, enable: cloneSelectedCount() > 0">
+                    <i class="bi bi-copy me-1"></i>
+                    Clone <span data-bind="text: cloneSelectedCount()"></span>
+                    video<span data-bind="visible: cloneSelectedCount() !== 1">s</span>
+                </button>
+                <!-- /ko -->
+
+                <!-- ko if: cloneState() === 'success' -->
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Done</button>
+                <a class="btn btn-primary" data-bind="attr: { href: '/my-playlists/' + cloneResultId() }">
+                    <i class="bi bi-collection-play me-1"></i>View Playlist
+                </a>
+                <!-- /ko -->
+
+                <!-- ko if: cloneState() === 'error' -->
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-outline-primary" data-bind="click: resetCloneModal">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Try Again
+                </button>
+                <!-- /ko -->
+            </div>
+
         </div>
     </div>
 </div>

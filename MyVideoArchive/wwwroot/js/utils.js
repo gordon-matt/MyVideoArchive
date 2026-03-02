@@ -1,4 +1,4 @@
-﻿export const delay = (ms) =>
+export const delay = (ms) =>
     new Promise(resolve => setTimeout(resolve, ms));
 
 export function formatDate(dateString) {
@@ -32,6 +32,17 @@ export function formatDuration(duration) {
     }
 
     return duration;
+}
+
+export function formatSeconds(totalSeconds) {
+    if (!totalSeconds && totalSeconds !== 0) return '';
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = Math.floor(totalSeconds % 60);
+    if (h > 0) {
+        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 export function formatFileSize(bytes, decimals = 2) {

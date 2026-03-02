@@ -1,4 +1,4 @@
-import { formatDate } from './utils.js';
+import { formatDate, formatSeconds } from './utils.js';
 
 const PAGE_SIZE = 60;
 
@@ -26,7 +26,29 @@ class CustomPlaylistIndexViewModel {
         this.editPlaylistThumbnailFile = ko.observable(null);
         this.editPlaylistThumbnailPreview = ko.observable(null);
 
+        // Clone playlist — state machine: 'input' | 'fetching' | 'select' | 'cloning' | 'success' | 'error'
+        this.cloneUrl = ko.observable('');
+        this.cloneState = ko.observable('input');
+        this.cloneError = ko.observable('');
+
+        // Preview data (populated after fetch)
+        this.clonePreviewName = ko.observable('');
+        this.clonePreviewDescription = ko.observable('');
+        this.clonePreviewThumbnail = ko.observable('');
+        this.clonePreviewVideos = ko.observableArray([]); // each item: { videoId, title, thumbnailUrl, durationSeconds (observable), channelName, isInLibrary, selected (observable) }
+        this.cloneSelectedCount = ko.computed(() =>
+            this.clonePreviewVideos().filter(v => v.selected()).length
+        );
+
+        // Result data (populated after clone)
+        this.cloneResultId = ko.observable(0);
+        this.cloneResultName = ko.observable('');
+        this.cloneResultTotal = ko.observable(0);
+        this.cloneResultNew = ko.observable(0);
+        this.cloneResultExisting = ko.observable(0);
+
         this.formatDate = formatDate;
+        this.formatDuration = formatSeconds;
     }
 
     _buildPageNumbers() {
@@ -159,6 +181,107 @@ class CustomPlaylistIndexViewModel {
         } catch (error) {
             console.error('Error updating playlist:', error);
             alert('An error occurred. Please try again.');
+        }
+    };
+
+    // ── Clone playlist ────────────────────────────────────────────────────────
+
+    resetCloneModal = () => {
+        this.cloneUrl('');
+        this.cloneState('input');
+        this.cloneError('');
+        this.clonePreviewName('');
+        this.clonePreviewDescription('');
+        this.clonePreviewThumbnail('');
+        this.clonePreviewVideos([]);
+        this.cloneResultId(0);
+        this.cloneResultName('');
+        this.cloneResultTotal(0);
+        this.cloneResultNew(0);
+        this.cloneResultExisting(0);
+    };
+
+    fetchClonePreview = async () => {
+        const url = this.cloneUrl().trim();
+        if (!url) return;
+
+        this.cloneState('fetching');
+
+        try {
+            const response = await fetch('/api/custom-playlists/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                this.cloneError(data.message || 'Failed to fetch playlist. Please check the URL and try again.');
+                this.cloneState('error');
+                return;
+            }
+
+            this.clonePreviewName(data.name || '');
+            this.clonePreviewDescription(data.description || '');
+            this.clonePreviewThumbnail(data.thumbnailUrl || '');
+
+            const videos = (data.videos || []).map(v => ({
+                videoId: v.videoId,
+                title: v.title,
+                thumbnailUrl: v.thumbnailUrl || null,
+                durationSeconds: ko.observable(v.durationSeconds),
+                channelName: v.channelName || '',
+                isInLibrary: v.isInLibrary,
+                selected: ko.observable(true)
+            }));
+            this.clonePreviewVideos(videos);
+            this.cloneState('select');
+        } catch (error) {
+            console.error('Error fetching playlist preview:', error);
+            this.cloneError('An unexpected error occurred. Please try again.');
+            this.cloneState('error');
+        }
+    };
+
+    selectAllVideos = () => this.clonePreviewVideos().forEach(v => v.selected(true));
+    deselectAllVideos = () => this.clonePreviewVideos().forEach(v => v.selected(false));
+
+    confirmClone = async () => {
+        const selectedIds = this.clonePreviewVideos()
+            .filter(v => v.selected())
+            .map(v => v.videoId);
+
+        if (selectedIds.length === 0) return;
+
+        this.cloneState('cloning');
+
+        try {
+            const response = await fetch('/api/custom-playlists/clone', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: this.cloneUrl().trim(), selectedVideoIds: selectedIds })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                this.cloneError(data.message || 'Failed to clone playlist. Please try again.');
+                this.cloneState('error');
+                return;
+            }
+
+            this.cloneResultId(data.id);
+            this.cloneResultName(data.name);
+            this.cloneResultTotal(data.totalVideos);
+            this.cloneResultNew(data.newVideos);
+            this.cloneResultExisting(data.alreadyInLibrary);
+            this.cloneState('success');
+            await this.loadPlaylists();
+        } catch (error) {
+            console.error('Error cloning playlist:', error);
+            this.cloneError('An unexpected error occurred. Please try again.');
+            this.cloneState('error');
         }
     };
 

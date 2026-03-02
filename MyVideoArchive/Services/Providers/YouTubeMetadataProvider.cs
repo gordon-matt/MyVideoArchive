@@ -157,6 +157,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 PlaylistId = data.ID ?? string.Empty,
                 Name = data.Title ?? "Unknown Playlist",
                 Url = data.WebpageUrl ?? playlistUrl,
+                ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
                 Description = data.Description,
                 ChannelId = data.Channel ?? data.Uploader ?? string.Empty,
                 ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",

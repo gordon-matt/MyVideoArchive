@@ -1,4 +1,7 @@
+using Hangfire;
 using Humanizer;
+using MyVideoArchive.Models.Metadata;
+using MyVideoArchive.Services.Jobs;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace MyVideoArchive.Controllers.Api;
@@ -13,30 +16,48 @@ public class CustomPlaylistsApiController : ControllerBase
 {
     private static readonly string[] AllowedImageExtensions = [".jpg", ".jpeg", ".png", ".webp"];
 
+    private readonly ILogger<CustomPlaylistsApiController> logger;
     private readonly IConfiguration configuration;
+    private readonly IUserContextService userContextService;
+    private readonly IBackgroundJobClient backgroundJobClient;
+    private readonly VideoMetadataProviderFactory metadataProviderFactory;
+    private readonly IHttpClientFactory httpClientFactory;
+    private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<CustomPlaylist> customPlaylistRepository;
     private readonly IRepository<CustomPlaylistVideo> customPlaylistVideoRepository;
-    private readonly ILogger<CustomPlaylistsApiController> logger;
-    private readonly IUserContextService userContextService;
+    private readonly IRepository<Tag> tagRepository;
+    private readonly IRepository<UserChannel> userChannelRepository;
     private readonly IRepository<Video> videoRepository;
-    private readonly IWebHostEnvironment webHostEnvironment;
+    private readonly IRepository<VideoTag> videoTagRepository;
 
     public CustomPlaylistsApiController(
         ILogger<CustomPlaylistsApiController> logger,
         IConfiguration configuration,
-        IWebHostEnvironment webHostEnvironment,
         IUserContextService userContextService,
+        IBackgroundJobClient backgroundJobClient,
+        VideoMetadataProviderFactory metadataProviderFactory,
+        IHttpClientFactory httpClientFactory,
+        IRepository<Channel> channelRepository,
         IRepository<CustomPlaylist> customPlaylistRepository,
         IRepository<CustomPlaylistVideo> customPlaylistVideoRepository,
-        IRepository<Video> videoRepository)
+        IRepository<Tag> tagRepository,
+        IRepository<UserChannel> userChannelRepository,
+        IRepository<Video> videoRepository,
+        IRepository<VideoTag> videoTagRepository)
     {
         this.logger = logger;
         this.configuration = configuration;
-        this.webHostEnvironment = webHostEnvironment;
         this.userContextService = userContextService;
+        this.backgroundJobClient = backgroundJobClient;
+        this.metadataProviderFactory = metadataProviderFactory;
+        this.httpClientFactory = httpClientFactory;
+        this.channelRepository = channelRepository;
         this.customPlaylistRepository = customPlaylistRepository;
         this.customPlaylistVideoRepository = customPlaylistVideoRepository;
+        this.tagRepository = tagRepository;
+        this.userChannelRepository = userChannelRepository;
         this.videoRepository = videoRepository;
+        this.videoTagRepository = videoTagRepository;
     }
 
     /// <summary>
@@ -140,6 +161,275 @@ public class CustomPlaylistsApiController : ControllerBase
             }
 
             return StatusCode(500, new { message = "An error occurred while creating the playlist" });
+        }
+    }
+
+    /// <summary>
+    /// Preview a YouTube playlist: returns its metadata and video list (with in-library status)
+    /// without creating anything. Used to populate the selection UI before cloning.
+    /// </summary>
+    [HttpPost("preview")]
+    public async Task<IActionResult> PreviewPlaylist([FromBody] PreviewPlaylistRequest request)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(request.Url))
+                return BadRequest(new { message = "A playlist URL is required" });
+
+            var provider = metadataProviderFactory.GetProvider(request.Url);
+            if (provider is null)
+                return BadRequest(new { message = "No metadata provider found for this URL" });
+
+            var playlistMeta = await provider.GetPlaylistMetadataAsync(request.Url, HttpContext.RequestAborted);
+            if (playlistMeta is null)
+                return BadRequest(new { message = "Could not retrieve playlist metadata. Please check the URL and try again." });
+
+            var videoEntries = await provider.GetPlaylistVideosAsync(request.Url, HttpContext.RequestAborted);
+            if (videoEntries.Count == 0)
+                return BadRequest(new { message = "The playlist appears to be empty or could not be read." });
+
+            // Check which videos are already in the library
+            var videoIds = videoEntries
+                .Where(v => !string.IsNullOrEmpty(v.VideoId))
+                .Select(v => v.VideoId)
+                .ToList();
+
+            var existingVideos = await videoRepository.FindAsync(
+                new SearchOptions<Video>
+                {
+                    Query = x => videoIds.Contains(x.VideoId) && x.Platform == playlistMeta.Platform
+                },
+                x => x.VideoId);
+
+            var inLibrarySet = existingVideos.ToHashSet();
+
+            var videos = videoEntries
+                .Where(v => !string.IsNullOrEmpty(v.VideoId))
+                .Select(v => new
+                {
+                    v.VideoId,
+                    v.Title,
+                    v.ThumbnailUrl,
+                    DurationSeconds = v.Duration.HasValue ? (int?)v.Duration.Value.TotalSeconds : null,
+                    v.ChannelName,
+                    v.Url,
+                    IsInLibrary = inLibrarySet.Contains(v.VideoId)
+                })
+                .ToList();
+
+            return Ok(new
+            {
+                name = playlistMeta.Name,
+                description = playlistMeta.Description,
+                thumbnailUrl = playlistMeta.ThumbnailUrl,
+                platform = playlistMeta.Platform,
+                videos
+            });
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+                logger.LogError(ex, "Error previewing playlist from URL {Url}", request.Url);
+
+            return StatusCode(500, new { message = "An error occurred while fetching the playlist" });
+        }
+    }
+
+    /// <summary>
+    /// Clone a YouTube playlist: creates video records for the selected videos,
+    /// queues downloads for any not already in the library, downloads the playlist thumbnail,
+    /// and returns the new custom playlist.
+    /// </summary>
+    [HttpPost("clone")]
+    public async Task<IActionResult> ClonePlaylist([FromBody] ClonePlaylistRequest request)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(request.Url))
+                return BadRequest(new { message = "A playlist URL is required" });
+
+            if (request.SelectedVideoIds.Count == 0)
+                return BadRequest(new { message = "Please select at least one video to clone" });
+
+            var provider = metadataProviderFactory.GetProvider(request.Url);
+            if (provider is null)
+                return BadRequest(new { message = "No metadata provider found for this URL" });
+
+            var playlistMeta = await provider.GetPlaylistMetadataAsync(request.Url, HttpContext.RequestAborted);
+            if (playlistMeta is null)
+                return BadRequest(new { message = "Could not retrieve playlist metadata. Please check the URL and try again." });
+
+            var videoEntries = await provider.GetPlaylistVideosAsync(request.Url, HttpContext.RequestAborted);
+
+            // Filter to only the user-selected videos, preserving playlist order
+            var selectedSet = request.SelectedVideoIds.ToHashSet();
+            var selectedEntries = videoEntries
+                .Where(v => !string.IsNullOrEmpty(v.VideoId) && selectedSet.Contains(v.VideoId))
+                .ToList();
+
+            if (selectedEntries.Count == 0)
+                return BadRequest(new { message = "None of the selected videos could be found in the playlist." });
+
+            // Create the custom playlist
+            var playlist = new CustomPlaylist
+            {
+                UserId = userId,
+                Name = playlistMeta.Name.Trim(),
+                Description = string.IsNullOrWhiteSpace(playlistMeta.Description) ? null : playlistMeta.Description.Trim(),
+                CreatedAt = DateTime.UtcNow
+            };
+            await customPlaylistRepository.InsertAsync(playlist);
+
+            // Download and store the playlist thumbnail
+            if (!string.IsNullOrEmpty(playlistMeta.ThumbnailUrl))
+            {
+                try
+                {
+                    using var http = httpClientFactory.CreateClient();
+                    var imageBytes = await http.GetByteArrayAsync(playlistMeta.ThumbnailUrl, HttpContext.RequestAborted);
+                    string uploadDir = GetCustomPlaylistsThumbnailDirectory();
+                    Directory.CreateDirectory(uploadDir);
+                    string thumbPath = Path.Combine(uploadDir, $"{playlist.Id}-thumbnail.jpg");
+                    await System.IO.File.WriteAllBytesAsync(thumbPath, imageBytes, HttpContext.RequestAborted);
+                    playlist.ThumbnailUrl = $"/api/custom-playlists/{playlist.Id}/thumbnail";
+                    await customPlaylistRepository.UpdateAsync(playlist);
+                }
+                catch (Exception ex)
+                {
+                    if (logger.IsEnabled(LogLevel.Warning))
+                        logger.LogWarning(ex, "Failed to download thumbnail for cloned playlist {PlaylistId}", playlist.Id);
+                }
+            }
+
+            int newVideoCount = 0;
+            int alreadyInLibraryCount = 0;
+            int order = 0;
+
+            foreach (var videoMeta in selectedEntries)
+            {
+                // Find or create the channel
+                string channelPlatformId = videoMeta.ChannelId ?? videoMeta.ChannelName ?? "unknown";
+                var channel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
+                {
+                    Query = x => x.ChannelId == channelPlatformId && x.Platform == videoMeta.Platform
+                });
+
+                if (channel is null)
+                {
+                    // Fetch channel metadata to create a proper channel record
+                    ChannelMetadata? channelMeta = null;
+                    if (!string.IsNullOrEmpty(videoMeta.ChannelId))
+                    {
+                        var channelUrl = $"https://www.youtube.com/channel/{videoMeta.ChannelId}";
+                        channelMeta = await provider.GetChannelMetadataAsync(channelUrl, HttpContext.RequestAborted);
+                    }
+
+                    channel = new Channel
+                    {
+                        ChannelId = channelPlatformId,
+                        Name = videoMeta.ChannelName ?? "Unknown Channel",
+                        Url = string.IsNullOrEmpty(videoMeta.ChannelId)
+                            ? string.Empty
+                            : $"https://www.youtube.com/channel/{videoMeta.ChannelId}",
+                        //Description = channelMeta?.Description,
+                        //ThumbnailUrl = channelMeta?.ThumbnailUrl,
+                        //SubscriberCount = channelMeta?.SubscriberCount,
+                        Platform = videoMeta.Platform,
+                        SubscribedAt = DateTime.UtcNow
+                    };
+                    await channelRepository.InsertAsync(channel);
+                }
+
+                // Find or create the video
+                var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+                {
+                    Query = x => x.VideoId == videoMeta.VideoId && x.Platform == videoMeta.Platform
+                });
+
+                if (video is null)
+                {
+                    video = new Video
+                    {
+                        VideoId = videoMeta.VideoId,
+                        Title = videoMeta.Title,
+                        Description = videoMeta.Description,
+                        Url = videoMeta.Url,
+                        ThumbnailUrl = videoMeta.ThumbnailUrl,
+                        Platform = videoMeta.Platform,
+                        Duration = videoMeta.Duration,
+                        UploadDate = videoMeta.UploadDate,
+                        ViewCount = videoMeta.ViewCount,
+                        LikeCount = videoMeta.LikeCount,
+                        ChannelId = channel.Id,
+                        IsQueued = true
+                    };
+                    await videoRepository.InsertAsync(video);
+                    backgroundJobClient.Enqueue<VideoDownloadJob>(job => job.ExecuteAsync(video.Id, CancellationToken.None));
+                    newVideoCount++;
+                }
+                else
+                {
+                    alreadyInLibraryCount++;
+                }
+
+                bool tagIt = !await userChannelRepository.ExistsAsync(x => x.Channel.ChannelId == channelPlatformId && x.UserId == userId);
+                if (tagIt)
+                {
+                    // Get or create "standalone" tag for this user
+                    var standaloneTag = await GetOrCreateTagAsync(userId, Constants.StandaloneTag);
+
+                    // Tag the video as standalone if not already tagged
+                    var alreadyTagged = await videoTagRepository.ExistsAsync(x => x.VideoId == video.Id && x.TagId == standaloneTag.Id);
+                    if (!alreadyTagged)
+                    {
+                        await videoTagRepository.InsertAsync(new VideoTag
+                        {
+                            VideoId = video.Id,
+                            TagId = standaloneTag.Id
+                        });
+                    }
+                }
+
+                bool alreadyInPlaylist = await customPlaylistVideoRepository.ExistsAsync(
+                    x => x.CustomPlaylistId == playlist.Id && x.VideoId == video.Id);
+
+                if (!alreadyInPlaylist)
+                {
+                    await customPlaylistVideoRepository.InsertAsync(new CustomPlaylistVideo
+                    {
+                        CustomPlaylistId = playlist.Id,
+                        VideoId = video.Id,
+                        Order = order++
+                    });
+                }
+            }
+
+            if (logger.IsEnabled(LogLevel.Information))
+                logger.LogInformation(
+                    "Cloned playlist '{Name}' with {Total} videos ({New} new, {Existing} already in library)",
+                    playlist.Name, order, newVideoCount, alreadyInLibraryCount);
+
+            return Ok(new
+            {
+                id = playlist.Id,
+                name = playlist.Name,
+                totalVideos = order,
+                newVideos = newVideoCount,
+                alreadyInLibrary = alreadyInLibraryCount
+            });
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+                logger.LogError(ex, "Error cloning playlist from URL {Url}", request.Url);
+
+            return StatusCode(500, new { message = "An error occurred while cloning the playlist" });
         }
     }
 
@@ -551,10 +841,35 @@ public class CustomPlaylistsApiController : ControllerBase
 
     private async Task<bool> UserOwnsPlaylist(string userId, int playlistId) =>
                                                                 await customPlaylistRepository.ExistsAsync(x => x.Id == playlistId && x.UserId == userId);
+
+    private async Task<Tag> GetOrCreateTagAsync(string userId, string name)
+    {
+        var existing = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+        {
+            Query = x => x.UserId == userId && x.Name.ToLower() == name.ToLower()
+        });
+
+        if (existing is not null) return existing;
+
+        var tag = new Tag { UserId = userId, Name = name };
+        await tagRepository.InsertAsync(tag);
+        return tag;
+    }
 }
 
 public class CreateCustomPlaylistRequest
 {
     public string? Description { get; set; }
     public string Name { get; set; } = string.Empty;
+}
+
+public class PreviewPlaylistRequest
+{
+    public string Url { get; set; } = string.Empty;
+}
+
+public class ClonePlaylistRequest
+{
+    public string Url { get; set; } = string.Empty;
+    public List<string> SelectedVideoIds { get; set; } = [];
 }
