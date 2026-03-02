@@ -1,6 +1,6 @@
 using MyVideoArchive.Models;
 
-namespace MyVideoArchive.Services;
+namespace MyVideoArchive.Services.Content;
 
 public sealed class FileSystemScanStateService
 {

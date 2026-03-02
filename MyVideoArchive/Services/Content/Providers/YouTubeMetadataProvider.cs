@@ -1,12 +1,11 @@
 using System.Text.RegularExpressions;
 using MyVideoArchive.Extensions;
 using MyVideoArchive.Models.Metadata;
-using MyVideoArchive.Services.Abstractions;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Metadata;
 using YoutubeDLSharp.Options;
 
-namespace MyVideoArchive.Services.Providers;
+namespace MyVideoArchive.Services.Content.Providers;
 
 /// <summary>
 /// YouTube implementation of metadata provider using yt-dlp

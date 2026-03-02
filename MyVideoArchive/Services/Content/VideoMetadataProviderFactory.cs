@@ -1,6 +1,4 @@
-using MyVideoArchive.Services.Abstractions;
-
-namespace MyVideoArchive.Services;
+namespace MyVideoArchive.Services.Content;
 
 /// <summary>
 /// Factory service to route to the appropriate metadata provider based on URL

@@ -1,4 +1,4 @@
-namespace MyVideoArchive.Services;
+namespace MyVideoArchive.Services.Content;
 
 /// <summary>
 /// Downloads thumbnails from external URLs, saves them to disk for archival, and returns a

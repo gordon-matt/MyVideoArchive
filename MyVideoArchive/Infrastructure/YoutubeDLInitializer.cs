@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using YoutubeDLSharp;
 
-namespace MyVideoArchive.Services;
+namespace MyVideoArchive.Infrastructure;
 
 /// <summary>
 /// Service for initializing and configuring YoutubeDL instances

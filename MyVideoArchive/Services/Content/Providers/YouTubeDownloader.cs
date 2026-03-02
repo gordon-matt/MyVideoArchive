@@ -1,9 +1,8 @@
 using System.Text.RegularExpressions;
-using MyVideoArchive.Services.Abstractions;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Options;
 
-namespace MyVideoArchive.Services.Providers;
+namespace MyVideoArchive.Services.Content.Providers;
 
 /// <summary>
 /// YouTube implementation of video downloader using yt-dlp
@@ -100,7 +99,6 @@ public partial class YouTubeDownloader : IVideoDownloader
                     {
                         logger.LogError("Failed to download video from {Url}: {Error}", videoUrl, errorMessage);
                     }
-
                 }
 
                 throw new InvalidOperationException($"Failed to download video: {errorMessage}");

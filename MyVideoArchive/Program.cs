@@ -7,8 +7,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OData;
 using MyVideoArchive.Data;
 using MyVideoArchive.Infrastructure;
-using MyVideoArchive.Services.Abstractions;
-using MyVideoArchive.Services.Providers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,10 +30,10 @@ else
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options => options.SignIn.RequireConfirmedAccount = true)
-.AddEntityFrameworkStores<ApplicationDbContext>()
-.AddDefaultTokenProviders()
-.AddDefaultUI();
+builder.Services.AddIdentity<ApplicationUser, ApplicationRole>()
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders()
+    .AddDefaultUI();
 
 builder.Services.AddControllersWithViews()
     .AddNewtonsoftJson()
@@ -97,11 +95,11 @@ builder.Services.AddSingleton<VideoDownloaderFactory>();
 builder.Services.AddTransient<ThumbnailService>();
 
 // Register Hangfire jobs
-builder.Services.AddTransient<VideoDownloadJob>();
 builder.Services.AddTransient<ChannelSyncJob>();
-builder.Services.AddTransient<PlaylistSyncJob>();
 builder.Services.AddTransient<FileSystemScanJob>();
 builder.Services.AddTransient<MetadataReviewJob>();
+builder.Services.AddTransient<PlaylistSyncJob>();
+builder.Services.AddTransient<VideoDownloadJob>();
 
 // Register file system scan state (singleton - tracks progress across requests)
 builder.Services.AddSingleton<FileSystemScanStateService>();
@@ -109,6 +107,10 @@ builder.Services.AddSingleton<FileSystemScanStateService>();
 // Register user context service
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUserContextService, UserContextService>();
+
+// Register other services
+builder.Services.AddSingleton<IChannelService, ChannelService>();
+builder.Services.AddSingleton<IVideoService, VideoService>();
 
 // Configure Autofac
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>

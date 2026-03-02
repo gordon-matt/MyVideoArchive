@@ -1,6 +1,6 @@
 using MyVideoArchive.Models.Metadata;
 
-namespace MyVideoArchive.Services.Abstractions;
+namespace MyVideoArchive.Services.Content.Providers;
 
 /// <summary>
 /// Interface for extracting metadata from various video platforms

@@ -1,4 +1,4 @@
-namespace MyVideoArchive.Services.Abstractions;
+namespace MyVideoArchive.Services.Content.Providers;
 
 /// <summary>
 /// Interface for downloading videos from various platforms
