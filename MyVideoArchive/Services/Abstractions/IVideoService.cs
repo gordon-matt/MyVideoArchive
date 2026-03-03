@@ -53,6 +53,16 @@ public interface IVideoService
     Task<Result<GetWatchedVideoIdsResponse>> GetWatchedVideoIdsAsync(int[] videoIds);
 
     /// <summary>
+    /// Returns the IDs of videos for the specified channel that the current user has watched
+    /// </summary>
+    Task<Result<GetWatchedVideoIdsResponse>> GetWatchedVideoIdsByChannelAsync(int channelId);
+
+    /// <summary>
+    /// Returns the IDs of videos in the specified playlist that the current user has watched
+    /// </summary>
+    Task<Result<GetWatchedVideoIdsResponse>> GetWatchedVideoIdsByPlaylistAsync(int playlistId);
+
+    /// <summary>
     /// Mark a video as unwatched for the current user
     /// </summary>
     Task<Result> MarkUnwatchedAsync(int videoId);

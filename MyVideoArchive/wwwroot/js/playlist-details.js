@@ -80,9 +80,7 @@ class PlaylistDetailsViewModel {
 
                 if (videos.length > 0) {
                     try {
-                        const params = new URLSearchParams();
-                        videos.forEach(v => params.append("videoIds", v.id));
-                        const watchedResponse = await fetch(`/api/user/videos/watched?${params.toString()}`);
+                        const watchedResponse = await fetch(`/api/user/videos/watched/by-playlist/${this.playlistId}`);
                         const watchedData = await watchedResponse.json();
                         const watchedSet = new Set(watchedData.watchedIds || []);
                         this.playlistVideos().forEach(v => {

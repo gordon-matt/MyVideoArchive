@@ -27,6 +27,28 @@ public class UserVideoApiController : ControllerBase
     }
 
     /// <summary>
+    /// Returns the IDs of videos in the specified playlist that the current user has watched
+    /// </summary>
+    [HttpGet("watched/by-playlist/{playlistId:int}")]
+    public async Task<IActionResult> GetWatchedVideoIdsByPlaylist(int playlistId)
+    {
+        var result = await videoService.GetWatchedVideoIdsByPlaylistAsync(playlistId);
+
+        return result.ToActionResult(this, value => Ok(new { watchedIds = value.WatchedIds }));
+    }
+
+    /// <summary>
+    /// Returns the IDs of videos for the specified channel that the current user has watched
+    /// </summary>
+    [HttpGet("watched/by-channel/{channelId:int}")]
+    public async Task<IActionResult> GetWatchedVideoIdsByChannel(int channelId)
+    {
+        var result = await videoService.GetWatchedVideoIdsByChannelAsync(channelId);
+
+        return result.ToActionResult(this, value => Ok(new { watchedIds = value.WatchedIds }));
+    }
+
+    /// <summary>
     /// Mark a video as watched for the current user
     /// </summary>
     [HttpPost("{videoId}/watched")]

@@ -137,9 +137,7 @@ class ChannelDetailsViewModel {
             this.videosTotalCount(data.pagination.totalCount);
 
             if (videos.length > 0) {
-                const idParams = new URLSearchParams();
-                videos.forEach(v => idParams.append('videoIds', v.id));
-                await fetch(`/api/user/videos/watched?${idParams}`)
+                await fetch(`/api/user/videos/watched/by-channel/${this.channelId}`)
                     .then(r => r.json())
                     .then(watchedData => {
                         const watchedSet = new Set(watchedData.watchedIds || []);

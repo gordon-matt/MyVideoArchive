@@ -606,6 +606,105 @@ public class VideoService : IVideoService
         }
     }
 
+    public async Task<Result<GetWatchedVideoIdsResponse>> GetWatchedVideoIdsByChannelAsync(int channelId)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            bool canAccessChannel = userContextService.IsAdministrator()
+                                    || await channelService.UserSubscribedToChannelAsync(channelId);
+            if (!canAccessChannel)
+            {
+                return Result.Forbidden();
+            }
+
+            var channelVideoIds = await videoRepository.FindAsync(
+                new SearchOptions<Video>
+                {
+                    Query = x => x.ChannelId == channelId
+                },
+                x => x.Id);
+
+            var videoIds = channelVideoIds.ToList();
+            if (videoIds.Count == 0)
+            {
+                return Result.Success(new GetWatchedVideoIdsResponse([]));
+            }
+
+            var watchedIds = await userVideoRepository.FindAsync(
+                new SearchOptions<UserVideo>
+                {
+                    Query = x =>
+                        x.UserId == userId &&
+                        videoIds.Contains(x.VideoId) &&
+                        x.Watched
+                },
+                x => x.VideoId);
+
+            return Result.Success(new GetWatchedVideoIdsResponse(watchedIds.ToList()));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving watched video IDs for channel {ChannelId}", channelId);
+            }
+
+            return Result.Error("An error occurred while retrieving watched status");
+        }
+    }
+
+    public async Task<Result<GetWatchedVideoIdsResponse>> GetWatchedVideoIdsByPlaylistAsync(int playlistId)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            var playlistVideoIds = await playlistVideoRepository.FindAsync(
+                new SearchOptions<PlaylistVideo>
+                {
+                    Query = x => x.PlaylistId == playlistId
+                },
+                x => x.VideoId);
+
+            var videoIds = playlistVideoIds.ToList();
+            if (videoIds.Count == 0)
+            {
+                return Result.Success(new GetWatchedVideoIdsResponse([]));
+            }
+
+            var watchedIds = await userVideoRepository.FindAsync(
+                new SearchOptions<UserVideo>
+                {
+                    Query = x =>
+                        x.UserId == userId &&
+                        videoIds.Contains(x.VideoId) &&
+                        x.Watched
+                },
+                x => x.VideoId);
+
+            return Result.Success(new GetWatchedVideoIdsResponse(watchedIds.ToList()));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving watched video IDs for playlist {PlaylistId}", playlistId);
+            }
+
+            return Result.Error("An error occurred while retrieving watched status");
+        }
+    }
+
     public async Task<Result> MarkUnwatchedAsync(int videoId)
     {
         try
