@@ -93,6 +93,7 @@ class DownloadsViewModel {
                         viewCount: v.ViewCount,
                         likeCount: v.LikeCount,
                         isQueued: v.IsQueued,
+                        downloadFailed: v.DownloadFailed,
                         channelId: v.ChannelId,
                         channelName: v.Channel ? v.Channel.Name : 'Unknown Channel'
                     };

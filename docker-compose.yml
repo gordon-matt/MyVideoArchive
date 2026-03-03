@@ -18,6 +18,10 @@ services:
       # Linux path for downloads; override in appsettings on Windows
       VideoDownload__VideoQuality: bestvideo[height=720]+bestaudio/bestvideo[height=720]+bestaudio/bestvideo[height=480]+bestaudio/best
       VideoDownload__OutputPath: /app/data
+      VideoDownload__Throttle__MinDelaySeconds: 10
+      VideoDownload__Throttle__MaxDelaySeconds: 60
+      VideoDownload__Throttle__BatchSize: 25
+      VideoDownload__Throttle__BatchWindowMinutes: 30
       YoutubeDL__ExecutablePath: /usr/local/bin/yt-dlp
       YoutubeDL__FFmpegPath: /usr/bin/ffmpeg
     volumes:

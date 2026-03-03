@@ -148,7 +148,7 @@ public class VideoService : IVideoService
                 });
             }
 
-            if (video.DownloadedAt is null)
+            if (video.DownloadedAt is null && !video.DownloadFailed)
             {
                 video.IsQueued = true;
                 await videoRepository.UpdateAsync(video);
@@ -288,6 +288,41 @@ public class VideoService : IVideoService
             }
 
             return Result.Error("An error occurred while retrieving channels");
+        }
+    }
+
+    public async Task<Result<FailedDownloadsResponse>> GetFailedDownloadsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var videos = await videoRepository.FindAsync(
+                new SearchOptions<Video>
+                {
+                    CancellationToken = cancellationToken,
+                    Query = x => x.DownloadFailed,
+                    OrderBy = q => q.OrderBy(x => x.Channel.Name).ThenBy(x => x.Title),
+                    Include = q => q.Include(x => x.Channel)
+                });
+
+            var items = videos.Select(x => new FailedDownloadItem(
+                x.Id,
+                x.VideoId,
+                x.Title,
+                x.ThumbnailUrl,
+                x.Channel.ChannelId,
+                x.Channel.Name,
+                x.ChannelId)).ToList();
+
+            return Result.Success(new FailedDownloadsResponse(items));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving failed downloads");
+            }
+
+            return Result.Error("An error occurred while retrieving failed downloads");
         }
     }
 
@@ -492,6 +527,7 @@ public class VideoService : IVideoService
                 x.UploadDate,
                 x.DownloadedAt,
                 x.IsQueued,
+                x.DownloadFailed,
                 x.Platform,
                 new ChannelInfo(x.Channel.Id, x.Channel.Name),
                 x.VideoTags

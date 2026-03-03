@@ -22,6 +22,11 @@ public interface IVideoService
     Task<Result<GetAccessibleChannelsResponse>> GetAccessibleChannelsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Get all videos that have been flagged as DownloadFailed, for admin review.
+    /// </summary>
+    Task<Result<FailedDownloadsResponse>> GetFailedDownloadsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get standalone status info for a video (for the banner on the details page)
     /// </summary>
     Task<Result<StandaloneInfoResponse>> GetStandaloneInfoAsync(int videoId);

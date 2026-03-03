@@ -1,4 +1,4 @@
-﻿namespace MyVideoArchive.Models.Responses;
+namespace MyVideoArchive.Models.Responses;
 
 public record AvailableVideo(
     int Id,
@@ -13,7 +13,8 @@ public record AvailableVideo(
     int? LikeCount,
     DateTime? DownloadedAt,
     bool IsIgnored,
-    bool IsDownloaded);
+    bool IsDownloaded,
+    bool DownloadFailed);
 
 public record DownloadedVideo(
     int Id,

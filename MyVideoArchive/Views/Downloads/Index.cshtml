@@ -75,20 +75,26 @@
                         <span data-bind="if: duration"> | Duration: <span data-bind="text: $parent.formatDuration(duration)"></span></span>
                     </div>
                     <div class="mt-2">
-                        <span data-bind="if: isQueued" class="badge bg-warning text-dark">
+                        <span data-bind="if: downloadFailed" class="badge bg-danger">
+                            <i class="bi bi-exclamation-triangle-fill"></i> Failed
+                        </span>
+                        <span data-bind="if: !downloadFailed && isQueued" class="badge bg-warning text-dark">
                             <i class="bi bi-hourglass-split"></i> Queued for Download
                         </span>
-                        <span data-bind="if: !isQueued" class="badge bg-info">
+                        <span data-bind="if: !downloadFailed && !isQueued" class="badge bg-info">
                             <i class="bi bi-cloud-arrow-down"></i> Available
                         </span>
                     </div>
                 </div>
                 <div class="download-actions">
-                    <button class="btn btn-primary btn-sm" data-bind="click: $parent.downloadVideo, visible: !isQueued, enable: !isQueued">
+                    <button class="btn btn-primary btn-sm" data-bind="click: $parent.downloadVideo, visible: !downloadFailed && !isQueued, enable: !isQueued">
                         <i class="bi bi-download"></i> Download
                     </button>
-                    <span data-bind="visible: isQueued" class="text-warning">
+                    <span data-bind="visible: !downloadFailed && isQueued" class="text-warning">
                         <i class="bi bi-hourglass-split"></i> Queued
+                    </span>
+                    <span data-bind="visible: downloadFailed" class="text-danger small">
+                        <i class="bi bi-info-circle"></i> See Admin &rarr; Failed Downloads
                     </span>
                 </div>
             </div>

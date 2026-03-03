@@ -74,7 +74,12 @@
                         <span class="badge bg-dark video-duration"
                               data-bind="text: $parent.formatDuration(duration)"></span>
                         <!-- /ko -->
-                        <!-- ko ifnot: downloadedAt -->
+                        <!-- ko if: downloadFailed -->
+                        <span class="badge bg-danger video-status" title="Download failed">
+                            <i class="bi bi-exclamation-triangle-fill"></i> Failed
+                        </span>
+                        <!-- /ko -->
+                        <!-- ko if: !downloadFailed && !downloadedAt -->
                         <span class="badge bg-warning text-dark video-status" title="Downloading...">
                             <i class="bi bi-hourglass-split"></i>
                         </span>

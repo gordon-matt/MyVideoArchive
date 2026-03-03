@@ -86,4 +86,15 @@ public class AdminApiController : ControllerBase
 
         return result.ToActionResult(this, value => Ok(new { success = value.Success, message = value.Message }));
     }
+
+    /// <summary>
+    /// Returns all videos that have been flagged as DownloadFailed.
+    /// </summary>
+    [HttpGet("failed-downloads")]
+    public async Task<IActionResult> GetFailedDownloads(CancellationToken cancellationToken)
+    {
+        var result = await videoService.GetFailedDownloadsAsync(cancellationToken);
+
+        return result.ToActionResult(this, value => Ok(new { videos = value.Videos }));
+    }
 }

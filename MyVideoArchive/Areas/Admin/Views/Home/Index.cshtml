@@ -14,106 +14,197 @@
     </div>
 </div>
 
-<div class="row">
-    <div class="col-12 col-lg-6">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-folder-symlink"></i> File System</h5>
-            </div>
-            <div class="card-body">
-                <p class="card-text text-muted">
-                    Scan the configured downloads folder and reconcile video files with the database.
-                    For non-Custom channels, checks convention paths (<code>OutputPath/{ChannelId}/{VideoId}</code>) for unlinked videos and detects files that no longer exist.
-                    Custom channel files are enumerated from <code>OutputPath/_Custom/{ChannelId}/</code>.
-                </p>
-                <div id="scanStatus" class="alert d-none" role="alert"></div>
+<ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tools-tab" data-bs-toggle="tab" data-bs-target="#tools" type="button" role="tab">
+            <i class="bi bi-tools"></i> Tools
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="failed-tab" data-bs-toggle="tab" data-bs-target="#failed" type="button" role="tab"
+                data-bind="click: loadFailedDownloads">
+            <i class="bi bi-exclamation-triangle-fill text-danger"></i> Failed Downloads
+            <!-- ko if: failedCount() > 0 -->
+            <span class="badge bg-danger ms-1" data-bind="text: failedCount()"></span>
+            <!-- /ko -->
+        </button>
+    </li>
+</ul>
 
-                <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <button id="btnScanFileSystem" class="btn btn-primary"
-                            data-bind="click: scanFileSystem, enable: !scanning()">
-                        <span data-bind="visible: !scanning()">
-                            <i class="bi bi-search"></i> Scan File System
-                        </span>
-                        <span data-bind="visible: scanning()" class="d-none">
-                            <i class="bi bi-search"></i> Scan File System
-                        </span>
-                    </button>
-                    <button class="btn btn-outline-danger"
-                            data-bind="visible: scanning(), click: cancelScan">
-                        <i class="bi bi-x-circle"></i> Cancel
-                    </button>
-                </div>
+<div class="tab-content" id="adminTabsContent">
 
-                <!-- Progress bar (visible while scanning) -->
-                <div data-bind="visible: scanning()" class="mt-3">
-                    <div class="d-flex justify-content-between mb-1">
-                        <small class="text-muted">
-                            <!-- ko if: scanProgress() && scanProgress().currentChannelName -->
-                            Processing: <strong data-bind="text: scanProgress().currentChannelName"></strong>
-                            <!-- /ko -->
-                            <!-- ko ifnot: scanProgress() && scanProgress().currentChannelName -->
-                            Starting scan&hellip;
-                            <!-- /ko -->
-                        </small>
-                        <small class="text-muted">
+    <!-- ── Tools tab ──────────────────────────────────────────────────────── -->
+    <div class="tab-pane fade show active" id="tools" role="tabpanel">
+        <div class="row">
+            <div class="col-12 col-lg-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-folder-symlink"></i> File System</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text text-muted">
+                            Scan the configured downloads folder and reconcile video files with the database.
+                            For non-Custom channels, checks convention paths (<code>OutputPath/{ChannelId}/{VideoId}</code>) for unlinked videos and detects files that no longer exist.
+                            Custom channel files are enumerated from <code>OutputPath/_Custom/{ChannelId}/</code>.
+                        </p>
+                        <div id="scanStatus" class="alert d-none" role="alert"></div>
+
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <button id="btnScanFileSystem" class="btn btn-primary"
+                                    data-bind="click: scanFileSystem, enable: !scanning()">
+                                <span data-bind="visible: !scanning()">
+                                    <i class="bi bi-search"></i> Scan File System
+                                </span>
+                                <span data-bind="visible: scanning()" class="d-none">
+                                    <i class="bi bi-search"></i> Scan File System
+                                </span>
+                            </button>
+                            <button class="btn btn-outline-danger"
+                                    data-bind="visible: scanning(), click: cancelScan">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </button>
+                        </div>
+
+                        <!-- Progress bar (visible while scanning) -->
+                        <div data-bind="visible: scanning()" class="mt-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small class="text-muted">
+                                    <!-- ko if: scanProgress() && scanProgress().currentChannelName -->
+                                    Processing: <strong data-bind="text: scanProgress().currentChannelName"></strong>
+                                    <!-- /ko -->
+                                    <!-- ko ifnot: scanProgress() && scanProgress().currentChannelName -->
+                                    Starting scan&hellip;
+                                    <!-- /ko -->
+                                </small>
+                                <small class="text-muted">
+                                    <!-- ko if: scanProgress() -->
+                                    <span data-bind="text: scanProgress().processedChannels"></span> / <span data-bind="text: scanProgress().totalChannels"></span> channels
+                                    &nbsp;(<span data-bind="text: scanProgress().percentComplete"></span>%)
+                                    <!-- /ko -->
+                                </small>
+                            </div>
+                            <div class="progress" style="height: 18px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                                     role="progressbar"
+                                     data-bind="style: { width: (scanProgress() ? scanProgress().percentComplete : 0) + '%' }"
+                                     aria-valuemin="0" aria-valuemax="100">
+                                </div>
+                            </div>
                             <!-- ko if: scanProgress() -->
-                            <span data-bind="text: scanProgress().processedChannels"></span> / <span data-bind="text: scanProgress().totalChannels"></span> channels
-                            &nbsp;(<span data-bind="text: scanProgress().percentComplete"></span>%)
-                            <!-- /ko -->
-                        </small>
-                    </div>
-                    <div class="progress" style="height: 18px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
-                             role="progressbar"
-                             data-bind="style: { width: (scanProgress() ? scanProgress().percentComplete : 0) + '%' }"
-                             aria-valuemin="0" aria-valuemax="100">
-                        </div>
-                    </div>
-                    <!-- ko if: scanProgress() -->
-                    <small class="text-muted mt-1 d-block">
-                        <span data-bind="text: scanProgress().newVideos"></span> new &middot;
-                        <span data-bind="text: scanProgress().updatedVideos"></span> updated &middot;
-                        <span data-bind="text: scanProgress().missingFiles"></span> missing so far
-                    </small>
-                    <!-- /ko -->
-                </div>
-
-                <!-- Result summary (visible after scan completes) -->
-                <div data-bind="visible: scanResult()" class="mt-3">
-                    <div class="card bg-light">
-                        <div class="card-body py-2">
-                            <small>
-                                <strong>Scan complete.</strong>
-                                <span data-bind="text: scanResult() && scanResult().newVideos"></span> new video(s),
-                                <span data-bind="text: scanResult() && scanResult().updatedVideos"></span> updated,
-                                <span data-bind="text: scanResult() && scanResult().flaggedForReview"></span> flagged for review,
-                                <span data-bind="text: scanResult() && scanResult().missingFiles"></span> missing from disk.
+                            <small class="text-muted mt-1 d-block">
+                                <span data-bind="text: scanProgress().newVideos"></span> new &middot;
+                                <span data-bind="text: scanProgress().updatedVideos"></span> updated &middot;
+                                <span data-bind="text: scanProgress().missingFiles"></span> missing so far
                             </small>
+                            <!-- /ko -->
                         </div>
+
+                        <!-- Result summary (visible after scan completes) -->
+                        <div data-bind="visible: scanResult()" class="mt-3">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <small>
+                                        <strong>Scan complete.</strong>
+                                        <span data-bind="text: scanResult() && scanResult().newVideos"></span> new video(s),
+                                        <span data-bind="text: scanResult() && scanResult().updatedVideos"></span> updated,
+                                        <span data-bind="text: scanResult() && scanResult().flaggedForReview"></span> flagged for review,
+                                        <span data-bind="text: scanResult() && scanResult().missingFiles"></span> missing from disk.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-arrow-repeat"></i> Channel Sync</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text text-muted">
+                            Manually trigger a sync of all channels and playlists with their source platforms to discover new content.
+                        </p>
+                        <button class="btn btn-outline-primary me-2" data-bind="click: syncAllChannels, enable: !syncing()">
+                            <i class="bi bi-broadcast"></i> Sync All Channels
+                        </button>
+                        <button class="btn btn-outline-secondary" data-bind="click: syncAllPlaylists, enable: !syncing()">
+                            <i class="bi bi-collection-play"></i> Sync All Playlists
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="col-12 col-lg-6">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-arrow-repeat"></i> Channel Sync</h5>
+    <!-- ── Failed Downloads tab ───────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="failed" role="tabpanel">
+        <div class="alert alert-warning d-flex gap-2 mb-4">
+            <i class="bi bi-info-circle-fill fs-5 flex-shrink-0 mt-1"></i>
+            <div>
+                <strong>These videos failed to download automatically.</strong>
+                If you are able to obtain them by other means, rename the file using the <strong>Video ID</strong>
+                (e.g. <code>5eVq-W1BGlY.mp4</code>) and place it in the appropriate channel folder under
+                your configured download path. Then run a <strong>File System Scan</strong> from the Tools tab
+                to import it.
             </div>
-            <div class="card-body">
-                <p class="card-text text-muted">
-                    Manually trigger a sync of all channels and playlists with their source platforms to discover new content.
-                </p>
-                <button class="btn btn-outline-primary me-2" data-bind="click: syncAllChannels, enable: !syncing()">
-                    <i class="bi bi-broadcast"></i> Sync All Channels
-                </button>
-                <button class="btn btn-outline-secondary" data-bind="click: syncAllPlaylists, enable: !syncing()">
-                    <i class="bi bi-collection-play"></i> Sync All Playlists
-                </button>
+        </div>
+
+        <div data-bind="visible: failedLoading()" class="text-center py-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading&hellip;</span>
+            </div>
+        </div>
+
+        <div data-bind="visible: !failedLoading() && failedVideos().length === 0" class="alert alert-success">
+            <i class="bi bi-check-circle-fill me-2"></i> No failed downloads. 
+        </div>
+
+        <div data-bind="visible: !failedLoading() && failedVideos().length > 0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 120px;">Thumbnail</th>
+                            <th>Title</th>
+                            <th>Video ID</th>
+                            <th>Channel</th>
+                            <th>Channel ID</th>
+                        </tr>
+                    </thead>
+                    <tbody data-bind="foreach: failedVideos">
+                        <tr>
+                            <td>
+                                <!-- ko if: thumbnailUrl -->
+                                <img data-bind="attr: { src: thumbnailUrl, alt: title }"
+                                     style="width: 120px; height: 68px; object-fit: cover; border-radius: 4px;" />
+                                <!-- /ko -->
+                                <!-- ko ifnot: thumbnailUrl -->
+                                <div class="bg-secondary d-flex align-items-center justify-content-center rounded"
+                                     style="width: 120px; height: 68px;">
+                                    <i class="bi bi-play-circle text-white fs-4"></i>
+                                </div>
+                                <!-- /ko -->
+                            </td>
+                            <td>
+                                <span class="fw-semibold" data-bind="text: title"></span>
+                                <span class="badge bg-danger ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Failed</span>
+                            </td>
+                            <td>
+                                <code data-bind="text: videoId"></code>
+                            </td>
+                            <td data-bind="text: channelName"></td>
+                            <td>
+                                <code data-bind="text: channelId"></code>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
+
 </div>
 
 @section Scripts {

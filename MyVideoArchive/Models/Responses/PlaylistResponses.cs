@@ -1,4 +1,4 @@
-﻿namespace MyVideoArchive.Models.Responses;
+namespace MyVideoArchive.Models.Responses;
 
 public record AvailablePlaylistItem(
     int Id,
@@ -36,6 +36,7 @@ public record PlaylistVideoItem(
     DateTime? DownloadedAt,
     bool IsIgnored,
     bool IsQueued,
+    bool DownloadFailed,
     int ChannelId,
     ChannelInfo Channel,
     bool IsHidden);

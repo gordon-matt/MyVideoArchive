@@ -147,8 +147,13 @@
                                 <!-- /ko -->
                                 <!-- ko if: !downloadedAt -->
                                 <div class="mt-1">
+                                    <!-- ko if: downloadFailed -->
+                                    <span class="badge bg-danger small"><i class="bi bi-exclamation-triangle-fill"></i> Failed</span>
+                                    <!-- /ko -->
+                                    <!-- ko ifnot: downloadFailed -->
                                     <span class="badge bg-warning text-dark small" data-bind="visible: !isQueued">Not Downloaded</span>
                                     <span class="badge bg-info text-dark small" data-bind="visible: isQueued">Downloading...</span>
+                                    <!-- /ko -->
                                 </div>
                                 <!-- /ko -->
                             </div>
@@ -163,7 +168,7 @@
                                     <i class="bi bi-eye-slash"></i>
                                 </button>
                                 <!-- /ko -->
-                                <!-- ko if: !downloadedAt && title != '@Constants.PrivateVideoTitle' && title != '@Constants.DeletedVideoTitle' -->
+                                <!-- ko if: !downloadedAt && !downloadFailed && title != '@Constants.PrivateVideoTitle' && title != '@Constants.DeletedVideoTitle' -->
                                 <button class="btn btn-sm btn-primary" data-bind="click: function(data, event) { event.stopPropagation(); $parent.downloadVideo(data, event); }">
                                     <i class="bi bi-download"></i>
                                 </button>

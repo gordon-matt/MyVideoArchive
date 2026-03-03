@@ -68,7 +68,21 @@ builder.Services.AddHangfire(configuration => configuration
         QueuePollInterval = TimeSpan.FromSeconds(15)
     }));
 
-builder.Services.AddHangfireServer();
+// Main server: handles all queues except "downloads"
+builder.Services.AddHangfireServer(options =>
+{
+    options.ServerName = "main";
+    options.Queues = ["default", "critical"];
+});
+
+// Dedicated single-worker server for video downloads — serialises jobs and prevents
+// parallel requests to YouTube that would trigger rate-limiting.
+builder.Services.AddHangfireServer(options =>
+{
+    options.ServerName = "downloads";
+    options.Queues = ["downloads"];
+    options.WorkerCount = 1;
+});
 
 // Register HTTP client (used by ThumbnailService)
 builder.Services.AddHttpClient();

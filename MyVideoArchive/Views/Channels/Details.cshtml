@@ -269,6 +269,9 @@
                                         <div data-bind="if: isDownloaded" class="mt-1">
                                             <span class="badge bg-success">Downloaded</span>
                                         </div>
+                                        <div data-bind="if: downloadFailed" class="mt-1">
+                                            <span class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill"></i> Failed</span>
+                                        </div>
                                         <div data-bind="if: isIgnored" class="mt-1">
                                             <span class="badge bg-secondary">Ignored</span>
                                         </div>
@@ -305,6 +308,7 @@
                                 </small>
                                 <div class="d-flex flex-wrap gap-1 mt-1">
                                     <span data-bind="if: isDownloaded" class="badge bg-success">Downloaded</span>
+                                    <span data-bind="if: downloadFailed" class="badge bg-danger"><i class="bi bi-exclamation-triangle-fill"></i> Failed</span>
                                     <span data-bind="if: isIgnored" class="badge bg-secondary">Ignored</span>
                                 </div>
                             </div>

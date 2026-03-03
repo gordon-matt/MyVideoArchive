@@ -38,6 +38,8 @@ public class Video : BaseEntity<int>
 
     public bool NeedsMetadataReview { get; set; }
 
+    public bool DownloadFailed { get; set; }
+
     public int ChannelId { get; set; }
 
     public Channel Channel { get; set; } = null!;
@@ -63,6 +65,7 @@ public class VideoMap : IEntityTypeConfiguration<Video>
 
         builder.Property(m => m.IsManuallyImported).IsRequired().HasDefaultValue(false);
         builder.Property(m => m.NeedsMetadataReview).IsRequired().HasDefaultValue(false);
+        builder.Property(m => m.DownloadFailed).IsRequired().HasDefaultValue(false);
 
         builder.HasIndex(m => new { m.Platform, m.VideoId }).IsUnique();
 

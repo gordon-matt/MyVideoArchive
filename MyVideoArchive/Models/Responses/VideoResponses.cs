@@ -1,8 +1,19 @@
-﻿namespace MyVideoArchive.Models.Responses;
+namespace MyVideoArchive.Models.Responses;
 
 public record AddStandaloneVideoResponse(int VideoId, string Title, int ChannelId, string ChannelName, bool IsAlreadyDownloaded);
 
 public record ChannelFilterItem(int Id, string Name);
+
+public record FailedDownloadItem(
+    int Id,
+    string VideoId,
+    string Title,
+    string? ThumbnailUrl,
+    string ChannelId,
+    string ChannelName,
+    int ChannelEntityId);
+
+public record FailedDownloadsResponse(IReadOnlyList<FailedDownloadItem> Videos);
 
 public record GetAccessibleChannelsResponse(IReadOnlyList<ChannelFilterItem> Channels);
 
@@ -31,6 +42,7 @@ public record VideoIndexItem(
     DateTime? UploadDate,
     DateTime? DownloadedAt,
     bool IsQueued,
+    bool DownloadFailed,
     string? Platform,
     ChannelInfo Channel,
     IReadOnlyList<string> Tags);

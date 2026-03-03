@@ -1,4 +1,4 @@
-﻿using Ardalis.Result;
+using Ardalis.Result;
 using Extenso.Collections.Generic;
 using Hangfire;
 using MyVideoArchive.Models.Requests;
@@ -162,7 +162,8 @@ public class ChannelService : IChannelService
                     x.ChannelId == channelId &&
                     x.DownloadedAt == null &&
                     !x.IsIgnored &&
-                    !x.IsQueued
+                    !x.IsQueued &&
+                    !x.DownloadFailed
             });
 
             if (videos.Count == 0)
@@ -214,7 +215,8 @@ public class ChannelService : IChannelService
             {
                 Query = x =>
                     x.ChannelId == channelId &&
-                    request.VideoIds.Contains(x.Id)
+                    request.VideoIds.Contains(x.Id) &&
+                    !x.DownloadFailed
             });
 
             if (videos.Count == 0)
@@ -315,7 +317,8 @@ public class ChannelService : IChannelService
                 x.LikeCount,
                 x.DownloadedAt,
                 x.IsIgnored,
-                x.DownloadedAt != null));
+                x.DownloadedAt != null,
+                x.DownloadFailed));
 
             return Result.Success(videos);
         }

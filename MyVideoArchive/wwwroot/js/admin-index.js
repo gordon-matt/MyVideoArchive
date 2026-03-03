@@ -7,6 +7,12 @@ class AdminViewModel {
         this.scanProgress = ko.observable(null);
         this.scanResult = ko.observable(null);
 
+        // Failed downloads tab
+        this.failedVideos = ko.observableArray([]);
+        this.failedLoading = ko.observable(false);
+        this.failedLoaded = false;
+        this.failedCount = ko.observable(0);
+
         this._pollTimer = null;
     }
 
@@ -91,6 +97,25 @@ class AdminViewModel {
         }
     };
 
+    // ── Failed Downloads ──────────────────────────────────────────────────────
+
+    loadFailedDownloads = async () => {
+        if (this.failedLoaded) return; // only fetch once per page load
+        this.failedLoading(true);
+        try {
+            const response = await fetch('/api/admin/failed-downloads');
+            if (!response.ok) return;
+            const data = await response.json();
+            this.failedVideos(data.videos || []);
+            this.failedCount(data.videos?.length ?? 0);
+            this.failedLoaded = true;
+        } catch (error) {
+            console.error('Error loading failed downloads:', error);
+        } finally {
+            this.failedLoading(false);
+        }
+    };
+
     // ── Channel / Playlist Sync ───────────────────────────────────────────────
 
     syncAllChannels = async () => {
@@ -142,6 +167,18 @@ function hideAlert() {
 document.addEventListener('DOMContentLoaded', async () => {
     const viewModel = new AdminViewModel();
     ko.applyBindings(viewModel);
+
+    // Load the failed download count for the badge (non-blocking)
+    fetch('/api/admin/failed-downloads')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (data) {
+                viewModel.failedVideos(data.videos || []);
+                viewModel.failedCount(data.videos?.length ?? 0);
+                viewModel.failedLoaded = true;
+            }
+        })
+        .catch(() => { });
 
     // If a scan is already running when the page loads, attach to it immediately
     try {

@@ -254,6 +254,7 @@ public class PlaylistService : IPlaylistService
                 x.Video.DownloadedAt,
                 x.Video.IsIgnored,
                 x.Video.IsQueued,
+                x.Video.DownloadFailed,
                 x.Video.ChannelId,
                 new ChannelInfo(x.Video.Channel.Id, x.Video.Channel.Name),
                 hiddenVideoIds.Contains(x.VideoId))).ToList();
