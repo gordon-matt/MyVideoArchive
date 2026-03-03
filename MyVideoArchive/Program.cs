@@ -110,6 +110,12 @@ builder.Services.AddScoped<IUserContextService, UserContextService>();
 
 // Register other services
 builder.Services.AddSingleton<IChannelService, ChannelService>();
+builder.Services.AddSingleton<ICustomChannelService, CustomChannelService>();
+builder.Services.AddSingleton<ICustomPlaylistService, CustomPlaylistService>();
+builder.Services.AddSingleton<IFileSystemScanService, FileSystemScanService>();
+builder.Services.AddSingleton<IPlaylistService, PlaylistService>();
+builder.Services.AddSingleton<ITagService, TagService>();
+builder.Services.AddSingleton<IUserSettingsService, UserSettingsService>();
 builder.Services.AddSingleton<IVideoService, VideoService>();
 
 // Configure Autofac

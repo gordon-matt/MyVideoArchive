@@ -1,22 +1,180 @@
-﻿using Ardalis.Result;
+using Ardalis.Result;
+using Hangfire;
 using MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Metadata;
 
 namespace MyVideoArchive.Services;
 
 public class VideoService : IVideoService
 {
-    private readonly ILogger<ChannelService> logger;
+    private readonly IBackgroundJobClient backgroundJobClient;
+    private readonly IRepository<Channel> channelRepository;
     private readonly IChannelService channelService;
+    private readonly ILogger<VideoService> logger;
+    private readonly VideoMetadataProviderFactory metadataProviderFactory;
+    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
+    private readonly IRepository<Tag> tagRepository;
+    private readonly IRepository<UserChannel> userChannelRepository;
+    private readonly IUserContextService userContextService;
+    private readonly IRepository<UserVideo> userVideoRepository;
     private readonly IRepository<Video> videoRepository;
+    private readonly IRepository<VideoTag> videoTagRepository;
 
     public VideoService(
-        ILogger<ChannelService> logger,
+        ILogger<VideoService> logger,
+        IUserContextService userContextService,
+        IBackgroundJobClient backgroundJobClient,
+        VideoMetadataProviderFactory metadataProviderFactory,
         IChannelService channelService,
-        IRepository<Video> videoRepository)
+        IRepository<Channel> channelRepository,
+        IRepository<PlaylistVideo> playlistVideoRepository,
+        IRepository<Tag> tagRepository,
+        IRepository<UserChannel> userChannelRepository,
+        IRepository<UserVideo> userVideoRepository,
+        IRepository<Video> videoRepository,
+        IRepository<VideoTag> videoTagRepository)
     {
         this.logger = logger;
-        this.videoRepository = videoRepository;
+        this.userContextService = userContextService;
+        this.backgroundJobClient = backgroundJobClient;
+        this.metadataProviderFactory = metadataProviderFactory;
         this.channelService = channelService;
+        this.channelRepository = channelRepository;
+        this.playlistVideoRepository = playlistVideoRepository;
+        this.tagRepository = tagRepository;
+        this.userChannelRepository = userChannelRepository;
+        this.userVideoRepository = userVideoRepository;
+        this.videoRepository = videoRepository;
+        this.videoTagRepository = videoTagRepository;
+    }
+
+    public async Task<Result<AddStandaloneVideoResponse>> AddStandaloneVideoAsync(AddStandaloneVideoRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Url))
+            {
+                return Result.Invalid([new ValidationError("Url", "A video URL is required")]);
+            }
+
+            var provider = metadataProviderFactory.GetProvider(request.Url);
+            if (provider is null)
+            {
+                return Result.Invalid([new ValidationError("Url", "No metadata provider found for this URL")]);
+            }
+
+            var videoMeta = await provider.GetVideoMetadataAsync(request.Url, cancellationToken);
+            if (videoMeta is null)
+            {
+                return Result.Invalid([new ValidationError("Url", "Could not retrieve video metadata. Please check the URL and try again.")]);
+            }
+
+            var channel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
+            {
+                Query = x => x.ChannelId == videoMeta.ChannelId && x.Platform == videoMeta.Platform
+            });
+
+            if (channel is null)
+            {
+                ChannelMetadata? channelMeta = null;
+                if (!string.IsNullOrEmpty(videoMeta.ChannelId))
+                {
+                    var channelUrl = $"https://www.youtube.com/channel/{videoMeta.ChannelId}";
+                    channelMeta = await provider.GetChannelMetadataAsync(channelUrl, cancellationToken);
+                }
+
+                channel = new Channel
+                {
+                    ChannelId = videoMeta.ChannelId ?? videoMeta.ChannelName ?? "unknown",
+                    Name = channelMeta?.Name ?? videoMeta.ChannelName ?? "Unknown Channel",
+                    Url = channelMeta?.Url ?? (string.IsNullOrEmpty(videoMeta.ChannelId) ? string.Empty : $"https://www.youtube.com/channel/{videoMeta.ChannelId}"),
+                    Description = channelMeta?.Description,
+                    ThumbnailUrl = channelMeta?.ThumbnailUrl,
+                    SubscriberCount = channelMeta?.SubscriberCount,
+                    Platform = videoMeta.Platform,
+                    SubscribedAt = DateTime.UtcNow
+                };
+
+                await channelRepository.InsertAsync(channel);
+
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Created channel {ChannelId} for standalone video", channel.ChannelId);
+                }
+            }
+
+            var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+            {
+                Query = x => x.VideoId == videoMeta.VideoId && x.Platform == videoMeta.Platform
+            });
+
+            if (video is null)
+            {
+                video = new Video
+                {
+                    VideoId = videoMeta.VideoId,
+                    Title = videoMeta.Title,
+                    Description = videoMeta.Description,
+                    Url = videoMeta.Url,
+                    ThumbnailUrl = videoMeta.ThumbnailUrl,
+                    Platform = videoMeta.Platform,
+                    Duration = videoMeta.Duration,
+                    UploadDate = videoMeta.UploadDate,
+                    ViewCount = videoMeta.ViewCount,
+                    LikeCount = videoMeta.LikeCount,
+                    ChannelId = channel.Id,
+                    IsQueued = true
+                };
+
+                await videoRepository.InsertAsync(video);
+
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Created standalone video {VideoId}", video.VideoId);
+                }
+            }
+
+            var standaloneTag = await GetOrCreateTagAsync(userId, Constants.StandaloneTag);
+
+            var alreadyTagged = await videoTagRepository.ExistsAsync(x => x.VideoId == video.Id && x.TagId == standaloneTag.Id);
+            if (!alreadyTagged)
+            {
+                await videoTagRepository.InsertAsync(new VideoTag
+                {
+                    VideoId = video.Id,
+                    TagId = standaloneTag.Id
+                });
+            }
+
+            if (video.DownloadedAt is null)
+            {
+                video.IsQueued = true;
+                await videoRepository.UpdateAsync(video);
+                backgroundJobClient.Enqueue<VideoDownloadJob>(job => job.ExecuteAsync(video.Id, CancellationToken.None));
+            }
+
+            return Result.Success(new AddStandaloneVideoResponse(
+                video.Id,
+                video.Title,
+                channel.Id,
+                channel.Name,
+                video.DownloadedAt is not null));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error adding standalone video from URL {Url}", request.Url);
+            }
+
+            return Result.Error("An error occurred while adding the video");
+        }
     }
 
     public async Task<Result> DeleteVideoFileAsync(int channelId, int videoId)
@@ -62,6 +220,512 @@ public class VideoService : IVideoService
         }
     }
 
+    public async Task<Result<GetAccessibleChannelsResponse>> GetAccessibleChannelsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            bool isAdmin = userContextService.IsAdministrator();
+
+            if (isAdmin)
+            {
+                var allChannels = await channelRepository.FindAsync(
+                    new SearchOptions<Channel> { OrderBy = q => q.OrderBy(x => x.Name) },
+                    x => new ChannelFilterItem(x.Id, x.Name));
+
+                return Result.Success(new GetAccessibleChannelsResponse(allChannels.ToList()));
+            }
+
+            var subscribedChannelIds = (await userChannelRepository.FindAsync(
+                new SearchOptions<UserChannel> { Query = x => x.UserId == userId },
+                x => x.ChannelId)).ToList();
+
+            var standaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+            {
+                Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
+            });
+
+            if (standaloneTag is not null)
+            {
+                var standaloneVideoChannelIds = await videoTagRepository.FindAsync(
+                    new SearchOptions<VideoTag>
+                    {
+                        Query = x => x.TagId == standaloneTag.Id,
+                        Include = q => q.Include(x => x.Video)
+                    },
+                    x => x.Video.ChannelId);
+
+                subscribedChannelIds = subscribedChannelIds
+                    .Union(standaloneVideoChannelIds)
+                    .Distinct()
+                    .ToList();
+            }
+
+            if (subscribedChannelIds.Count == 0)
+            {
+                return Result.Success(new GetAccessibleChannelsResponse([]));
+            }
+
+            var channels = await channelRepository.FindAsync(
+                new SearchOptions<Channel>
+                {
+                    Query = x => subscribedChannelIds.Contains(x.Id),
+                    OrderBy = q => q.OrderBy(x => x.Name)
+                },
+                x => new ChannelFilterItem(x.Id, x.Name));
+
+            return Result.Success(new GetAccessibleChannelsResponse(channels.ToList()));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving accessible channels");
+            }
+
+            return Result.Error("An error occurred while retrieving channels");
+        }
+    }
+
+    public async Task<Result<StandaloneInfoResponse>> GetStandaloneInfoAsync(int videoId)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+            {
+                Query = x => x.Id == videoId,
+                Include = q => q.Include(x => x.Channel)
+            });
+
+            if (video is null)
+            {
+                return Result.NotFound("Video not found");
+            }
+
+            var standaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+            {
+                Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
+            });
+
+            bool isStandalone = false;
+            if (standaloneTag is not null)
+            {
+                isStandalone = await videoTagRepository.ExistsAsync(x => x.VideoId == videoId && x.TagId == standaloneTag.Id);
+            }
+
+            var channelVideos = await videoRepository.FindAsync(
+                new SearchOptions<Video>
+                {
+                    Query = x => x.ChannelId == video.ChannelId && x.DownloadedAt != null
+                },
+                x => x.Id);
+
+            bool isSubscribed = await userChannelRepository.ExistsAsync(
+                x => x.UserId == userId && x.ChannelId == video.ChannelId);
+
+            return Result.Success(new StandaloneInfoResponse(
+                isStandalone,
+                channelVideos.ItemCount,
+                video.ChannelId,
+                video.Channel.Name,
+                video.Channel.Url,
+                video.Channel.ChannelId,
+                video.Channel.Platform,
+                isSubscribed));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving standalone info for video {VideoId}", videoId);
+            }
+
+            return Result.Error("An error occurred while retrieving video info");
+        }
+    }
+
+    public async Task<Result<GetVideoPlaylistsResponse>> GetVideoPlaylistsAsync(int videoId)
+    {
+        try
+        {
+            var playlistVideos = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+            {
+                Query = x => x.VideoId == videoId,
+                Include = query => query.Include(x => x.Playlist)
+            });
+
+            var playlists = playlistVideos
+                .Select(x => new VideoPlaylistItem(
+                    x.Playlist.Id,
+                    x.Playlist.Name,
+                    x.Playlist.Platform,
+                    x.Playlist.Url))
+                .ToList();
+
+            return Result.Success(new GetVideoPlaylistsResponse(playlists));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving playlists for video {VideoId}", videoId);
+            }
+
+            return Result.Error("An error occurred while retrieving playlists");
+        }
+    }
+
+    public async Task<Result<VideoIndexPageResponse>> GetVideosAsync(
+        int page = 1,
+        int pageSize = 60,
+        string? search = null,
+        int? channelId = null,
+        string? tagFilter = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            bool isAdmin = userContextService.IsAdministrator();
+            var predicate = PredicateBuilder.New<Video>(false);
+
+            if (isAdmin)
+            {
+                predicate = PredicateBuilder.New<Video>(x => x.DownloadedAt != null);
+            }
+            else
+            {
+                var subscribedChannelIds = (await userChannelRepository.FindAsync(
+                    new SearchOptions<UserChannel> { Query = x => x.UserId == userId },
+                    x => x.ChannelId)).ToList();
+
+                if (subscribedChannelIds.Count > 0)
+                {
+                    predicate = predicate.Or(x => subscribedChannelIds.Contains(x.ChannelId) && x.DownloadedAt != null);
+                }
+
+                var standaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+                {
+                    Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
+                });
+
+                if (standaloneTag is not null)
+                {
+                    var standaloneVideoIds = (await videoTagRepository.FindAsync(
+                        new SearchOptions<VideoTag> { Query = x => x.TagId == standaloneTag.Id },
+                        x => x.VideoId)).ToList();
+
+                    if (standaloneVideoIds.Count > 0)
+                    {
+                        predicate = predicate.Or(x => standaloneVideoIds.Contains(x.Id));
+                    }
+                }
+
+                if (!predicate.IsStarted)
+                {
+                    return Result.Success(new VideoIndexPageResponse(
+                        [],
+                        page,
+                        pageSize,
+                        0,
+                        0));
+                }
+            }
+
+            if (channelId.HasValue)
+            {
+                predicate = predicate.And(x => x.ChannelId == channelId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.Trim().ToLower();
+                predicate = predicate.And(x => x.Title.ToLower().Contains(searchLower));
+            }
+
+            if (!string.IsNullOrWhiteSpace(tagFilter))
+            {
+                var tagNames = tagFilter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (tagNames.Length > 0)
+                {
+                    var matchingTagIds = (await tagRepository.FindAsync(
+                        new SearchOptions<Tag>
+                        {
+                            Query = x => x.UserId == userId && tagNames.Contains(x.Name)
+                        },
+                        x => x.Id)).ToList();
+
+                    if (matchingTagIds.Count > 0)
+                    {
+                        predicate = predicate.And(x => x.VideoTags.Any(vt => matchingTagIds.Contains(vt.TagId)));
+                    }
+                    else
+                    {
+                        return Result.Success(new VideoIndexPageResponse([], page, pageSize, 0, 0));
+                    }
+                }
+            }
+
+            var options = new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = predicate,
+                OrderBy = q => q.OrderByDescending(x => x.DownloadedAt ?? x.UploadDate),
+                PageNumber = page,
+                PageSize = pageSize,
+                Include = q => q.Include(x => x.Channel)
+                    .Include(x => x.VideoTags)
+                    .ThenInclude(vt => vt.Tag)
+            };
+
+            var pagedVideos = await videoRepository.FindAsync(options);
+
+            var videos = pagedVideos.Select(x => new VideoIndexItem(
+                x.Id,
+                x.VideoId,
+                x.Title,
+                x.ThumbnailUrl,
+                x.Duration,
+                x.UploadDate,
+                x.DownloadedAt,
+                x.IsQueued,
+                x.Platform,
+                new ChannelInfo(x.Channel.Id, x.Channel.Name),
+                x.VideoTags
+                    .Where(vt => vt.Tag.UserId == userId)
+                    .Select(vt => vt.Tag.Name)
+                    .ToList())).ToList();
+
+            return Result.Success(new VideoIndexPageResponse(
+                videos,
+                page,
+                pageSize,
+                pagedVideos.ItemCount,
+                pagedVideos.PageCount));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving video index");
+            }
+
+            return Result.Error("An error occurred while retrieving videos");
+        }
+    }
+
+    public async Task<Result<VideoStreamInfo>> GetVideoStreamInfoAsync(int videoId)
+    {
+        try
+        {
+            var video = await videoRepository.FindOneAsync(videoId);
+
+            if (video is null)
+            {
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Video with ID {VideoId} not found", videoId);
+                }
+
+                return Result.NotFound("Video not found");
+            }
+
+            if (string.IsNullOrEmpty(video.FilePath) || !File.Exists(video.FilePath))
+            {
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Video file not found for video ID {VideoId} at path {FilePath}", videoId, video.FilePath);
+                }
+
+                return Result.NotFound("Video file not found");
+            }
+
+            string fileExtension = Path.GetExtension(video.FilePath).ToLowerInvariant();
+            string contentType = fileExtension switch
+            {
+                ".mp4" => "video/mp4",
+                ".webm" => "video/webm",
+                ".mkv" => "video/x-matroska",
+                ".avi" => "video/x-msvideo",
+                ".mov" => "video/quicktime",
+                ".flv" => "video/x-flv",
+                _ => "application/octet-stream"
+            };
+
+            return Result.Success(new VideoStreamInfo(video.FilePath, contentType));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error streaming video {VideoId}", videoId);
+            }
+
+            return Result.Error("An error occurred while streaming the video");
+        }
+    }
+
+    public async Task<Result<GetWatchedVideoIdsResponse>> GetWatchedVideoIdsAsync(int[] videoIds)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            if (videoIds.IsNullOrEmpty())
+            {
+                return Result.Success(new GetWatchedVideoIdsResponse(Array.Empty<int>()));
+            }
+
+            var watchedIds = await userVideoRepository.FindAsync(
+                new SearchOptions<UserVideo>
+                {
+                    Query = x =>
+                        x.UserId == userId &&
+                        videoIds.Contains(x.VideoId) &&
+                        x.Watched
+                },
+                x => x.VideoId);
+
+            return Result.Success(new GetWatchedVideoIdsResponse(watchedIds.ToList()));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving watched video IDs");
+            }
+
+            return Result.Error("An error occurred while retrieving watched status");
+        }
+    }
+
+    public async Task<Result> MarkUnwatchedAsync(int videoId)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            await UpsertUserVideoAsync(userId, videoId, watched: false);
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error marking video {VideoId} as unwatched", videoId);
+            }
+
+            return Result.Error("An error occurred while updating watch status");
+        }
+    }
+
+    public async Task<Result> MarkWatchedAsync(int videoId)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            await UpsertUserVideoAsync(userId, videoId, watched: true);
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error marking video {VideoId} as watched", videoId);
+            }
+
+            return Result.Error("An error occurred while updating watch status");
+        }
+    }
+
+    public async Task<Result<RetryMetadataResponse>> RetryMetadataAsync(int videoId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.Id == videoId,
+                Include = query => query.Include(x => x.Channel)
+            });
+
+            if (video is null)
+            {
+                return Result.NotFound("Video not found");
+            }
+
+            var provider = metadataProviderFactory.GetProviderByPlatform(video.Platform);
+            if (provider is null)
+            {
+                return Result.Invalid([new ValidationError("Platform", $"No metadata provider for platform '{video.Platform}'")]);
+            }
+
+            var metadata = await provider.GetVideoMetadataAsync(video.VideoId, cancellationToken);
+            if (metadata is null || metadata.Title == Constants.PrivateVideoTitle)
+            {
+                return Result.Success(new RetryMetadataResponse(false, "Metadata still unavailable from platform"));
+            }
+
+            if (metadata.Title == Constants.DeletedVideoTitle)
+            {
+                video.NeedsMetadataReview = false;
+                await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+                return Result.Success(new RetryMetadataResponse(false, "Video was deleted from platform"));
+            }
+
+            video.Title = metadata.Title;
+            video.Description = metadata.Description;
+            video.ThumbnailUrl = metadata.ThumbnailUrl;
+            video.Duration = metadata.Duration;
+            video.UploadDate = metadata.UploadDate;
+            video.ViewCount = metadata.ViewCount;
+            video.LikeCount = metadata.LikeCount;
+            video.Url = metadata.Url;
+            video.NeedsMetadataReview = false;
+            await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+
+            logger.LogInformation("Successfully fetched metadata for video {VideoId}", videoId);
+
+            return Result.Success(new RetryMetadataResponse(true, "Metadata retrieved successfully"));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error retrying metadata for video {VideoId}", videoId);
+            return Result.Error("An error occurred while retrying metadata");
+        }
+    }
+
     public async Task<Result<bool>> ToggleIgnoreAsync(int channelId, int videoId, IgnoreVideoRequest request)
     {
         try
@@ -97,6 +761,46 @@ public class VideoService : IVideoService
             }
 
             return Result.Error("An error occurred while updating video status");
+        }
+    }
+
+    private async Task<Tag> GetOrCreateTagAsync(string userId, string name)
+    {
+        var existing = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+        {
+            Query = x => x.UserId == userId && x.Name.ToLower() == name.ToLower()
+        });
+
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var tag = new Tag { UserId = userId, Name = name };
+        await tagRepository.InsertAsync(tag);
+        return tag;
+    }
+
+    private async Task UpsertUserVideoAsync(string userId, int videoId, bool watched)
+    {
+        var existing = await userVideoRepository.FindOneAsync(new SearchOptions<UserVideo>
+        {
+            Query = x => x.UserId == userId && x.VideoId == videoId
+        });
+
+        if (existing is not null)
+        {
+            existing.Watched = watched;
+            await userVideoRepository.UpdateAsync(existing);
+        }
+        else
+        {
+            await userVideoRepository.InsertAsync(new UserVideo
+            {
+                UserId = userId,
+                VideoId = videoId,
+                Watched = watched
+            });
         }
     }
 }

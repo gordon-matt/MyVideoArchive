@@ -1,4 +1,3 @@
-using MyVideoArchive.Data.Enums;
 using MyVideoArchive.Models.Api;
 
 namespace MyVideoArchive.Controllers.Api;
@@ -11,18 +10,11 @@ namespace MyVideoArchive.Controllers.Api;
 [Route("api/user/settings")]
 public class UserSettingsApiController : ControllerBase
 {
-    private readonly ILogger<UserSettingsApiController> logger;
-    private readonly IUserContextService userContextService;
-    private readonly IRepository<UserSettingsEntry> userSettingsRepository;
+    private readonly IUserSettingsService userSettingsService;
 
-    public UserSettingsApiController(
-        ILogger<UserSettingsApiController> logger,
-        IUserContextService userContextService,
-        IRepository<UserSettingsEntry> userSettingsRepository)
+    public UserSettingsApiController(IUserSettingsService userSettingsService)
     {
-        this.logger = logger;
-        this.userContextService = userContextService;
-        this.userSettingsRepository = userSettingsRepository;
+        this.userSettingsService = userSettingsService;
     }
 
     /// <summary>
@@ -31,34 +23,13 @@ public class UserSettingsApiController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetSettings()
     {
-        try
+        var result = await userSettingsService.GetSettingsAsync();
+
+        return result.ToActionResult(this, value => Ok(new
         {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
-
-            var entry = await userSettingsRepository.FindOneAsync(new SearchOptions<UserSettingsEntry>
-            {
-                Query = x => x.UserId == userId
-            });
-
-            return Ok(new
-            {
-                videosTabViewMode = entry?.VideosTabViewMode.ToString().ToLowerInvariant() ?? "list",
-                availableTabViewMode = entry?.AvailableTabViewMode.ToString().ToLowerInvariant() ?? "list"
-            });
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error retrieving user settings");
-            }
-
-            return StatusCode(500, new { message = "An error occurred while retrieving user settings" });
-        }
+            videosTabViewMode = value.VideosTabViewMode,
+            availableTabViewMode = value.AvailableTabViewMode
+        }));
     }
 
     /// <summary>
@@ -67,57 +38,8 @@ public class UserSettingsApiController : ControllerBase
     [HttpPut]
     public async Task<IActionResult> UpdateSettings([FromBody] UpdateUserSettingsRequest request)
     {
-        try
-        {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+        var result = await userSettingsService.UpdateSettingsAsync(request);
 
-            var entry = await userSettingsRepository.FindOneAsync(new SearchOptions<UserSettingsEntry>
-            {
-                Query = x => x.UserId == userId
-            });
-
-            if (entry is null)
-            {
-                entry = new UserSettingsEntry
-                {
-                    UserId = userId,
-                    VideosTabViewMode = ParseViewMode(request.VideosTabViewMode),
-                    AvailableTabViewMode = ParseViewMode(request.AvailableTabViewMode)
-                };
-                await userSettingsRepository.InsertAsync(entry);
-            }
-            else
-            {
-                if (request.VideosTabViewMode is not null)
-                {
-                    entry.VideosTabViewMode = ParseViewMode(request.VideosTabViewMode);
-                }
-
-                if (request.AvailableTabViewMode is not null)
-                {
-                    entry.AvailableTabViewMode = ParseViewMode(request.AvailableTabViewMode);
-                }
-
-                await userSettingsRepository.UpdateAsync(entry);
-            }
-
-            return Ok(new { message = "Settings saved" });
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error updating user settings");
-            }
-
-            return StatusCode(500, new { message = "An error occurred while updating user settings" });
-        }
+        return result.ToActionResult(this, () => Ok(new { message = "Settings saved" }));
     }
-
-    private static ViewMode ParseViewMode(string? value) =>
-        value?.ToLowerInvariant() == "grid" ? ViewMode.Grid : ViewMode.List;
 }

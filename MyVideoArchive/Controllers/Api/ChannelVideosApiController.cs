@@ -1,4 +1,3 @@
-using Ardalis.Result.AspNetCore;
 using MyVideoArchive.Models.Api;
 
 namespace MyVideoArchive.Controllers.Api;
@@ -97,13 +96,13 @@ public class ChannelVideosApiController : ControllerBase
     {
         var result = await channelService.DownloadAllVideosAsync(channelId);
 
-        return result.ToActionResult(this, value => Ok(value == 0
+        return result.ToActionResult(this, value => value == 0
             ? Ok(new { message = "No videos available to download", queuedCount = 0 })
             : Ok(new
             {
                 message = $"Queued {value} video(s) for download",
                 queuedCount = value
-            })));
+            }));
     }
 
     [HttpDelete("{videoId}/file")]

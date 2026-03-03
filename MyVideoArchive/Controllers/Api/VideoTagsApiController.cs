@@ -1,3 +1,5 @@
+using MyVideoArchive.Models.Api;
+
 namespace MyVideoArchive.Controllers.Api;
 
 /// <summary>
@@ -8,27 +10,11 @@ namespace MyVideoArchive.Controllers.Api;
 [Route("api/videos/{videoId}/tags")]
 public class VideoTagsApiController : ControllerBase
 {
-    private readonly ILogger<VideoTagsApiController> logger;
-    private readonly IUserContextService userContextService;
-    private readonly IRepository<Tag> tagRepository;
-    private readonly IRepository<UserChannel> userChannelRepository;
-    private readonly IRepository<Video> videoRepository;
-    private readonly IRepository<VideoTag> videoTagRepository;
+    private readonly ITagService tagService;
 
-    public VideoTagsApiController(
-        ILogger<VideoTagsApiController> logger,
-        IUserContextService userContextService,
-        IRepository<Tag> tagRepository,
-        IRepository<UserChannel> userChannelRepository,
-        IRepository<Video> videoRepository,
-        IRepository<VideoTag> videoTagRepository)
+    public VideoTagsApiController(ITagService tagService)
     {
-        this.logger = logger;
-        this.userContextService = userContextService;
-        this.tagRepository = tagRepository;
-        this.userChannelRepository = userChannelRepository;
-        this.videoRepository = videoRepository;
-        this.videoTagRepository = videoTagRepository;
+        this.tagService = tagService;
     }
 
     /// <summary>
@@ -37,39 +23,9 @@ public class VideoTagsApiController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetVideoTags(int videoId)
     {
-        try
-        {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+        var result = await tagService.GetVideoTagsAsync(videoId);
 
-            bool videoExists = await videoRepository.ExistsAsync(x => x.Id == videoId);
-            if (!videoExists)
-            {
-                return NotFound();
-            }
-
-            var videoTags = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>
-            {
-                Query = x => x.VideoId == videoId && x.Tag.UserId == userId,
-                Include = q => q.Include(x => x.Tag)
-            });
-
-            var tags = videoTags.Select(vt => new { id = vt.Tag.Id, name = vt.Tag.Name }).ToList();
-
-            return Ok(new { tags });
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error retrieving tags for video {VideoId}", videoId);
-            }
-
-            return StatusCode(500, new { message = "An error occurred while retrieving tags" });
-        }
+        return result.ToActionResult(this, value => Ok(new { tags = value.Tags }));
     }
 
     /// <summary>
@@ -78,86 +34,8 @@ public class VideoTagsApiController : ControllerBase
     [HttpPut]
     public async Task<IActionResult> SetVideoTags(int videoId, [FromBody] SetVideoTagsRequest request)
     {
-        try
-        {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
+        var result = await tagService.SetVideoTagsAsync(videoId, request);
 
-            bool videoExists = await videoRepository.ExistsAsync(x => x.Id == videoId);
-            if (!videoExists)
-            {
-                return NotFound();
-            }
-
-            var selectedTags = request.TagNames
-                ?.Where(t => !string.IsNullOrWhiteSpace(t))
-                .Select(t => t.Trim().ToLowerInvariant())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList() ?? [];
-
-            var standaloneTag = await GetOrCreateTagAsync(userId, Constants.StandaloneTag);
-
-            var toDelete = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>
-            {
-                Query = x =>
-                    x.TagId != standaloneTag.Id &&
-                    x.VideoId == videoId &&
-                    x.Tag.UserId == userId &&
-                    !selectedTags.Contains(x.Tag.Name)
-            });
-
-            var toAdd = selectedTags
-                .Where(t => !toDelete.Any(td => td.Tag.Name.Equals(t, StringComparison.OrdinalIgnoreCase)))
-                .ToList();
-
-            if (!toAdd.IsNullOrEmpty())
-            {
-                foreach (string tagName in toAdd)
-                {
-                    var tag = await GetOrCreateTagAsync(userId, tagName);
-                    await videoTagRepository.InsertAsync(new VideoTag
-                    {
-                        VideoId = videoId,
-                        TagId = tag.Id
-                    });
-                }
-            }
-
-            return Ok(new { message = "Tags updated" });
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error setting tags for video {VideoId}", videoId);
-            }
-
-            return StatusCode(500, new { message = "An error occurred while updating tags" });
-        }
+        return result.ToActionResult(this, () => Ok(new { message = "Tags updated" }));
     }
-
-    private async Task<Tag> GetOrCreateTagAsync(string userId, string name)
-    {
-        var existing = await tagRepository.FindOneAsync(new SearchOptions<Tag>
-        {
-            Query = x => x.UserId == userId && x.Name.ToLower() == name.ToLower()
-        });
-
-        if (existing is not null)
-        {
-            return existing;
-        }
-
-        var tag = new Tag { UserId = userId, Name = name };
-        await tagRepository.InsertAsync(tag);
-        return tag;
-    }
-}
-
-public class SetVideoTagsRequest
-{
-    public List<string> TagNames { get; set; } = [];
 }

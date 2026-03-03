@@ -8,18 +8,11 @@ namespace MyVideoArchive.Controllers.Api;
 [Route("api/videos")]
 public class VideosApiController : ControllerBase
 {
-    private readonly ILogger<VideosApiController> logger;
-    private readonly IRepository<Video> videoRepository;
-    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
+    private readonly IVideoService videoService;
 
-    public VideosApiController(
-        ILogger<VideosApiController> logger,
-        IRepository<Video> videoRepository,
-        IRepository<PlaylistVideo> playlistVideoRepository)
+    public VideosApiController(IVideoService videoService)
     {
-        this.logger = logger;
-        this.videoRepository = videoRepository;
-        this.playlistVideoRepository = playlistVideoRepository;
+        this.videoService = videoService;
     }
 
     /// <summary>
@@ -28,33 +21,9 @@ public class VideosApiController : ControllerBase
     [HttpGet("{videoId}/playlists")]
     public async Task<IActionResult> GetVideoPlaylists(int videoId)
     {
-        try
-        {
-            var playlistVideos = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
-            {
-                Query = x => x.VideoId == videoId,
-                Include = query => query.Include(x => x.Playlist)
-            });
+        var result = await videoService.GetVideoPlaylistsAsync(videoId);
 
-            var playlists = playlistVideos.Select(x => new
-            {
-                x.Playlist.Id,
-                x.Playlist.Name,
-                x.Playlist.Platform,
-                x.Playlist.Url
-            });
-
-            return Ok(new { playlists });
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error retrieving playlists for video {VideoId}", videoId);
-            }
-
-            return StatusCode(500, new { message = "An error occurred while retrieving playlists" });
-        }
+        return result.ToActionResult(this, value => Ok(new { playlists = value.Playlists }));
     }
 
     /// <summary>
@@ -63,61 +32,12 @@ public class VideosApiController : ControllerBase
     [HttpGet("{videoId}/stream")]
     public async Task<IActionResult> StreamVideo(int videoId)
     {
-        try
+        var result = await videoService.GetVideoStreamInfoAsync(videoId);
+
+        return result.ToActionResult(this, info =>
         {
-            var video = await videoRepository.FindOneAsync(videoId);
-
-            if (video is null)
-            {
-                if (logger.IsEnabled(LogLevel.Warning))
-                {
-                    logger.LogWarning("Video with ID {VideoId} not found", videoId);
-                }
-
-                return NotFound(new { message = "Video not found" });
-            }
-
-            if (string.IsNullOrEmpty(video.FilePath) || !System.IO.File.Exists(video.FilePath))
-            {
-                if (logger.IsEnabled(LogLevel.Warning))
-                {
-                    logger.LogWarning("Video file not found for video ID {VideoId} at path {FilePath}", videoId, video.FilePath);
-                }
-
-                return NotFound(new { message = "Video file not found" });
-            }
-
-            var fileStream = new FileStream(video.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            string fileExtension = Path.GetExtension(video.FilePath).ToLowerInvariant();
-
-            // Determine content type based on file extension
-            string contentType = fileExtension switch
-            {
-                ".mp4" => "video/mp4",
-                ".webm" => "video/webm",
-                ".mkv" => "video/x-matroska",
-                ".avi" => "video/x-msvideo",
-                ".mov" => "video/quicktime",
-                ".flv" => "video/x-flv",
-                _ => "application/octet-stream"
-            };
-
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("Streaming video {VideoId} from {FilePath}", videoId, video.FilePath);
-            }
-
-            // Enable range requests for seeking support
-            return File(fileStream, contentType, enableRangeProcessing: true);
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error streaming video {VideoId}", videoId);
-            }
-
-            return StatusCode(500, new { message = "An error occurred while streaming the video" });
-        }
+            var fileStream = new FileStream(info.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return File(fileStream, info.ContentType, enableRangeProcessing: true);
+        });
     }
 }
