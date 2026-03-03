@@ -35,8 +35,8 @@ public class UserSettingsService : IUserSettingsService
                 Query = x => x.UserId == userId
             });
 
-            var videosTabViewMode = entry?.VideosTabViewMode.ToString().ToLowerInvariant() ?? "list";
-            var availableTabViewMode = entry?.AvailableTabViewMode.ToString().ToLowerInvariant() ?? "list";
+            string videosTabViewMode = entry?.VideosTabViewMode.ToString().ToLowerInvariant() ?? "list";
+            string availableTabViewMode = entry?.AvailableTabViewMode.ToString().ToLowerInvariant() ?? "list";
 
             return Result.Success(new GetUserSettingsResponse(videosTabViewMode, availableTabViewMode));
         }

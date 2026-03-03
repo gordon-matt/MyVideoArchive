@@ -6,7 +6,10 @@ public static class DateTimeExtensions
     {
         public DateTime? AsUtc()
         {
-            if (!source.HasValue) return null;
+            if (!source.HasValue)
+            {
+                return null;
+            }
 
             var dt = source.Value;
 

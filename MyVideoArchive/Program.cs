@@ -178,11 +178,15 @@ var defaultRoute = app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 if (app.Environment.IsDevelopment())
+{
     defaultRoute.WithStaticAssets();
+}
 
 var razorPages = app.MapRazorPages();
 if (app.Environment.IsDevelopment())
+{
     razorPages.WithStaticAssets();
+}
 
 // Schedule recurring jobs
 RecurringJob.AddOrUpdate<ChannelSyncJob>(
@@ -199,7 +203,6 @@ RecurringJob.AddOrUpdate<MetadataReviewJob>(
     "metadata-review",
     job => job.ExecuteAsync(CancellationToken.None),
     Cron.Weekly()); // Retry previously unavailable video metadata once per week
-
 
 using var scope = app.Services.CreateScope();
 var services = scope.ServiceProvider;

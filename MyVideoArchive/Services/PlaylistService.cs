@@ -226,7 +226,7 @@ public class PlaylistService : IPlaylistService
                     .ToDictionary(x => x.VideoId, x => x.CustomOrder);
 
                 playlistVideos = playlistVideos
-                    .OrderBy(x => orderMap.TryGetValue(x.VideoId, out var order) ? order : int.MaxValue)
+                    .OrderBy(x => orderMap.TryGetValue(x.VideoId, out int order) ? order : int.MaxValue)
                     .ToList();
             }
 
@@ -240,7 +240,7 @@ public class PlaylistService : IPlaylistService
             var videos = playlistVideos.Select(x => new PlaylistVideoItem(
                 x.Video.Id,
                 x.Video.VideoId,
-                (x.Video.Title == Constants.PrivateVideoTitle || x.Video.Title == Constants.DeletedVideoTitle)
+                (x.Video.Title is Constants.PrivateVideoTitle or Constants.DeletedVideoTitle)
                     ? $"{x.Video.Title} - {x.Video.VideoId}"
                     : x.Video.Title,
                 x.Video.Description,
@@ -432,7 +432,7 @@ public class PlaylistService : IPlaylistService
                     });
                 }
 
-                foreach (var hiddenVideoId in hiddenVideoIds)
+                foreach (int hiddenVideoId in hiddenVideoIds)
                 {
                     await userPlaylistVideoRepository.InsertAsync(new UserPlaylistVideo
                     {

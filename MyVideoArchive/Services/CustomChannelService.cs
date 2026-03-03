@@ -42,7 +42,9 @@ public class CustomChannelService : ICustomChannelService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             string channelId = Guid.NewGuid().ToString("N");
             var channel = new Channel
@@ -80,9 +82,14 @@ public class CustomChannelService : ICustomChannelService
         {
             var (canAccess, channel) = await CanAccessChannelAsync(channelId);
             if (!canAccess)
+            {
                 return Result.Forbidden();
+            }
+
             if (channel is null || channel.Platform != "Custom")
+            {
                 return Result.NotFound("Channel not found");
+            }
 
             channel.Name = request.Name;
             channel.Description = request.Description;
@@ -101,9 +108,14 @@ public class CustomChannelService : ICustomChannelService
     {
         var (canAccess, channel) = await CanAccessChannelAsync(channelId);
         if (!canAccess)
+        {
             return Result.Forbidden();
+        }
+
         if (channel is null || channel.Platform != "Custom")
+        {
             return Result.NotFound("Channel not found");
+        }
 
         string dir = GetCustomChannelThumbnailDirectory(channel);
         var info = ResolveThumbnail(dir, "channel");
@@ -114,20 +126,31 @@ public class CustomChannelService : ICustomChannelService
     {
         var (canAccess, channel) = await CanAccessChannelAsync(channelId);
         if (!canAccess)
+        {
             return Result.Forbidden();
+        }
+
         if (channel is null || channel.Platform != "Custom")
+        {
             return Result.NotFound("Channel not found");
+        }
 
         string dir = GetCustomChannelThumbnailDirectory(channel);
         Directory.CreateDirectory(dir);
         string ext = NormaliseImageExtension(Path.GetExtension(fileName));
         string thumbPath = Path.Combine(dir, "channel" + ext);
         await using (var fs = File.Create(thumbPath))
+        {
             await fileStream.CopyToAsync(fs);
+        }
 
         foreach (string other in AllowedImageExtensions)
         {
-            if (other == ext) continue;
+            if (other == ext)
+            {
+                continue;
+            }
+
             string otherPath = Path.Combine(dir, "channel" + other);
             if (File.Exists(otherPath))
             {
@@ -145,9 +168,14 @@ public class CustomChannelService : ICustomChannelService
     {
         var (canAccess, channel) = await CanAccessChannelAsync(channelId);
         if (!canAccess)
+        {
             return Result.Forbidden();
+        }
+
         if (channel is null || channel.Platform != "Custom")
+        {
             return Result.NotFound("Channel not found");
+        }
 
         string playlistId = Guid.NewGuid().ToString("N");
         var playlist = new Playlist
@@ -170,11 +198,15 @@ public class CustomChannelService : ICustomChannelService
     {
         var playlist = await playlistRepository.FindOneAsync(playlistId);
         if (playlist is null)
+        {
             return Result.NotFound("Playlist not found");
+        }
 
         var (canAccess, _) = await CanAccessChannelAsync(playlist.ChannelId);
         if (!canAccess)
+        {
             return Result.Forbidden();
+        }
 
         playlist.Name = request.Name;
         playlist.Description = request.Description;
@@ -186,11 +218,15 @@ public class CustomChannelService : ICustomChannelService
     {
         var playlist = await playlistRepository.FindOneAsync(playlistId);
         if (playlist is null)
+        {
             return Result.NotFound("Playlist not found");
+        }
 
         var (canAccess, _) = await CanAccessChannelAsync(playlist.ChannelId);
         if (!canAccess)
+        {
             return Result.Forbidden();
+        }
 
         var playlistVideos = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
         {
@@ -211,7 +247,9 @@ public class CustomChannelService : ICustomChannelService
             Include = query => query.Include(x => x.Channel)
         });
         if (playlist is null)
+        {
             return Result.NotFound("Playlist not found");
+        }
 
         string dir = GetPlaylistThumbnailDirectory(playlist);
         var info = ResolveThumbnail(dir, playlist.PlaylistId);
@@ -226,18 +264,24 @@ public class CustomChannelService : ICustomChannelService
             Include = query => query.Include(x => x.Channel)
         });
         if (playlist is null)
+        {
             return Result.NotFound("Playlist not found");
+        }
 
         var (canAccess, _) = await CanAccessChannelAsync(playlist.ChannelId);
         if (!canAccess)
+        {
             return Result.Forbidden();
+        }
 
         string dir = GetPlaylistThumbnailDirectory(playlist);
         Directory.CreateDirectory(dir);
         string ext = NormaliseImageExtension(Path.GetExtension(fileName));
         string thumbPath = Path.Combine(dir, playlist.PlaylistId + ext);
         await using (var fs = File.Create(thumbPath))
+        {
             await fileStream.CopyToAsync(fs);
+        }
 
         playlist.ThumbnailUrl = $"/api/custom/playlists/{playlistId}/thumbnail";
         await playlistRepository.UpdateAsync(playlist);
@@ -248,9 +292,14 @@ public class CustomChannelService : ICustomChannelService
     {
         var (canAccess, channel) = await CanAccessChannelAsync(channelId);
         if (!canAccess)
+        {
             return Result.Forbidden();
+        }
+
         if (channel is null || channel.Platform != "Custom")
+        {
             return Result.NotFound("Channel not found");
+        }
 
         var playlists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
         {
@@ -264,11 +313,15 @@ public class CustomChannelService : ICustomChannelService
     {
         var video = await videoRepository.FindOneAsync(videoId);
         if (video is null)
+        {
             return Result.NotFound("Video not found");
+        }
 
         var (canAccess, _) = await CanAccessChannelAsync(video.ChannelId);
         if (!canAccess)
+        {
             return Result.Forbidden();
+        }
 
         var entries = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
         {
@@ -288,11 +341,15 @@ public class CustomChannelService : ICustomChannelService
                 Include = query => query.Include(x => x.Channel)
             });
             if (video is null)
+            {
                 return Result.NotFound("Video not found");
+            }
 
             var (canAccess, _) = await CanAccessChannelAsync(video.ChannelId);
             if (!canAccess)
+            {
                 return Result.Forbidden();
+            }
 
             video.Title = request.Title;
             video.Description = request.Description;
@@ -320,7 +377,9 @@ public class CustomChannelService : ICustomChannelService
             await videoRepository.UpdateAsync(video);
 
             if (request.PlaylistIds is not null)
+            {
                 await SyncVideoPlaylistsAsync(video.Id, video.ChannelId, request.PlaylistIds);
+            }
 
             return Result.Success();
         }
@@ -335,7 +394,9 @@ public class CustomChannelService : ICustomChannelService
     {
         var video = await videoRepository.FindOneAsync(videoId);
         if (video is null || string.IsNullOrEmpty(video.FilePath))
+        {
             return Result.NotFound("Video or file path not found");
+        }
 
         string dir = Path.GetDirectoryName(video.FilePath)!;
         string stem = Path.GetFileNameWithoutExtension(video.FilePath);
@@ -347,21 +408,29 @@ public class CustomChannelService : ICustomChannelService
     {
         var video = await videoRepository.FindOneAsync(videoId);
         if (video is null)
+        {
             return Result.NotFound("Video not found");
+        }
 
         var (canAccess, _) = await CanAccessChannelAsync(video.ChannelId);
         if (!canAccess)
+        {
             return Result.Forbidden();
+        }
 
         if (string.IsNullOrEmpty(video.FilePath))
+        {
             return Result.Invalid([new ValidationError("FilePath", "Please link a file path to this video first.")]);
+        }
 
         string dir = Path.GetDirectoryName(video.FilePath)!;
         string stem = Path.GetFileNameWithoutExtension(video.FilePath);
         string ext = NormaliseImageExtension(Path.GetExtension(fileName));
         string thumbPath = Path.Combine(dir, stem + ext);
         await using (var fs = File.Create(thumbPath))
+        {
             await fileStream.CopyToAsync(fs);
+        }
 
         video.ThumbnailUrl = $"/api/custom/videos/{videoId}/thumbnail";
         await videoRepository.UpdateAsync(video);
@@ -372,10 +441,16 @@ public class CustomChannelService : ICustomChannelService
     {
         var channel = await channelRepository.FindOneAsync(channelId);
         if (userContextService.IsAdministrator())
+        {
             return (true, channel);
+        }
+
         string? userId = userContextService.GetCurrentUserId();
         if (string.IsNullOrEmpty(userId))
+        {
             return (false, channel);
+        }
+
         var access = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
         {
             Query = x => x.UserId == userId && x.ChannelId == channelId
@@ -412,7 +487,9 @@ public class CustomChannelService : ICustomChannelService
         try
         {
             if (playlist.ThumbnailUrl?.StartsWith("/api/custom/playlists/") != true)
+            {
                 return;
+            }
 
             var playlistWithChannel = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
             {
@@ -420,7 +497,9 @@ public class CustomChannelService : ICustomChannelService
                 Include = query => query.Include(x => x.Channel)
             });
             if (playlistWithChannel?.Channel is null)
+            {
                 return;
+            }
 
             string dir = GetPlaylistThumbnailDirectory(playlistWithChannel);
             foreach (string ext in AllowedImageExtensions)
@@ -452,7 +531,7 @@ public class CustomChannelService : ICustomChannelService
             Query = x => x.ChannelId == channelId
         }, x => x.Id)).ToHashSet();
 
-        var validDesiredIds = desiredPlaylistIds.Where(id => channelPlaylistIds.Contains(id)).ToHashSet();
+        var validDesiredIds = desiredPlaylistIds.Where(channelPlaylistIds.Contains).ToHashSet();
 
         var existing = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
         {
@@ -463,11 +542,13 @@ public class CustomChannelService : ICustomChannelService
 
         var toRemove = existing.Where(x => !validDesiredIds.Contains(x.PlaylistId)).ToList();
         if (toRemove.Count > 0)
+        {
             await playlistVideoRepository.DeleteAsync(toRemove);
+        }
 
         foreach (int playlistId in validDesiredIds.Except(existingIds))
         {
-            var maxOrder = (await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+            int maxOrder = (await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
             {
                 Query = x => x.PlaylistId == playlistId
             }, x => (int?)x.Order)).Max() ?? -1;

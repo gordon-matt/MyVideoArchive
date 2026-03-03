@@ -141,8 +141,8 @@ public class PlaylistSyncJob
                     if (existingVideo is not null)
                     {
                         // We don't want to overwrite metadata for videos that have been deleted or made private....
-                        if (videoMetadata.Title != Constants.DeletedVideoTitle &&
-                            videoMetadata.Title != Constants.PrivateVideoTitle)
+                        if (videoMetadata.Title is not Constants.DeletedVideoTitle and
+                            not Constants.PrivateVideoTitle)
                         {
                             // Update existing video metadata
                             existingVideo.Title = videoMetadata.Title;

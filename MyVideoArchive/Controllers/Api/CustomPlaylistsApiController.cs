@@ -94,9 +94,7 @@ public class CustomPlaylistsApiController : ControllerBase
     public async Task<IActionResult> GetPlaylistThumbnail(int id)
     {
         var result = await customPlaylistService.GetPlaylistThumbnailAsync(id);
-        if (!result.IsSuccess)
-            return NotFound();
-        return PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType);
+        return !result.IsSuccess ? NotFound() : PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType);
     }
 
     [HttpGet("{id}/videos")]

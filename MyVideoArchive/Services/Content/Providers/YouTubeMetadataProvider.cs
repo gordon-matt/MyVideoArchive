@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using MyVideoArchive.Extensions;
 using MyVideoArchive.Models.Metadata;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Metadata;

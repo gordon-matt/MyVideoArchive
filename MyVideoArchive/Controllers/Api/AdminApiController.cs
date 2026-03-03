@@ -7,12 +7,12 @@ namespace MyVideoArchive.Controllers.Api;
 [ApiController]
 [Route("api/admin")]
 [Authorize(Roles = Constants.Roles.Administrator)]
-public class FileSystemScanApiController : ControllerBase
+public class AdminApiController : ControllerBase
 {
     private readonly IFileSystemScanService fileSystemScanService;
     private readonly IVideoService videoService;
 
-    public FileSystemScanApiController(
+    public AdminApiController(
         IFileSystemScanService fileSystemScanService,
         IVideoService videoService)
     {

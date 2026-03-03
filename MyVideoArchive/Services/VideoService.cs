@@ -85,7 +85,7 @@ public class VideoService : IVideoService
                 ChannelMetadata? channelMeta = null;
                 if (!string.IsNullOrEmpty(videoMeta.ChannelId))
                 {
-                    var channelUrl = $"https://www.youtube.com/channel/{videoMeta.ChannelId}";
+                    string channelUrl = $"https://www.youtube.com/channel/{videoMeta.ChannelId}";
                     channelMeta = await provider.GetChannelMetadataAsync(channelUrl, cancellationToken);
                 }
 
@@ -142,7 +142,7 @@ public class VideoService : IVideoService
 
             var standaloneTag = await GetOrCreateTagAsync(userId, Constants.StandaloneTag);
 
-            var alreadyTagged = await videoTagRepository.ExistsAsync(x => x.VideoId == video.Id && x.TagId == standaloneTag.Id);
+            bool alreadyTagged = await videoTagRepository.ExistsAsync(x => x.VideoId == video.Id && x.TagId == standaloneTag.Id);
             if (!alreadyTagged)
             {
                 await videoTagRepository.InsertAsync(new VideoTag
@@ -455,13 +455,13 @@ public class VideoService : IVideoService
 
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var searchLower = search.Trim().ToLower();
+                string searchLower = search.Trim().ToLower();
                 predicate = predicate.And(x => x.Title.ToLower().Contains(searchLower));
             }
 
             if (!string.IsNullOrWhiteSpace(tagFilter))
             {
-                var tagNames = tagFilter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                string[] tagNames = tagFilter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                 if (tagNames.Length > 0)
                 {
                     var matchingTagIds = (await tagRepository.FindAsync(

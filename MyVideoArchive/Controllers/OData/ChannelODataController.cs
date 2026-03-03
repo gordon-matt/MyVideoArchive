@@ -271,14 +271,20 @@ public class ChannelODataController : ODataController
                 Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
             });
 
-            if (standaloneTag is null) return;
+            if (standaloneTag is null)
+            {
+                return;
+            }
 
             // Get all video IDs in this channel
             var videoIds = (await videoRepository.FindAsync(
                 new SearchOptions<Video> { Query = x => x.ChannelId == channelDbId },
                 x => x.Id)).ToList();
 
-            if (videoIds.Count == 0) return;
+            if (videoIds.Count == 0)
+            {
+                return;
+            }
 
             // Remove standalone VideoTag entries for those videos
             var tagsToRemove = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>

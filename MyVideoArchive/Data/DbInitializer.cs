@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Configuration;
 
 namespace MyVideoArchive.Data;
 
@@ -12,6 +11,7 @@ public static class DbInitializer
     /// Configuration keys for initial admin user (override via User Secrets or env e.g. SeedAdmin__Email, SeedAdmin__Password).
     /// </summary>
     public const string SeedAdminEmailKey = "SeedAdmin:Email";
+
     public const string SeedAdminPasswordKey = "SeedAdmin:Password";
 
     public static async Task InitializeAsync(
@@ -55,7 +55,7 @@ public static class DbInitializer
         string adminEmail = string.IsNullOrEmpty(configuration[SeedAdminEmailKey])
             ? "admin@myvideoarchive.local"
             : configuration[SeedAdminEmailKey]!;
-            
+
         string adminPassword = string.IsNullOrEmpty(configuration[SeedAdminPasswordKey])
             ? "Admin@123"
             : configuration[SeedAdminPasswordKey]!;

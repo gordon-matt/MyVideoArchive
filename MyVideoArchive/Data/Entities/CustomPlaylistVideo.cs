@@ -1,5 +1,5 @@
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System.Runtime.Serialization;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace MyVideoArchive.Data.Entities;
 

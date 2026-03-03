@@ -59,22 +59,33 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             var playlist = await customPlaylistRepository.FindOneAsync(id);
             if (playlist is null)
+            {
                 return Result.NotFound("Playlist not found");
+            }
+
             if (playlist.UserId != userId)
+            {
                 return Result.Forbidden();
+            }
 
             bool videoExists = await videoRepository.ExistsAsync(x => x.Id == videoId);
             if (!videoExists)
+            {
                 return Result.NotFound("Video not found");
+            }
 
             bool alreadyInPlaylist = await customPlaylistVideoRepository.ExistsAsync(
                 x => x.CustomPlaylistId == id && x.VideoId == videoId);
             if (alreadyInPlaylist)
+            {
                 return Result.Success();
+            }
 
             var existingOrders = (await customPlaylistVideoRepository.FindAsync(
                 new SearchOptions<CustomPlaylistVideo> { Query = x => x.CustomPlaylistId == id },
@@ -93,7 +104,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error adding video {VideoId} to playlist {PlaylistId}", videoId, id);
+            }
+
             return Result.Error("An error occurred while adding the video");
         }
     }
@@ -104,10 +118,14 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             if (string.IsNullOrWhiteSpace(request.Name))
+            {
                 return Result.Invalid([new ValidationError("Name", "Playlist name is required")]);
+            }
 
             var playlist = new CustomPlaylist
             {
@@ -123,7 +141,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error creating custom playlist");
+            }
+
             return Result.Error("An error occurred while creating the playlist");
         }
     }
@@ -134,22 +155,32 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             if (string.IsNullOrWhiteSpace(request.Url))
+            {
                 return Result.Invalid([new ValidationError("Url", "A playlist URL is required")]);
+            }
 
             var provider = metadataProviderFactory.GetProvider(request.Url);
             if (provider is null)
+            {
                 return Result.Invalid([new ValidationError("Url", "No metadata provider found for this URL")]);
+            }
 
             var playlistMeta = await provider.GetPlaylistMetadataAsync(request.Url, cancellationToken);
             if (playlistMeta is null)
+            {
                 return Result.Invalid([new ValidationError("Url", "Could not retrieve playlist metadata. Please check the URL and try again.")]);
+            }
 
             var videoEntries = await provider.GetPlaylistVideosAsync(request.Url, cancellationToken);
             if (videoEntries.Count == 0)
+            {
                 return Result.Invalid([new ValidationError("Url", "The playlist appears to be empty or could not be read.")]);
+            }
 
             var videoIds = videoEntries
                 .Where(v => !string.IsNullOrEmpty(v.VideoId))
@@ -187,7 +218,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error previewing playlist from URL {Url}", request.Url);
+            }
+
             return Result.Error("An error occurred while fetching the playlist");
         }
     }
@@ -198,21 +232,31 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             if (string.IsNullOrWhiteSpace(request.Url))
+            {
                 return Result.Invalid([new ValidationError("Url", "A playlist URL is required")]);
+            }
 
             if (request.SelectedVideoIds.Count == 0)
+            {
                 return Result.Invalid([new ValidationError("SelectedVideoIds", "Please select at least one video to clone")]);
+            }
 
             var provider = metadataProviderFactory.GetProvider(request.Url);
             if (provider is null)
+            {
                 return Result.Invalid([new ValidationError("Url", "No metadata provider found for this URL")]);
+            }
 
             var playlistMeta = await provider.GetPlaylistMetadataAsync(request.Url, cancellationToken);
             if (playlistMeta is null)
+            {
                 return Result.Invalid([new ValidationError("Url", "Could not retrieve playlist metadata. Please check the URL and try again.")]);
+            }
 
             var videoEntries = await provider.GetPlaylistVideosAsync(request.Url, cancellationToken);
             var selectedSet = request.SelectedVideoIds.ToHashSet();
@@ -221,7 +265,9 @@ public class CustomPlaylistService : ICustomPlaylistService
                 .ToList();
 
             if (selectedEntries.Count == 0)
+            {
                 return Result.Invalid([new ValidationError("SelectedVideoIds", "None of the selected videos could be found in the playlist.")]);
+            }
 
             var playlist = new CustomPlaylist
             {
@@ -237,7 +283,7 @@ public class CustomPlaylistService : ICustomPlaylistService
                 try
                 {
                     using var http = httpClientFactory.CreateClient();
-                    var imageBytes = await http.GetByteArrayAsync(playlistMeta.ThumbnailUrl, cancellationToken);
+                    byte[] imageBytes = await http.GetByteArrayAsync(playlistMeta.ThumbnailUrl, cancellationToken);
                     string uploadDir = GetCustomPlaylistsThumbnailDirectory();
                     Directory.CreateDirectory(uploadDir);
                     string thumbPath = Path.Combine(uploadDir, $"{playlist.Id}-thumbnail.jpg");
@@ -248,7 +294,9 @@ public class CustomPlaylistService : ICustomPlaylistService
                 catch (Exception ex)
                 {
                     if (logger.IsEnabled(LogLevel.Warning))
+                    {
                         logger.LogWarning(ex, "Failed to download thumbnail for cloned playlist {PlaylistId}", playlist.Id);
+                    }
                 }
             }
 
@@ -269,7 +317,7 @@ public class CustomPlaylistService : ICustomPlaylistService
                     ChannelMetadata? channelMeta = null;
                     if (!string.IsNullOrEmpty(videoMeta.ChannelId))
                     {
-                        var channelUrl = $"https://www.youtube.com/channel/{videoMeta.ChannelId}";
+                        string channelUrl = $"https://www.youtube.com/channel/{videoMeta.ChannelId}";
                         channelMeta = await provider.GetChannelMetadataAsync(channelUrl, cancellationToken);
                     }
 
@@ -321,7 +369,7 @@ public class CustomPlaylistService : ICustomPlaylistService
                 if (tagIt)
                 {
                     var standaloneTag = await GetOrCreateTagAsync(userId, Constants.StandaloneTag);
-                    var alreadyTagged = await videoTagRepository.ExistsAsync(x => x.VideoId == video.Id && x.TagId == standaloneTag.Id);
+                    bool alreadyTagged = await videoTagRepository.ExistsAsync(x => x.VideoId == video.Id && x.TagId == standaloneTag.Id);
                     if (!alreadyTagged)
                     {
                         await videoTagRepository.InsertAsync(new VideoTag
@@ -347,9 +395,11 @@ public class CustomPlaylistService : ICustomPlaylistService
             }
 
             if (logger.IsEnabled(LogLevel.Information))
+            {
                 logger.LogInformation(
                     "Cloned playlist '{Name}' with {Total} videos ({New} new, {Existing} already in library)",
                     playlist.Name, order, newVideoCount, alreadyInLibraryCount);
+            }
 
             return Result.Success(new ClonePlaylistResponse(
                 playlist.Id,
@@ -361,7 +411,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error cloning playlist from URL {Url}", request.Url);
+            }
+
             return Result.Error("An error occurred while cloning the playlist");
         }
     }
@@ -372,13 +425,20 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             var playlist = await customPlaylistRepository.FindOneAsync(id);
             if (playlist is null)
+            {
                 return Result.NotFound("Playlist not found");
+            }
+
             if (playlist.UserId != userId)
+            {
                 return Result.Forbidden();
+            }
 
             await customPlaylistRepository.DeleteAsync(playlist);
             return Result.Success();
@@ -386,7 +446,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error deleting custom playlist {PlaylistId}", id);
+            }
+
             return Result.Error("An error occurred while deleting the playlist");
         }
     }
@@ -397,7 +460,9 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             var pagedPlaylists = await customPlaylistRepository.FindAsync(
                 new SearchOptions<CustomPlaylist>
@@ -427,7 +492,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error retrieving custom playlists");
+            }
+
             return Result.Error("An error occurred while retrieving playlists");
         }
     }
@@ -438,7 +506,9 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             var memberships = await customPlaylistVideoRepository.FindAsync(
                 new SearchOptions<CustomPlaylistVideo>
@@ -456,7 +526,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error retrieving playlists for video {VideoId}", videoId);
+            }
+
             return Result.Error("An error occurred while retrieving playlists for video");
         }
     }
@@ -489,13 +562,20 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             var playlist = await customPlaylistRepository.FindOneAsync(id);
             if (playlist is null)
+            {
                 return Result.NotFound("Playlist not found");
+            }
+
             if (playlist.UserId != userId)
+            {
                 return Result.Forbidden();
+            }
 
             var pagedPlaylistVideos = await customPlaylistVideoRepository.FindAsync(
                 new SearchOptions<CustomPlaylistVideo>
@@ -534,7 +614,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error retrieving videos for custom playlist {PlaylistId}", id);
+            }
+
             return Result.Error("An error occurred while retrieving playlist videos");
         }
     }
@@ -545,13 +628,20 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             var playlist = await customPlaylistRepository.FindOneAsync(id);
             if (playlist is null)
+            {
                 return Result.NotFound("Playlist not found");
+            }
+
             if (playlist.UserId != userId)
+            {
                 return Result.Forbidden();
+            }
 
             var entry = await customPlaylistVideoRepository.FindOneAsync(new SearchOptions<CustomPlaylistVideo>
             {
@@ -559,7 +649,9 @@ public class CustomPlaylistService : ICustomPlaylistService
             });
 
             if (entry is null)
+            {
                 return Result.NotFound("Video not found in playlist");
+            }
 
             await customPlaylistVideoRepository.DeleteAsync(entry);
             return Result.Success();
@@ -567,7 +659,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error removing video {VideoId} from playlist {PlaylistId}", videoId, id);
+            }
+
             return Result.Error("An error occurred while removing the video");
         }
     }
@@ -578,13 +673,20 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             var playlist = await customPlaylistRepository.FindOneAsync(id);
             if (playlist is null)
+            {
                 return Result.NotFound("Playlist not found");
+            }
+
             if (playlist.UserId != userId)
+            {
                 return Result.Forbidden();
+            }
 
             playlist.Name = request.Name?.Trim() ?? playlist.Name;
             playlist.Description = request.Description?.Trim();
@@ -595,7 +697,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error updating custom playlist {PlaylistId}", id);
+            }
+
             return Result.Error("An error occurred while updating the playlist");
         }
     }
@@ -606,13 +711,20 @@ public class CustomPlaylistService : ICustomPlaylistService
         {
             string? userId = userContextService.GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
+            {
                 return Result.Unauthorized();
+            }
 
             var playlist = await customPlaylistRepository.FindOneAsync(id);
             if (playlist is null)
+            {
                 return Result.NotFound("Playlist not found");
+            }
+
             if (playlist.UserId != userId)
+            {
                 return Result.Forbidden();
+            }
 
             string ext = NormaliseImageExtension(Path.GetExtension(fileName));
             string uploadDir = GetCustomPlaylistsThumbnailDirectory();
@@ -622,7 +734,9 @@ public class CustomPlaylistService : ICustomPlaylistService
             {
                 string otherPath = Path.Combine(uploadDir, $"{id}-thumbnail{other}");
                 if (File.Exists(otherPath))
+                {
                     File.Delete(otherPath);
+                }
             }
 
             string thumbPath = Path.Combine(uploadDir, $"{id}-thumbnail{ext}");
@@ -639,7 +753,10 @@ public class CustomPlaylistService : ICustomPlaylistService
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
+            {
                 logger.LogError(ex, "Error uploading thumbnail for custom playlist {PlaylistId}", id);
+            }
+
             return Result.Error("An error occurred while saving the thumbnail");
         }
     }
@@ -667,7 +784,9 @@ public class CustomPlaylistService : ICustomPlaylistService
         });
 
         if (existing is not null)
+        {
             return existing;
+        }
 
         var tag = new Tag { UserId = userId, Name = name };
         await tagRepository.InsertAsync(tag);

@@ -36,9 +36,9 @@ public class CustomChannelApiController : ControllerBase
     public async Task<IActionResult> GetChannelThumbnail(int channelId)
     {
         var result = await customChannelService.GetChannelThumbnailAsync(channelId);
-        if (!result.IsSuccess)
-            return result.Status == ResultStatus.NotFound ? NotFound() : (IActionResult)Forbid();
-        return PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType);
+        return !result.IsSuccess
+            ? result.Status == ResultStatus.NotFound ? NotFound() : Forbid()
+            : PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType);
     }
 
     [HttpPost("channels/{channelId:int}/thumbnail")]
@@ -75,9 +75,7 @@ public class CustomChannelApiController : ControllerBase
     public async Task<IActionResult> GetPlaylistThumbnail(int playlistId)
     {
         var result = await customChannelService.GetPlaylistThumbnailAsync(playlistId);
-        if (!result.IsSuccess)
-            return NotFound();
-        return PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType);
+        return !result.IsSuccess ? NotFound() : PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType);
     }
 
     [HttpPost("playlists/{playlistId:int}/thumbnail")]
@@ -114,9 +112,7 @@ public class CustomChannelApiController : ControllerBase
     public async Task<IActionResult> GetVideoThumbnail(int videoId)
     {
         var result = await customChannelService.GetVideoThumbnailAsync(videoId);
-        if (!result.IsSuccess)
-            return NotFound();
-        return PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType);
+        return !result.IsSuccess ? NotFound() : PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType);
     }
 
     [HttpPost("videos/{videoId:int}/thumbnail")]

@@ -96,7 +96,7 @@ class VideoIndexViewModel {
             if (this.selectedChannelId()) params.set('channelId', this.selectedChannelId());
             if (this.tagFilter()) params.set('tagFilter', this.tagFilter());
 
-            const response = await fetch(`/api/video-index?${params}`);
+            const response = await fetch(`/api/videos/search?${params}`);
             const data = await response.json();
 
             this.videos(data.videos || []);
@@ -111,7 +111,7 @@ class VideoIndexViewModel {
 
     loadChannels = async () => {
         try {
-            const response = await fetch('/api/video-index/channels');
+            const response = await fetch('/api/videos/channels');
             const data = await response.json();
             this.channels(data.channels || []);
         } catch (error) {

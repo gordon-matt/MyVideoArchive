@@ -8,11 +8,11 @@ namespace MyVideoArchive.Controllers.Api;
 [Authorize]
 [ApiController]
 [Route("api/playlists")]
-public class PlaylistOperationsApiController : ControllerBase
+public class PlaylistApiController : ControllerBase
 {
     private readonly IPlaylistService playlistService;
 
-    public PlaylistOperationsApiController(IPlaylistService playlistService)
+    public PlaylistApiController(IPlaylistService playlistService)
     {
         this.playlistService = playlistService;
     }
@@ -70,5 +70,17 @@ public class PlaylistOperationsApiController : ControllerBase
         var result = await playlistService.SetVideoHiddenAsync(playlistId, videoId, request);
 
         return result.ToActionResult(this, () => Ok(new { message = request.IsHidden ? "Video hidden" : "Video unhidden" }));
+    }
+
+    /// <summary>
+    /// Trigger sync for all playlists
+    /// </summary>
+    [Authorize(Roles = Constants.Roles.Administrator)]
+    [HttpPost("sync-all")]
+    public IActionResult SyncAllPlaylists()
+    {
+        var result = playlistService.SyncAllPlaylists();
+
+        return result.ToActionResult(this, () => Ok(new { message = "Sync job queued successfully for all playlists" }));
     }
 }

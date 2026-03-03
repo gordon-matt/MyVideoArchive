@@ -3,11 +3,11 @@ namespace MyVideoArchive.Controllers.Api;
 [Authorize]
 [ApiController]
 [Route("api/channels")]
-public class ChannelOperationsApiController : ControllerBase
+public class ChannelApiController : ControllerBase
 {
     private readonly IChannelService channelService;
 
-    public ChannelOperationsApiController(IChannelService channelService)
+    public ChannelApiController(IChannelService channelService)
     {
         this.channelService = channelService;
     }
