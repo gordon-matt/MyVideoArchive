@@ -168,6 +168,7 @@
                         <tr>
                             <th style="width: 120px;"></th>
                             <th>Title</th>
+                            <th>Platform</th>
                             <th>Channel</th>
                             <th>Channel ID</th>
                             <th>Video ID</th>
@@ -190,6 +191,14 @@
                             <td>
                                 <span class="fw-semibold" data-bind="text: title"></span>
                                 <span class="badge bg-danger ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Failed</span>
+                                <!-- ko if: url -->
+                                <a data-bind="attr: { href: url }" target="_blank" rel="noopener noreferrer" class="ms-2" title="Open original">
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                </a>
+                                <!-- /ko -->
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary" data-bind="text: platform || '—'"></span>
                             </td>
                             <td data-bind="text: channelName"></td>
                             <td>

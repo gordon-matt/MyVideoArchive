@@ -8,6 +8,8 @@ public record FailedDownloadItem(
     int Id,
     string VideoId,
     string Title,
+    string? Url,
+    string? Platform,
     string? ThumbnailUrl,
     string ChannelId,
     string ChannelName,

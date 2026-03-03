@@ -308,6 +308,8 @@ public class VideoService : IVideoService
                 x.Id,
                 x.VideoId,
                 x.Title,
+                x.Url,
+                x.Platform,
                 x.ThumbnailUrl,
                 x.Channel.ChannelId,
                 x.Channel.Name,
