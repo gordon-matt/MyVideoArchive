@@ -166,11 +166,11 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
-                            <th style="width: 120px;">Thumbnail</th>
+                            <th style="width: 120px;"></th>
                             <th>Title</th>
-                            <th>Video ID</th>
                             <th>Channel</th>
                             <th>Channel ID</th>
+                            <th>Video ID</th>
                         </tr>
                     </thead>
                     <tbody data-bind="foreach: failedVideos">
@@ -191,12 +191,12 @@
                                 <span class="fw-semibold" data-bind="text: title"></span>
                                 <span class="badge bg-danger ms-2"><i class="bi bi-exclamation-triangle-fill"></i> Failed</span>
                             </td>
-                            <td>
-                                <code data-bind="text: videoId"></code>
-                            </td>
                             <td data-bind="text: channelName"></td>
                             <td>
                                 <code data-bind="text: channelId"></code>
+                            </td>
+                            <td>
+                                <code data-bind="text: videoId"></code>
                             </td>
                         </tr>
                     </tbody>

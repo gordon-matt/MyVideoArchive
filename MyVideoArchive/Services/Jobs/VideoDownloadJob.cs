@@ -1,5 +1,4 @@
 using Hangfire;
-using Hangfire.Common;
 using MyVideoArchive.Infrastructure;
 
 namespace MyVideoArchive.Services.Jobs;
@@ -53,16 +52,24 @@ public class VideoDownloadJob
 
             if (video is null)
             {
-                logger.LogWarning("Video with ID {VideoId} not found", videoId);
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Video with ID {VideoId} not found", videoId);
+                }
+
                 return;
             }
 
             if (video.DownloadFailed)
             {
-                logger.LogInformation(
-                    "Skipping video {VideoId} — previously marked as failed. " +
-                    "Manually import the file and run a file system scan to recover it.",
-                    videoId);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation(
+                        "Skipping video {VideoId} — previously marked as failed. " +
+                        "Manually import the file and run a file system scan to recover it.",
+                        videoId);
+                }
+
                 video.IsQueued = false;
                 await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
                 return;
@@ -71,7 +78,11 @@ public class VideoDownloadJob
             // Skip if already downloaded
             if (!string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath))
             {
-                logger.LogInformation("Video {VideoId} already downloaded", videoId);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Video {VideoId} already downloaded", videoId);
+                }
+
                 video.IsQueued = false;
                 await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
                 return;
@@ -82,7 +93,7 @@ public class VideoDownloadJob
             int batchWindowMinutes = configuration.GetValue<int>("VideoDownload:Throttle:BatchWindowMinutes", 30);
 
             var windowStart = DateTime.UtcNow.AddMinutes(-batchWindowMinutes);
-            var recentDownloadCount = await videoRepository.CountAsync(
+            int recentDownloadCount = await videoRepository.CountAsync(
                 x => x.DownloadedAt != null && x.DownloadedAt >= windowStart,
                 ContextOptions.ForCancellationToken(cancellationToken));
 
@@ -97,18 +108,22 @@ public class VideoDownloadJob
                 });
 
                 var rescheduleDelay = oldestInWindow?.DownloadedAt.HasValue == true
-                    ? (oldestInWindow.DownloadedAt!.Value.AddMinutes(batchWindowMinutes) - DateTime.UtcNow)
-                        .Add(TimeSpan.FromSeconds(5))
+                    ? (oldestInWindow.DownloadedAt!.Value.AddMinutes(batchWindowMinutes) - DateTime.UtcNow).Add(TimeSpan.FromSeconds(5))
                     : TimeSpan.FromMinutes(batchWindowMinutes);
 
                 // Clamp to at least 1 minute in case of clock skew
                 if (rescheduleDelay < TimeSpan.FromMinutes(1))
+                {
                     rescheduleDelay = TimeSpan.FromMinutes(1);
+                }
 
-                logger.LogInformation(
-                    "Batch limit of {BatchSize} downloads per {Window} min reached. " +
-                    "Rescheduling video {VideoId} to run in {Delay}.",
-                    batchSize, batchWindowMinutes, videoId, rescheduleDelay);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation(
+                        "Batch limit of {BatchSize} downloads per {Window} min reached. " +
+                        "Rescheduling video {VideoId} to run in {Delay}.",
+                        batchSize, batchWindowMinutes, videoId, rescheduleDelay);
+                }
 
                 backgroundJobClient.Schedule<VideoDownloadJob>(
                     job => job.ExecuteAsync(videoId, CancellationToken.None),
@@ -124,8 +139,11 @@ public class VideoDownloadJob
             if (maxDelay > minDelay)
             {
                 var jitter = TimeSpan.FromSeconds(Random.Shared.Next(minDelay, maxDelay + 1));
-                logger.LogInformation(
-                    "Waiting {Delay}s before downloading video {VideoId}", jitter.TotalSeconds, videoId);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Waiting {Delay}s before downloading video {VideoId}", jitter.TotalSeconds, videoId);
+                }
+
                 await Task.Delay(jitter, cancellationToken);
             }
 
@@ -133,7 +151,11 @@ public class VideoDownloadJob
             var downloader = downloaderFactory.GetDownloaderByPlatform(video.Platform);
             if (downloader is null)
             {
-                logger.LogError("No downloader found for platform: {Platform}", video.Platform);
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    logger.LogError("No downloader found for platform: {Platform}", video.Platform);
+                }
+
                 return;
             }
 
@@ -163,17 +185,26 @@ public class VideoDownloadJob
             video.DownloadFailed = false;
 
             await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
-
-            logger.LogInformation("Successfully downloaded video {VideoId} to {FilePath}", videoId, filePath);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Successfully downloaded video {VideoId} to {FilePath}", videoId, filePath);
+            }
         }
         catch (OperationCanceledException)
         {
-            logger.LogWarning("Download cancelled for video {VideoId}", videoId);
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning("Download cancelled for video {VideoId}", videoId);
+            }
+
             throw;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to download video {VideoId}. Marking as failed.", videoId);
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Failed to download video {VideoId}. Marking as failed.", videoId);
+            }
 
             try
             {
@@ -187,7 +218,10 @@ public class VideoDownloadJob
             }
             catch (Exception resetEx)
             {
-                logger.LogError(resetEx, "Error marking video {VideoId} as failed", videoId);
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    logger.LogError(resetEx, "Error marking video {VideoId} as failed", videoId);
+                }
             }
 
             // Do NOT rethrow — Hangfire should not retry permanently-failed downloads.
