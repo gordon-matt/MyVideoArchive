@@ -1,4 +1,4 @@
-namespace MyVideoArchive.Models.Api;
+namespace MyVideoArchive.Models.Requests;
 
 public class DownloadVideosRequest
 {

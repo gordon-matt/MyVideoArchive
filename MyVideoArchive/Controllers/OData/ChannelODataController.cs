@@ -13,9 +13,9 @@ public class ChannelODataController : ODataController
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly IRepository<Channel> channelRepository;
+    private readonly IRepository<Tag> tagRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
     private readonly IRepository<Video> videoRepository;
-    private readonly IRepository<Tag> tagRepository;
     private readonly IRepository<VideoTag> videoTagRepository;
 
     public ChannelODataController(
@@ -24,9 +24,9 @@ public class ChannelODataController : ODataController
         VideoMetadataProviderFactory metadataProviderFactory,
         IBackgroundJobClient backgroundJobClient,
         IRepository<Channel> channelRepository,
+        IRepository<Tag> tagRepository,
         IRepository<UserChannel> userChannelRepository,
         IRepository<Video> videoRepository,
-        IRepository<Tag> tagRepository,
         IRepository<VideoTag> videoTagRepository)
     {
         this.logger = logger;
@@ -34,10 +34,54 @@ public class ChannelODataController : ODataController
         this.backgroundJobClient = backgroundJobClient;
         this.metadataProviderFactory = metadataProviderFactory;
         this.channelRepository = channelRepository;
+        this.tagRepository = tagRepository;
         this.userChannelRepository = userChannelRepository;
         this.videoRepository = videoRepository;
-        this.tagRepository = tagRepository;
         this.videoTagRepository = videoTagRepository;
+    }
+
+    [HttpDelete]
+    public async Task<IActionResult> Delete([FromRoute] int key) // Ubsubscribe
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            // Find the user's subscription
+            var userChannel = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
+            {
+                Query = x =>
+                    x.UserId == userId &&
+                    x.ChannelId == key
+            });
+
+            if (userChannel is null)
+            {
+                return NotFound();
+            }
+
+            // Remove user's subscription
+            await userChannelRepository.DeleteAsync(userChannel);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("User {UserId} unsubscribed from channel {ChannelId}", userId, key);
+            }
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error deleting channel subscription {ChannelId}", key);
+            }
+
+            return StatusCode(500, "An error occurred while unsubscribing from the channel");
+        }
     }
 
     [EnableQuery]
@@ -311,50 +355,6 @@ public class ChannelODataController : ODataController
                 logger.LogWarning(ex, "Failed to remove standalone tags for channel {ChannelId} user {UserId}",
                     channelDbId, userId);
             }
-        }
-    }
-
-    [HttpDelete]
-    public async Task<IActionResult> Delete([FromRoute] int key) // Ubsubscribe
-    {
-        try
-        {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
-
-            // Find the user's subscription
-            var userChannel = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
-            {
-                Query = x =>
-                    x.UserId == userId &&
-                    x.ChannelId == key
-            });
-
-            if (userChannel is null)
-            {
-                return NotFound();
-            }
-
-            // Remove user's subscription
-            await userChannelRepository.DeleteAsync(userChannel);
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("User {UserId} unsubscribed from channel {ChannelId}", userId, key);
-            }
-
-            return NoContent();
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error deleting channel subscription {ChannelId}", key);
-            }
-
-            return StatusCode(500, "An error occurred while unsubscribing from the channel");
         }
     }
 }

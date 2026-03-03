@@ -1,7 +1,8 @@
 using Ardalis.Result;
 using Hangfire;
-using MyVideoArchive.Models.Api;
 using MyVideoArchive.Models.Metadata;
+using MyVideoArchive.Models.Requests.Playlist;
+using MyVideoArchive.Models.Responses;
 
 namespace MyVideoArchive.Services;
 
@@ -82,14 +83,19 @@ public class CustomPlaylistService : ICustomPlaylistService
 
             bool alreadyInPlaylist = await customPlaylistVideoRepository.ExistsAsync(
                 x => x.CustomPlaylistId == id && x.VideoId == videoId);
+
             if (alreadyInPlaylist)
             {
                 return Result.Success();
             }
 
             var existingOrders = (await customPlaylistVideoRepository.FindAsync(
-                new SearchOptions<CustomPlaylistVideo> { Query = x => x.CustomPlaylistId == id },
+                new SearchOptions<CustomPlaylistVideo>
+                {
+                    Query = x => x.CustomPlaylistId == id
+                },
                 x => (int?)x.Order)).ToList();
+
             int maxOrder = existingOrders.Count > 0 ? existingOrders.Max() ?? -1 : -1;
 
             await customPlaylistVideoRepository.InsertAsync(new CustomPlaylistVideo
@@ -109,120 +115,6 @@ public class CustomPlaylistService : ICustomPlaylistService
             }
 
             return Result.Error("An error occurred while adding the video");
-        }
-    }
-
-    public async Task<Result<CreatePlaylistResponse>> CreatePlaylistAsync(CreateCustomPlaylistRequest request)
-    {
-        try
-        {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Result.Unauthorized();
-            }
-
-            if (string.IsNullOrWhiteSpace(request.Name))
-            {
-                return Result.Invalid([new ValidationError("Name", "Playlist name is required")]);
-            }
-
-            var playlist = new CustomPlaylist
-            {
-                UserId = userId,
-                Name = request.Name.Trim(),
-                Description = request.Description?.Trim(),
-                CreatedAt = DateTime.UtcNow
-            };
-
-            await customPlaylistRepository.InsertAsync(playlist);
-            return Result.Success(new CreatePlaylistResponse(playlist.Id, playlist.Name));
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error creating custom playlist");
-            }
-
-            return Result.Error("An error occurred while creating the playlist");
-        }
-    }
-
-    public async Task<Result<PreviewPlaylistResponse>> PreviewPlaylistAsync(PreviewPlaylistRequest request, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            string? userId = userContextService.GetCurrentUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Result.Unauthorized();
-            }
-
-            if (string.IsNullOrWhiteSpace(request.Url))
-            {
-                return Result.Invalid([new ValidationError("Url", "A playlist URL is required")]);
-            }
-
-            var provider = metadataProviderFactory.GetProvider(request.Url);
-            if (provider is null)
-            {
-                return Result.Invalid([new ValidationError("Url", "No metadata provider found for this URL")]);
-            }
-
-            var playlistMeta = await provider.GetPlaylistMetadataAsync(request.Url, cancellationToken);
-            if (playlistMeta is null)
-            {
-                return Result.Invalid([new ValidationError("Url", "Could not retrieve playlist metadata. Please check the URL and try again.")]);
-            }
-
-            var videoEntries = await provider.GetPlaylistVideosAsync(request.Url, cancellationToken);
-            if (videoEntries.Count == 0)
-            {
-                return Result.Invalid([new ValidationError("Url", "The playlist appears to be empty or could not be read.")]);
-            }
-
-            var videoIds = videoEntries
-                .Where(v => !string.IsNullOrEmpty(v.VideoId))
-                .Select(v => v.VideoId)
-                .ToList();
-
-            var existingVideos = await videoRepository.FindAsync(
-                new SearchOptions<Video>
-                {
-                    Query = x => videoIds.Contains(x.VideoId) && x.Platform == playlistMeta.Platform
-                },
-                x => x.VideoId);
-
-            var inLibrarySet = existingVideos.ToHashSet();
-
-            var videos = videoEntries
-                .Where(v => !string.IsNullOrEmpty(v.VideoId))
-                .Select(v => new PreviewVideoItem(
-                    v.VideoId,
-                    v.Title,
-                    v.ThumbnailUrl,
-                    v.Duration.HasValue ? (int?)v.Duration.Value.TotalSeconds : null,
-                    v.ChannelName,
-                    v.Url,
-                    inLibrarySet.Contains(v.VideoId)))
-                .ToList();
-
-            return Result.Success(new PreviewPlaylistResponse(
-                playlistMeta.Name,
-                playlistMeta.Description,
-                playlistMeta.ThumbnailUrl,
-                playlistMeta.Platform,
-                videos));
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error previewing playlist from URL {Url}", request.Url);
-            }
-
-            return Result.Error("An error occurred while fetching the playlist");
         }
     }
 
@@ -416,6 +308,43 @@ public class CustomPlaylistService : ICustomPlaylistService
             }
 
             return Result.Error("An error occurred while cloning the playlist");
+        }
+    }
+
+    public async Task<Result<CreatePlaylistResponse>> CreatePlaylistAsync(CreateCustomPlaylistRequest request)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return Result.Invalid([new ValidationError("Name", "Playlist name is required")]);
+            }
+
+            var playlist = new CustomPlaylist
+            {
+                UserId = userId,
+                Name = request.Name.Trim(),
+                Description = request.Description?.Trim(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await customPlaylistRepository.InsertAsync(playlist);
+            return Result.Success(new CreatePlaylistResponse(playlist.Id, playlist.Name));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error creating custom playlist");
+            }
+
+            return Result.Error("An error occurred while creating the playlist");
         }
     }
 
@@ -622,6 +551,83 @@ public class CustomPlaylistService : ICustomPlaylistService
         }
     }
 
+    public async Task<Result<PreviewPlaylistResponse>> PreviewPlaylistAsync(PreviewPlaylistRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Url))
+            {
+                return Result.Invalid([new ValidationError("Url", "A playlist URL is required")]);
+            }
+
+            var provider = metadataProviderFactory.GetProvider(request.Url);
+            if (provider is null)
+            {
+                return Result.Invalid([new ValidationError("Url", "No metadata provider found for this URL")]);
+            }
+
+            var playlistMeta = await provider.GetPlaylistMetadataAsync(request.Url, cancellationToken);
+            if (playlistMeta is null)
+            {
+                return Result.Invalid([new ValidationError("Url", "Could not retrieve playlist metadata. Please check the URL and try again.")]);
+            }
+
+            var videoEntries = await provider.GetPlaylistVideosAsync(request.Url, cancellationToken);
+            if (videoEntries.Count == 0)
+            {
+                return Result.Invalid([new ValidationError("Url", "The playlist appears to be empty or could not be read.")]);
+            }
+
+            var videoIds = videoEntries
+                .Where(v => !string.IsNullOrEmpty(v.VideoId))
+                .Select(v => v.VideoId)
+                .ToList();
+
+            var existingVideos = await videoRepository.FindAsync(
+                new SearchOptions<Video>
+                {
+                    Query = x => videoIds.Contains(x.VideoId) && x.Platform == playlistMeta.Platform
+                },
+                x => x.VideoId);
+
+            var inLibrarySet = existingVideos.ToHashSet();
+
+            var videos = videoEntries
+                .Where(v => !string.IsNullOrEmpty(v.VideoId))
+                .Select(v => new PreviewVideoItem(
+                    v.VideoId,
+                    v.Title,
+                    v.ThumbnailUrl,
+                    v.Duration.HasValue ? (int?)v.Duration.Value.TotalSeconds : null,
+                    v.ChannelName,
+                    v.Url,
+                    inLibrarySet.Contains(v.VideoId)))
+                .ToList();
+
+            return Result.Success(new PreviewPlaylistResponse(
+                playlistMeta.Name,
+                playlistMeta.Description,
+                playlistMeta.ThumbnailUrl,
+                playlistMeta.Platform,
+                videos));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error previewing playlist from URL {Url}", request.Url);
+            }
+
+            return Result.Error("An error occurred while fetching the playlist");
+        }
+    }
+
     public async Task<Result> RemoveVideoFromPlaylistAsync(int id, int videoId)
     {
         try
@@ -761,13 +767,6 @@ public class CustomPlaylistService : ICustomPlaylistService
         }
     }
 
-    private string GetDownloadPath() =>
-        configuration.GetValue<string>("VideoDownload:OutputPath")
-        ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
-
-    private string GetCustomPlaylistsThumbnailDirectory() =>
-        Path.Combine(GetDownloadPath(), "_CustomPlaylists");
-
     private static string NormaliseImageExtension(string ext) =>
         ext.ToLowerInvariant() switch
         {
@@ -775,6 +774,13 @@ public class CustomPlaylistService : ICustomPlaylistService
             ".jpg" or ".png" or ".webp" => ext.ToLowerInvariant(),
             _ => ".jpg"
         };
+
+    private string GetCustomPlaylistsThumbnailDirectory() =>
+        Path.Combine(GetDownloadPath(), "_CustomPlaylists");
+
+    private string GetDownloadPath() =>
+                configuration.GetValue<string>("VideoDownload:OutputPath")
+        ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
     private async Task<Tag> GetOrCreateTagAsync(string userId, string name)
     {

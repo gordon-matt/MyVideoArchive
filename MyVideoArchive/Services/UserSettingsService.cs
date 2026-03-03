@@ -1,6 +1,7 @@
 using Ardalis.Result;
 using MyVideoArchive.Data.Enums;
-using MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Requests;
+using MyVideoArchive.Models.Responses;
 
 namespace MyVideoArchive.Services;
 

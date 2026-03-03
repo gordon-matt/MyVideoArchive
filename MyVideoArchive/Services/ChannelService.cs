@@ -1,7 +1,8 @@
 ﻿using Ardalis.Result;
 using Extenso.Collections.Generic;
 using Hangfire;
-using MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Requests;
+using MyVideoArchive.Models.Responses;
 
 namespace MyVideoArchive.Services;
 
@@ -145,6 +146,55 @@ public class ChannelService : IChannelService
         }
     }
 
+    public async Task<Result<int>> DownloadAllVideosAsync(int channelId)
+    {
+        try
+        {
+            // Check user access
+            if (!await UserSubscribedToChannelAsync(channelId))
+            {
+                return Result.Forbidden();
+            }
+
+            var videos = await videoRepository.FindAsync(new SearchOptions<Video>
+            {
+                Query = x =>
+                    x.ChannelId == channelId &&
+                    x.DownloadedAt == null &&
+                    !x.IsIgnored &&
+                    !x.IsQueued
+            });
+
+            if (videos.Count == 0)
+            {
+                return Result.Success(0);
+            }
+
+            var videoUpdates = new List<Video>();
+            foreach (var video in videos)
+            {
+                video.IsQueued = true;
+                videoUpdates.Add(video);
+
+                backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
+                    job.ExecuteAsync(video.Id, CancellationToken.None));
+            }
+
+            await videoRepository.UpdateAsync(videoUpdates);
+
+            return Result.Success(videos.Count);
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error queueing all video downloads for channel {ChannelId}", channelId);
+            }
+
+            return Result.Error("An error occurred while queueing downloads");
+        }
+    }
+
     public async Task<Result<int>> DownloadVideosAsync(int channelId, DownloadVideosRequest request)
     {
         try
@@ -197,55 +247,6 @@ public class ChannelService : IChannelService
             if (logger.IsEnabled(LogLevel.Error))
             {
                 logger.LogError(ex, "Error queueing video downloads for channel {ChannelId}", channelId);
-            }
-
-            return Result.Error("An error occurred while queueing downloads");
-        }
-    }
-
-    public async Task<Result<int>> DownloadAllVideosAsync(int channelId)
-    {
-        try
-        {
-            // Check user access
-            if (!await UserSubscribedToChannelAsync(channelId))
-            {
-                return Result.Forbidden();
-            }
-
-            var videos = await videoRepository.FindAsync(new SearchOptions<Video>
-            {
-                Query = x =>
-                    x.ChannelId == channelId &&
-                    x.DownloadedAt == null &&
-                    !x.IsIgnored &&
-                    !x.IsQueued
-            });
-
-            if (videos.Count == 0)
-            {
-                return Result.Success(0);
-            }
-
-            var videoUpdates = new List<Video>();
-            foreach (var video in videos)
-            {
-                video.IsQueued = true;
-                videoUpdates.Add(video);
-
-                backgroundJobClient.Enqueue<VideoDownloadJob>(job =>
-                    job.ExecuteAsync(video.Id, CancellationToken.None));
-            }
-
-            await videoRepository.UpdateAsync(videoUpdates);
-
-            return Result.Success(videos.Count);
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error queueing all video downloads for channel {ChannelId}", channelId);
             }
 
             return Result.Error("An error occurred while queueing downloads");
@@ -328,6 +329,12 @@ public class ChannelService : IChannelService
             return Result.Error("An error occurred while retrieving videos");
         }
     }
+
+    public async Task<Channel> GetChannelAsync(string platformName, string channelId) =>
+        await channelRepository.FindOneAsync(new SearchOptions<Channel>
+        {
+            Query = x => x.ChannelId == channelId && x.Platform == platformName
+        });
 
     public async Task<Result<IPagedCollection<DownloadedVideo>>> GetDownloadedVideosAsync(
         int channelId,
@@ -440,28 +447,3 @@ public class ChannelService : IChannelService
                 x.ChannelId == channelId);
     }
 }
-
-public record AvailableVideo(
-    int Id,
-    string VideoId,
-    string Title,
-    string? Description,
-    string Url,
-    string? ThumbnailUrl,
-    TimeSpan? Duration,
-    DateTime? UploadDate,
-    int? ViewCount,
-    int? LikeCount,
-    DateTime? DownloadedAt,
-    bool IsIgnored,
-    bool IsDownloaded);
-
-public record DownloadedVideo(
-    int Id,
-    string VideoId,
-    string Title,
-    string Url,
-    string? ThumbnailUrl,
-    TimeSpan? Duration,
-    DateTime? UploadDate,
-    DateTime? DownloadedAt);

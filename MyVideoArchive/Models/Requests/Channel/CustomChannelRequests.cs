@@ -1,4 +1,4 @@
-namespace MyVideoArchive.Models.Api;
+namespace MyVideoArchive.Models.Requests.Channel;
 
 public record CreateCustomChannelRequest(string Name, string? Description);
 

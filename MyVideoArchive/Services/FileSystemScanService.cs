@@ -19,39 +19,13 @@ public class FileSystemScanService : IFileSystemScanService
         this.scopeFactory = scopeFactory;
     }
 
-    public Task<Result<ScanStartOutcome>> StartScanAsync()
+    public Result Cancel()
     {
-        if (!scanState.TryStart(out var cancellationToken))
-        {
-            return Task.FromResult(Result<ScanStartOutcome>.Success(ScanStartOutcome.AlreadyRunning));
-        }
-
-        _ = Task.Run(async () =>
-        {
-            logger.LogInformation("File system scan (all channels) initiated");
-
-            try
-            {
-                using var scope = scopeFactory.CreateScope();
-                var scanJob = scope.ServiceProvider.GetRequiredService<FileSystemScanJob>();
-                var progress = new Progress<FileSystemScanProgress>(p => scanState.UpdateProgress(p));
-                var result = await scanJob.ExecuteAsync(null, progress, cancellationToken);
-                scanState.Complete(result);
-            }
-            catch (OperationCanceledException)
-            {
-                logger.LogInformation("File system scan was cancelled");
-                scanState.Complete(new FileSystemScanResult());
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error during file system scan");
-                scanState.Fail("An error occurred during the scan. Check the server logs for details.");
-            }
-        });
-
-        return Task.FromResult(Result<ScanStartOutcome>.Success(ScanStartOutcome.Started));
+        scanState.Cancel();
+        return Result.Success();
     }
+
+    public object GetStatus() => scanState.GetStatus();
 
     public Task<Result<ScanStartOutcome>> StartChannelScanAsync(int channelId)
     {
@@ -87,11 +61,37 @@ public class FileSystemScanService : IFileSystemScanService
         return Task.FromResult(Result<ScanStartOutcome>.Success(ScanStartOutcome.Started));
     }
 
-    public object GetStatus() => scanState.GetStatus();
-
-    public Result Cancel()
+    public Task<Result<ScanStartOutcome>> StartScanAsync()
     {
-        scanState.Cancel();
-        return Result.Success();
+        if (!scanState.TryStart(out var cancellationToken))
+        {
+            return Task.FromResult(Result<ScanStartOutcome>.Success(ScanStartOutcome.AlreadyRunning));
+        }
+
+        _ = Task.Run(async () =>
+        {
+            logger.LogInformation("File system scan (all channels) initiated");
+
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var scanJob = scope.ServiceProvider.GetRequiredService<FileSystemScanJob>();
+                var progress = new Progress<FileSystemScanProgress>(p => scanState.UpdateProgress(p));
+                var result = await scanJob.ExecuteAsync(null, progress, cancellationToken);
+                scanState.Complete(result);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogInformation("File system scan was cancelled");
+                scanState.Complete(new FileSystemScanResult());
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error during file system scan");
+                scanState.Fail("An error occurred during the scan. Check the server logs for details.");
+            }
+        });
+
+        return Task.FromResult(Result<ScanStartOutcome>.Success(ScanStartOutcome.Started));
     }
 }

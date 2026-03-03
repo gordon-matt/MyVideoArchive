@@ -1,4 +1,4 @@
-using MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Requests.Playlist;
 
 namespace MyVideoArchive.Controllers.Api;
 

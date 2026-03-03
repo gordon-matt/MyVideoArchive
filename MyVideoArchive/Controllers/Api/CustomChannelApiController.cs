@@ -1,5 +1,5 @@
 using Ardalis.Result;
-using MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Requests.Channel;
 
 namespace MyVideoArchive.Controllers.Api;
 

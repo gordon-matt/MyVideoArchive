@@ -1,6 +1,7 @@
 ﻿using Ardalis.Result;
 using Extenso.Collections.Generic;
-using MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Requests;
+using MyVideoArchive.Models.Responses;
 
 namespace MyVideoArchive.Services;
 
@@ -31,6 +32,8 @@ public interface IChannelService
         bool showIgnored = false,
         string? search = null,
         CancellationToken cancellationToken = default);
+
+    Task<Channel> GetChannelAsync(string platformName, string channelId);
 
     /// <summary>
     /// Get downloaded videos for a channel with optional search and playlist filtering (paginated)

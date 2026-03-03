@@ -1,4 +1,6 @@
-namespace MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Responses;
+
+namespace MyVideoArchive.Models.Requests.Playlist;
 
 public class ReorderVideosRequest
 {

@@ -1,21 +1,22 @@
 using Ardalis.Result;
 using Hangfire;
-using MyVideoArchive.Models.Api;
 using MyVideoArchive.Models.Metadata;
+using MyVideoArchive.Models.Responses;
+using MyVideoArchive.Models.Video;
 
 namespace MyVideoArchive.Services;
 
 public class VideoService : IVideoService
 {
-    private readonly IBackgroundJobClient backgroundJobClient;
-    private readonly IRepository<Channel> channelRepository;
-    private readonly IChannelService channelService;
     private readonly ILogger<VideoService> logger;
-    private readonly VideoMetadataProviderFactory metadataProviderFactory;
-    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
-    private readonly IRepository<Tag> tagRepository;
-    private readonly IRepository<UserChannel> userChannelRepository;
+    private readonly IBackgroundJobClient backgroundJobClient;
     private readonly IUserContextService userContextService;
+    private readonly VideoMetadataProviderFactory metadataProviderFactory;
+    private readonly IChannelService channelService;
+    private readonly ITagService tagService;
+    private readonly IRepository<Channel> channelRepository;
+    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
+    private readonly IRepository<UserChannel> userChannelRepository;
     private readonly IRepository<UserVideo> userVideoRepository;
     private readonly IRepository<Video> videoRepository;
     private readonly IRepository<VideoTag> videoTagRepository;
@@ -26,9 +27,9 @@ public class VideoService : IVideoService
         IBackgroundJobClient backgroundJobClient,
         VideoMetadataProviderFactory metadataProviderFactory,
         IChannelService channelService,
+        ITagService tagService,
         IRepository<Channel> channelRepository,
         IRepository<PlaylistVideo> playlistVideoRepository,
-        IRepository<Tag> tagRepository,
         IRepository<UserChannel> userChannelRepository,
         IRepository<UserVideo> userVideoRepository,
         IRepository<Video> videoRepository,
@@ -39,9 +40,9 @@ public class VideoService : IVideoService
         this.backgroundJobClient = backgroundJobClient;
         this.metadataProviderFactory = metadataProviderFactory;
         this.channelService = channelService;
+        this.tagService = tagService;
         this.channelRepository = channelRepository;
         this.playlistVideoRepository = playlistVideoRepository;
-        this.tagRepository = tagRepository;
         this.userChannelRepository = userChannelRepository;
         this.userVideoRepository = userVideoRepository;
         this.videoRepository = videoRepository;
@@ -75,10 +76,7 @@ public class VideoService : IVideoService
                 return Result.Invalid([new ValidationError("Url", "Could not retrieve video metadata. Please check the URL and try again.")]);
             }
 
-            var channel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
-            {
-                Query = x => x.ChannelId == videoMeta.ChannelId && x.Platform == videoMeta.Platform
-            });
+            var channel = await channelService.GetChannelAsync(videoMeta.Platform, videoMeta.ChannelId);
 
             if (channel is null)
             {
@@ -89,7 +87,7 @@ public class VideoService : IVideoService
                     channelMeta = await provider.GetChannelMetadataAsync(channelUrl, cancellationToken);
                 }
 
-                channel = new Channel
+                channel = await channelRepository.InsertAsync(new Channel
                 {
                     ChannelId = videoMeta.ChannelId ?? videoMeta.ChannelName ?? "unknown",
                     Name = channelMeta?.Name ?? videoMeta.ChannelName ?? "Unknown Channel",
@@ -99,9 +97,7 @@ public class VideoService : IVideoService
                     SubscriberCount = channelMeta?.SubscriberCount,
                     Platform = videoMeta.Platform,
                     SubscribedAt = DateTime.UtcNow
-                };
-
-                await channelRepository.InsertAsync(channel);
+                });
 
                 if (logger.IsEnabled(LogLevel.Information))
                 {
@@ -140,7 +136,7 @@ public class VideoService : IVideoService
                 }
             }
 
-            var standaloneTag = await GetOrCreateTagAsync(userId, Constants.StandaloneTag);
+            var standaloneTag = await tagService.GetOrCreateTagAsync(userId, Constants.StandaloneTag);
 
             bool alreadyTagged = await videoTagRepository.ExistsAsync(x => x.VideoId == video.Id && x.TagId == standaloneTag.Id);
             if (!alreadyTagged)
@@ -235,20 +231,23 @@ public class VideoService : IVideoService
             if (isAdmin)
             {
                 var allChannels = await channelRepository.FindAsync(
-                    new SearchOptions<Channel> { OrderBy = q => q.OrderBy(x => x.Name) },
+                    new SearchOptions<Channel>
+                    {
+                        OrderBy = q => q.OrderBy(x => x.Name)
+                    },
                     x => new ChannelFilterItem(x.Id, x.Name));
 
                 return Result.Success(new GetAccessibleChannelsResponse(allChannels.ToList()));
             }
 
             var subscribedChannelIds = (await userChannelRepository.FindAsync(
-                new SearchOptions<UserChannel> { Query = x => x.UserId == userId },
+                new SearchOptions<UserChannel>
+                {
+                    Query = x => x.UserId == userId
+                },
                 x => x.ChannelId)).ToList();
 
-            var standaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
-            {
-                Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
-            });
+            var standaloneTag = await tagService.GetStandaloneTagAsync(userId);
 
             if (standaloneTag is not null)
             {
@@ -313,10 +312,7 @@ public class VideoService : IVideoService
                 return Result.NotFound("Video not found");
             }
 
-            var standaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
-            {
-                Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
-            });
+            var standaloneTag = await tagService.GetStandaloneTagAsync(userId);
 
             bool isStandalone = false;
             if (standaloneTag is not null)
@@ -420,10 +416,7 @@ public class VideoService : IVideoService
                     predicate = predicate.Or(x => subscribedChannelIds.Contains(x.ChannelId) && x.DownloadedAt != null);
                 }
 
-                var standaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
-                {
-                    Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
-                });
+                var standaloneTag = await tagService.GetStandaloneTagAsync(userId);
 
                 if (standaloneTag is not null)
                 {
@@ -464,13 +457,7 @@ public class VideoService : IVideoService
                 string[] tagNames = tagFilter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                 if (tagNames.Length > 0)
                 {
-                    var matchingTagIds = (await tagRepository.FindAsync(
-                        new SearchOptions<Tag>
-                        {
-                            Query = x => x.UserId == userId && tagNames.Contains(x.Name)
-                        },
-                        x => x.Id)).ToList();
-
+                    var matchingTagIds = (await tagService.GetTagIdsByNameAsync(userId, tagNames)).ToList();
                     if (matchingTagIds.Count > 0)
                     {
                         predicate = predicate.And(x => x.VideoTags.Any(vt => matchingTagIds.Contains(vt.TagId)));
@@ -762,23 +749,6 @@ public class VideoService : IVideoService
 
             return Result.Error("An error occurred while updating video status");
         }
-    }
-
-    private async Task<Tag> GetOrCreateTagAsync(string userId, string name)
-    {
-        var existing = await tagRepository.FindOneAsync(new SearchOptions<Tag>
-        {
-            Query = x => x.UserId == userId && x.Name.ToLower() == name.ToLower()
-        });
-
-        if (existing is not null)
-        {
-            return existing;
-        }
-
-        var tag = new Tag { UserId = userId, Name = name };
-        await tagRepository.InsertAsync(tag);
-        return tag;
     }
 
     private async Task UpsertUserVideoAsync(string userId, int videoId, bool watched)

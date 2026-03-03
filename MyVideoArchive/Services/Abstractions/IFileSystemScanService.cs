@@ -5,15 +5,9 @@ namespace MyVideoArchive.Services;
 public interface IFileSystemScanService
 {
     /// <summary>
-    /// Starts a background file system scan across all channels.
-    /// Returns Started if the scan was started, AlreadyRunning if a scan is in progress.
+    /// Requests cancellation of the currently running file system scan.
     /// </summary>
-    Task<Result<ScanStartOutcome>> StartScanAsync();
-
-    /// <summary>
-    /// Starts a background file system scan for a single channel.
-    /// </summary>
-    Task<Result<ScanStartOutcome>> StartChannelScanAsync(int channelId);
+    Result Cancel();
 
     /// <summary>
     /// Returns the current status of any running or recently completed file system scan.
@@ -21,9 +15,15 @@ public interface IFileSystemScanService
     object GetStatus();
 
     /// <summary>
-    /// Requests cancellation of the currently running file system scan.
+    /// Starts a background file system scan for a single channel.
     /// </summary>
-    Result Cancel();
+    Task<Result<ScanStartOutcome>> StartChannelScanAsync(int channelId);
+
+    /// <summary>
+    /// Starts a background file system scan across all channels.
+    /// Returns Started if the scan was started, AlreadyRunning if a scan is in progress.
+    /// </summary>
+    Task<Result<ScanStartOutcome>> StartScanAsync();
 }
 
 public enum ScanStartOutcome

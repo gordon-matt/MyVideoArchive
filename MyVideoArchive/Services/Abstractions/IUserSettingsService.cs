@@ -1,5 +1,6 @@
 using Ardalis.Result;
-using MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Requests;
+using MyVideoArchive.Models.Responses;
 
 namespace MyVideoArchive.Services;
 
@@ -15,5 +16,3 @@ public interface IUserSettingsService
     /// </summary>
     Task<Result> UpdateSettingsAsync(UpdateUserSettingsRequest request);
 }
-
-public record GetUserSettingsResponse(string VideosTabViewMode, string AvailableTabViewMode);

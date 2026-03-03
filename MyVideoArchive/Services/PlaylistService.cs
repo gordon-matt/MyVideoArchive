@@ -1,22 +1,23 @@
 using Ardalis.Result;
 using Extenso.Collections.Generic;
 using Hangfire;
-using MyVideoArchive.Models.Api;
+using MyVideoArchive.Models.Requests.Playlist;
+using MyVideoArchive.Models.Responses;
 
 namespace MyVideoArchive.Services;
 
 public class PlaylistService : IPlaylistService
 {
-    private readonly IBackgroundJobClient backgroundJobClient;
-    private readonly IRepository<Channel> channelRepository;
-    private readonly IConfiguration configuration;
     private readonly ILogger<PlaylistService> logger;
+    private readonly IConfiguration configuration;
+    private readonly IUserContextService userContextService;
+    private readonly IBackgroundJobClient backgroundJobClient;
+    private readonly ThumbnailService thumbnailService;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
+    private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<Playlist> playlistRepository;
     private readonly IRepository<PlaylistVideo> playlistVideoRepository;
-    private readonly ThumbnailService thumbnailService;
     private readonly IRepository<UserChannel> userChannelRepository;
-    private readonly IUserContextService userContextService;
     private readonly IRepository<UserPlaylist> userPlaylistRepository;
     private readonly IRepository<UserPlaylistVideo> userPlaylistVideoRepository;
 
@@ -133,7 +134,7 @@ public class PlaylistService : IPlaylistService
                     x.PlaylistId == playlistId &&
                     x.CustomOrder > 0,
                 OrderBy = query => query.OrderBy(x => x.CustomOrder)
-            }, x => new VideoOrderItem { VideoId = x.VideoId, Order = x.CustomOrder })).ToList();
+            }, x => new VideoOrderItem(x.VideoId, x.CustomOrder))).ToList();
 
             return Result.Success(new GetCustomOrderResponse(videoOrders));
         }
