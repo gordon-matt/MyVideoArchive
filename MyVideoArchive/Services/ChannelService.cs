@@ -302,7 +302,12 @@ public class ChannelService : IChannelService
             {
                 CancellationToken = cancellationToken,
                 Query = predicate,
-                OrderBy = query => query.OrderByDescending(x => x.UploadDate),
+                OrderBy = showIgnored
+                    ? query => query
+                        .OrderBy(x => x.IsIgnored) // ignroed videos last
+                        .ThenByDescending(x => x.UploadDate)
+                    : query => query
+                        .OrderByDescending(x => x.UploadDate),
                 PageNumber = page,
                 PageSize = pageSize
             }, x => new AvailableVideo(x.Id,

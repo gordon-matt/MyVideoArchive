@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Channel Details";
     var channelId = ViewBag.ChannelId;
+    var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
 }
 
 @section Styles {
@@ -208,9 +209,14 @@
                 <button class="btn btn-primary" data-bind="click: downloadSelected">
                     <i class="bi bi-download"></i> Download Selected
                 </button>
-                <button class="btn btn-success" data-bind="click: downloadAll">
-                    <i class="bi bi-cloud-download"></i> Download All
-                </button>
+
+                @if (isAdminUser)
+                {
+                    <button class="btn btn-success" data-bind="click: downloadAll">
+                        <i class="bi bi-cloud-download"></i> Download All
+                    </button>
+                }
+
                 <div class="btn-group ms-auto">
                     <button class="btn btn-outline-secondary" title="List view"
                             data-bind="click: function(){ setAvailableViewMode('list'); }, css: { active: availableViewMode() === 'list' }">
@@ -362,9 +368,13 @@
                 <button class="btn btn-primary me-2" data-bind="click: subscribeSelectedPlaylists, enable: !subscribingPlaylists()">
                     <i class="bi bi-plus-circle"></i> Subscribe Selected
                 </button>
-                <button class="btn btn-success" data-bind="click: subscribeAllPlaylists, enable: !subscribingPlaylists()">
-                    <i class="bi bi-check-circle"></i> Subscribe All
-                </button>
+
+                @if (isAdminUser)
+                {
+                    <button class="btn btn-success" data-bind="click: subscribeAllPlaylists, enable: !subscribingPlaylists()">
+                        <i class="bi bi-check-circle"></i> Subscribe All
+                    </button>
+                }
             </div>
 
             <!-- ko if: subscribingPlaylists -->

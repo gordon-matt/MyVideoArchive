@@ -12,32 +12,26 @@ public class ChannelODataController : ODataController
     private readonly IUserContextService userContextService;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
     private readonly IBackgroundJobClient backgroundJobClient;
+    private readonly ITagService tagService;
     private readonly IRepository<Channel> channelRepository;
-    private readonly IRepository<Tag> tagRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
-    private readonly IRepository<Video> videoRepository;
-    private readonly IRepository<VideoTag> videoTagRepository;
 
     public ChannelODataController(
         ILogger<ChannelODataController> logger,
         IUserContextService userContextService,
         VideoMetadataProviderFactory metadataProviderFactory,
         IBackgroundJobClient backgroundJobClient,
+        ITagService tagService,
         IRepository<Channel> channelRepository,
-        IRepository<Tag> tagRepository,
-        IRepository<UserChannel> userChannelRepository,
-        IRepository<Video> videoRepository,
-        IRepository<VideoTag> videoTagRepository)
+        IRepository<UserChannel> userChannelRepository)
     {
         this.logger = logger;
         this.userContextService = userContextService;
         this.backgroundJobClient = backgroundJobClient;
         this.metadataProviderFactory = metadataProviderFactory;
+        this.tagService = tagService;
         this.channelRepository = channelRepository;
-        this.tagRepository = tagRepository;
         this.userChannelRepository = userChannelRepository;
-        this.videoRepository = videoRepository;
-        this.videoTagRepository = videoTagRepository;
     }
 
     [HttpDelete]
@@ -52,20 +46,14 @@ public class ChannelODataController : ODataController
             }
 
             // Find the user's subscription
-            var userChannel = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
-            {
-                Query = x =>
-                    x.UserId == userId &&
-                    x.ChannelId == key
-            });
-
-            if (userChannel is null)
+            var userChannelExists = await userChannelRepository.ExistsAsync(x => x.UserId == userId && x.ChannelId == key);
+            if (userChannelExists)
             {
                 return NotFound();
             }
 
             // Remove user's subscription
-            await userChannelRepository.DeleteAsync(userChannel);
+            await userChannelRepository.DeleteAsync(x => x.UserId == userId && x.ChannelId == key);
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("User {UserId} unsubscribed from channel {ChannelId}", userId, key);
@@ -96,7 +84,6 @@ public class ChannelODataController : ODataController
             }
 
             bool isAdmin = userContextService.IsAdministrator();
-
             if (isAdmin)
             {
                 // Admins see all channels
@@ -106,15 +93,11 @@ public class ChannelODataController : ODataController
             else
             {
                 // Regular users only see their subscribed channels
-                var channelIds = (await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
+                var channels = await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
                 {
-                    Query = x => x.UserId == userId
-                }, x => x.ChannelId)).ToList();
-
-                var channels = await channelRepository.FindAsync(new SearchOptions<Channel>
-                {
-                    Query = x => channelIds.Contains(x.Id)
-                });
+                    Query = x => x.UserId == userId,
+                    Include = query => query.Include(x => x.Channel)
+                }, x => x.Channel);
 
                 return Ok(channels);
             }
@@ -141,25 +124,18 @@ public class ChannelODataController : ODataController
                 return Unauthorized();
             }
 
-            bool isAdmin = userContextService.IsAdministrator();
             var channel = await channelRepository.FindOneAsync(key);
-
             if (channel is null)
             {
                 return NotFound();
             }
 
-            // Check if user has access to this channel
+            bool isAdmin = userContextService.IsAdministrator();
             if (!isAdmin)
             {
-                var userChannel = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
-                {
-                    Query = x =>
-                        x.UserId == userId &&
-                        x.ChannelId == key
-                });
-
-                if (userChannel is null)
+                // Check if user has access to this channel
+                var userChannelExists = await userChannelRepository.ExistsAsync(x => x.UserId == userId && x.ChannelId == key);
+                if (!userChannelExists)
                 {
                     return Forbid();
                 }
@@ -196,12 +172,13 @@ public class ChannelODataController : ODataController
 
             ChannelMetadata? channelMetadata = null;
 
-            var existingChannel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
+            // Check if channel already exists by Url
+            int existingChannelId = await channelRepository.FindOneAsync(new SearchOptions<Channel>
             {
                 Query = x => x.Url == channel.Url
-            });
+            }, x => x.Id);
 
-            if (existingChannel is null)
+            if (existingChannelId == 0)
             {
                 var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
                 if (provider is null)
@@ -226,19 +203,20 @@ public class ChannelODataController : ODataController
                     return BadRequest();
                 }
 
-                // Check if channel already exists by Url
-                existingChannel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
+                // Check if channel already exists by Channel ID
+                existingChannelId = await channelRepository.FindOneAsync(new SearchOptions<Channel>
                 {
                     Query = x => x.ChannelId == channelMetadata.ChannelId
-                });
+                }, x => x.Id);
             }
 
             int channelDbId;
+            bool channelAlreadyExists = existingChannelId > 0;
 
-            if (existingChannel is not null)
+            if (channelAlreadyExists)
             {
                 // Channel exists, just subscribe the user
-                channelDbId = existingChannel.Id;
+                channelDbId = existingChannelId;
                 if (logger.IsEnabled(LogLevel.Information))
                 {
                     logger.LogInformation("Channel {ChannelId} already exists, subscribing user {UserId}", channel.ChannelId, userId);
@@ -253,8 +231,9 @@ public class ChannelODataController : ODataController
                 channel.ThumbnailUrl = channelMetadata.ThumbnailUrl;
                 channel.SubscriberCount = channelMetadata.SubscriberCount;
                 channel.SubscribedAt = DateTime.UtcNow;
-                await channelRepository.InsertAsync(channel);
+                channel = await channelRepository.InsertAsync(channel);
                 channelDbId = channel.Id;
+
                 if (logger.IsEnabled(LogLevel.Information))
                 {
                     logger.LogInformation("Created new channel {ChannelId} for user {UserId}", channel.ChannelId, userId);
@@ -262,14 +241,11 @@ public class ChannelODataController : ODataController
             }
 
             // Check if user already subscribed
-            var existingSubscription = await userChannelRepository.FindOneAsync(new SearchOptions<UserChannel>
-            {
-                Query = x =>
-                    x.UserId == userId &&
-                    x.ChannelId == channelDbId
-            });
+            bool subscriptionExists = await userChannelRepository.ExistsAsync(x =>
+                x.UserId == userId &&
+                x.ChannelId == channelDbId);
 
-            if (existingSubscription is null)
+            if (!subscriptionExists)
             {
                 // Create subscription
                 await userChannelRepository.InsertAsync(new UserChannel
@@ -286,10 +262,13 @@ public class ChannelODataController : ODataController
             }
 
             // Remove "standalone" tags from user's videos in this channel now that they're subscribed
-            await RemoveStandaloneTagsForChannelAsync(userId, channelDbId);
+            await tagService.RemoveStandaloneTagsForChannelAsync(userId, channelDbId);
 
-            // Queue sync job for the channel
-            backgroundJobClient.Enqueue<ChannelSyncJob>(job => job.ExecuteAsync(channelDbId, CancellationToken.None));
+            if (!channelAlreadyExists)
+            {
+                // Queue sync job for the channel
+                backgroundJobClient.Enqueue<ChannelSyncJob>(job => job.ExecuteAsync(channelDbId, CancellationToken.None));
+            }
 
             // Return the channel (either existing or new)
             var resultChannel = await channelRepository.FindOneAsync(channelDbId);
@@ -303,58 +282,6 @@ public class ChannelODataController : ODataController
             }
 
             return StatusCode(500, "An error occurred while subscribing to the channel");
-        }
-    }
-
-    private async Task RemoveStandaloneTagsForChannelAsync(string userId, int channelDbId)
-    {
-        try
-        {
-            var standaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
-            {
-                Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
-            });
-
-            if (standaloneTag is null)
-            {
-                return;
-            }
-
-            // Get all video IDs in this channel
-            var videoIds = (await videoRepository.FindAsync(
-                new SearchOptions<Video> { Query = x => x.ChannelId == channelDbId },
-                x => x.Id)).ToList();
-
-            if (videoIds.Count == 0)
-            {
-                return;
-            }
-
-            // Remove standalone VideoTag entries for those videos
-            var tagsToRemove = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>
-            {
-                Query = x => x.TagId == standaloneTag.Id && videoIds.Contains(x.VideoId)
-            });
-
-            foreach (var vt in tagsToRemove)
-            {
-                await videoTagRepository.DeleteAsync(vt);
-            }
-
-            if (logger.IsEnabled(LogLevel.Information) && tagsToRemove.Count > 0)
-            {
-                logger.LogInformation(
-                    "Removed standalone tags from {Count} video(s) in channel {ChannelId} for user {UserId}",
-                    tagsToRemove.Count, channelDbId, userId);
-            }
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Warning))
-            {
-                logger.LogWarning(ex, "Failed to remove standalone tags for channel {ChannelId} user {UserId}",
-                    channelDbId, userId);
-            }
         }
     }
 }

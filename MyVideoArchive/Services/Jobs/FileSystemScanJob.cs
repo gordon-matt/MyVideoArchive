@@ -186,6 +186,7 @@ public class FileSystemScanJob
 
         video.FilePath = filePath;
         video.FileSize = new FileInfo(filePath).Length;
+        video.DownloadFailed = false;
         video.DownloadedAt ??= File.GetLastWriteTimeUtc(filePath);
 
         if (video.NeedsMetadataReview &&

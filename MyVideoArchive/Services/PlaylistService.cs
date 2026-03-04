@@ -85,9 +85,14 @@ public class PlaylistService : IPlaylistService
             {
                 CancellationToken = cancellationToken,
                 Query = predicate,
-                OrderBy = query => query
-                    .OrderBy(p => p.SubscribedAt == default)
-                    .ThenBy(p => p.Name),
+                OrderBy = showIgnored
+                    ? query => query
+                        .OrderBy(x => x.IsIgnored) // ignroed playlists last
+                        .ThenBy(x => x.SubscribedAt == default)
+                        .ThenBy(x => x.Name)
+                    : query => query
+                        .OrderBy(x => x.SubscribedAt == default)
+                        .ThenBy(p => p.Name),
                 PageNumber = page,
                 PageSize = pageSize
             }, x => new AvailablePlaylistItem(

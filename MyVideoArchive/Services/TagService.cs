@@ -131,6 +131,51 @@ public class TagService : ITagService
         }
     }
 
+    public async Task<Result> RemoveStandaloneTagsForChannelAsync(string userId, int channelDbId)
+    {
+        var standaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+        {
+            Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
+        });
+
+        if (standaloneTag is null)
+        {
+            return Result.NotFound();
+        }
+
+        return await RemoveTagsForChannelAsync(userId, channelDbId, standaloneTag.Id);
+    }
+
+    public async Task<Result> RemoveTagsForChannelAsync(string userId, int channelDbId, int tagId)
+    {
+        try
+        {
+            // Remove standalone VideoTag entries for those videos
+            int removedCount = await videoTagRepository.DeleteAsync(x =>
+                x.TagId == tagId &&
+                x.Video.Channel.Id == channelDbId);
+
+            if (logger.IsEnabled(LogLevel.Information) && removedCount > 0)
+            {
+                logger.LogInformation(
+                    "Removed standalone tags from {Count} video(s) in channel {ChannelId} for user {UserId}",
+                    removedCount, channelDbId, userId);
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Failed to remove standalone tags for channel {ChannelId} user {UserId}",
+                    channelDbId, userId);
+            }
+
+            return Result.Error();
+        }
+    }
+
     public async Task<Result> SetVideoTagsAsync(int videoId, SetVideoTagsRequest request)
     {
         try

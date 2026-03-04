@@ -23,6 +23,16 @@ public interface ITagService
     Task<Result<GetVideoTagsResponse>> GetVideoTagsAsync(int videoId);
 
     /// <summary>
+    /// Asynchronously removes the "standalone" tag from all videos in a channel for a given user.
+    /// </summary>
+    Task<Result> RemoveStandaloneTagsForChannelAsync(string userId, int channelDbId);
+
+    /// <summary>
+    /// Asynchronously removes a specified tag from all videos in a channel for a given user.
+    /// </summary>
+    Task<Result> RemoveTagsForChannelAsync(string userId, int channelDbId, int tagId);
+
+    /// <summary>
     /// Set the tags for a video (replaces existing tags for this user)
     /// </summary>
     Task<Result> SetVideoTagsAsync(int videoId, SetVideoTagsRequest request);
