@@ -21,6 +21,12 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tags-tab" data-bs-toggle="tab" data-bs-target="#tags" type="button" role="tab"
+                data-bind="click: loadGlobalTags">
+            <i class="bi bi-tags"></i> Tags
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
         <button class="nav-link" id="failed-tab" data-bs-toggle="tab" data-bs-target="#failed" type="button" role="tab"
                 data-bind="click: loadFailedDownloads">
             <i class="bi bi-exclamation-triangle-fill text-danger"></i> Failed Downloads
@@ -132,6 +138,71 @@
                         <button class="btn btn-outline-secondary" data-bind="click: syncAllPlaylists, enable: !syncing()">
                             <i class="bi bi-collection-play"></i> Sync All Playlists
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Tags tab ─────────────────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tags" role="tabpanel">
+        <div class="row">
+            <div class="col-12 col-lg-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-tag-fill"></i> Global Tags</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">
+                            Global tags appear as suggestions to all users when they tag a video.
+                            Adding a tag here will consolidate any existing per-user tags with the same name into this global one.
+                        </p>
+
+                        <!-- Add form -->
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="New tag name…"
+                                   data-bind="value: newTagName, valueUpdate: 'input',
+                                              event: { keydown: onNewTagKeyDown }" />
+                            <button class="btn btn-primary"
+                                    data-bind="click: addGlobalTag,
+                                               enable: newTagName().trim().length > 0 && !addingTag()">
+                                <span data-bind="visible: !addingTag()"><i class="bi bi-plus-lg"></i> Add</span>
+                                <span data-bind="visible: addingTag()">
+                                    <span class="spinner-border spinner-border-sm"></span>
+                                </span>
+                            </button>
+                        </div>
+
+                        <div data-bind="visible: tagMessage()" class="alert alert-info py-2 small mb-3"
+                             data-bind="text: tagMessage()"></div>
+
+                        <!-- Tag list -->
+                        <div data-bind="visible: tagsLoading()" class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                        </div>
+
+                        <div data-bind="visible: !tagsLoading() && globalTags().length === 0" class="text-muted small">
+                            No global tags yet.
+                        </div>
+
+                        <div data-bind="visible: !tagsLoading() && globalTags().length > 0">
+                            <ul class="list-group list-group-flush">
+                                <!-- ko foreach: globalTags -->
+                                <li class="list-group-item d-flex align-items-center justify-content-between px-0">
+                                    <span>
+                                        <i class="bi bi-tag me-1 text-muted"></i>
+                                        <span data-bind="text: name"></span>
+                                        <span class="badge bg-secondary ms-2" data-bind="text: usageCount" title="Videos tagged"></span>
+                                    </span>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            data-bind="click: $parent.deleteGlobalTag"
+                                            title="Delete global tag">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </li>
+                                <!-- /ko -->
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>

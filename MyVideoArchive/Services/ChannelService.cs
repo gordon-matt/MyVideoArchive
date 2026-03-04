@@ -285,10 +285,29 @@ public class ChannelService : IChannelService
             // Exclude private videos
             predicate = predicate.And(x => x.Title != Constants.PrivateVideoTitle);
 
-            // Filter based on showIgnored flag
+            // Filter based on showIgnored flag.
+            // Video.IsIgnored is the admin-level global block; UserVideo.IsIgnored is per-user.
+            bool isAdmin = userContextService.IsAdministrator();
+            string? currentUserId = userContextService.GetCurrentUserId();
+
             if (!showIgnored)
             {
                 predicate = predicate.And(x => !x.IsIgnored);
+
+                if (!isAdmin && !string.IsNullOrEmpty(currentUserId))
+                {
+                    var userIgnoredVideoIds = (await userVideoRepository.FindAsync(
+                        new SearchOptions<UserVideo>
+                        {
+                            Query = x => x.UserId == currentUserId && x.IsIgnored
+                        },
+                        x => x.VideoId)).ToHashSet();
+
+                    if (userIgnoredVideoIds.Count > 0)
+                    {
+                        predicate = predicate.And(x => !userIgnoredVideoIds.Contains(x.Id));
+                    }
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -321,7 +340,7 @@ public class ChannelService : IChannelService
                 x.ViewCount,
                 x.LikeCount,
                 x.DownloadedAt,
-                x.IsIgnored,
+                x.IsIgnored, // admin-level flag; UI still uses this for the Ignored badge
                 x.DownloadedAt != null,
                 x.DownloadFailed));
 

@@ -76,9 +76,30 @@ public class PlaylistService : IPlaylistService
             }
 
             var predicate = PredicateBuilder.New<Playlist>(x => x.ChannelId == channelId);
+
+            // Playlist.IsIgnored is the admin-level global block.
+            // UserPlaylist.IsIgnored is a per-user personal hide.
+            bool isAdmin = userContextService.IsAdministrator();
+            string? currentUserId = userContextService.GetCurrentUserId();
+
             if (!showIgnored)
             {
                 predicate = predicate.And(x => !x.IsIgnored);
+
+                if (!isAdmin && !string.IsNullOrEmpty(currentUserId))
+                {
+                    var userIgnoredPlaylistIds = (await userPlaylistRepository.FindAsync(
+                        new SearchOptions<UserPlaylist>
+                        {
+                            Query = x => x.UserId == currentUserId && x.IsIgnored
+                        },
+                        x => x.PlaylistId)).ToHashSet();
+
+                    if (userIgnoredPlaylistIds.Count > 0)
+                    {
+                        predicate = predicate.And(x => !userIgnoredPlaylistIds.Contains(x.Id));
+                    }
+                }
             }
 
             var playlists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
@@ -695,22 +716,64 @@ public class PlaylistService : IPlaylistService
                 return Result.Forbidden();
             }
 
-            var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
-            {
-                Query = x => x.Id == playlistId && x.ChannelId == channelId
-            });
+            string? userId = userContextService.GetCurrentUserId();
+            bool isAdmin = userContextService.IsAdministrator();
 
-            if (playlist is null)
+            if (isAdmin)
             {
-                return Result.NotFound("Playlist not found");
+                // Admin: global block — hides the playlist for all users.
+                var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+                {
+                    Query = x => x.Id == playlistId && x.ChannelId == channelId
+                });
+
+                if (playlist is null)
+                {
+                    return Result.NotFound("Playlist not found");
+                }
+
+                playlist.IsIgnored = request.IsIgnored;
+                await playlistRepository.UpdateAsync(playlist);
+
+                return Result.Success(new ToggleIgnorePlaylistResponse(
+                    request.IsIgnored ? "Playlist ignored" : "Playlist unignored",
+                    playlist.IsIgnored));
             }
+            else
+            {
+                // Non-admin: personal hide via UserPlaylist.IsIgnored.
+                bool playlistExists = await playlistRepository.ExistsAsync(
+                    x => x.Id == playlistId && x.ChannelId == channelId);
 
-            playlist.IsIgnored = request.IsIgnored;
-            await playlistRepository.UpdateAsync(playlist);
+                if (!playlistExists)
+                {
+                    return Result.NotFound("Playlist not found");
+                }
 
-            return Result.Success(new ToggleIgnorePlaylistResponse(
-                request.IsIgnored ? "Playlist ignored" : "Playlist unignored",
-                playlist.IsIgnored));
+                var userPlaylist = await userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
+                {
+                    Query = x => x.UserId == userId && x.PlaylistId == playlistId
+                });
+
+                if (userPlaylist is not null)
+                {
+                    userPlaylist.IsIgnored = request.IsIgnored;
+                    await userPlaylistRepository.UpdateAsync(userPlaylist);
+                }
+                else
+                {
+                    await userPlaylistRepository.InsertAsync(new UserPlaylist
+                    {
+                        UserId = userId!,
+                        PlaylistId = playlistId,
+                        IsIgnored = request.IsIgnored
+                    });
+                }
+
+                return Result.Success(new ToggleIgnorePlaylistResponse(
+                    request.IsIgnored ? "Playlist ignored" : "Playlist unignored",
+                    request.IsIgnored));
+            }
         }
         catch (Exception ex)
         {

@@ -17,6 +17,12 @@ public class UserPlaylist : IEntity
 
     public bool UseCustomOrder { get; set; }
 
+    /// <summary>
+    /// When true, this playlist is hidden from the user's available-playlists list (user-level ignore).
+    /// Admins use <see cref="Playlist.IsIgnored"/> to block a playlist for all users.
+    /// </summary>
+    public bool IsIgnored { get; set; }
+
     public ApplicationUser User { get; set; } = null!;
 
     public Playlist Playlist { get; set; } = null!;

@@ -194,15 +194,21 @@ public class VideoService : IVideoService
 
             string userId = userContextService.GetCurrentUserId()!;
 
+            // Always: clear this user's tags and mark the video as personally ignored.
             await tagService.SetVideoTagsAsync(videoId, new SetVideoTagsRequest());
-            await userVideoRepository.DeleteAsync(x => x.UserId == userId && x.VideoId == videoId);
+            await UpsertUserVideoAsync(userId, videoId, watched: false, isIgnored: true);
 
-            // Only proceeed if admin OR if no other users have access to the video
-
-            if (!isAdminUser || await customPlaylistService.VideoAppearsOnAnyPlaylistsForOtherUsers(videoId, userId))
+            if (!isAdminUser)
             {
+                // Non-admin: user-level hide is sufficient — the file stays on disk for others.
                 await customPlaylistService.RemoveVideoFromAllPlaylistsForUserAsync(videoId, userId);
-                return Result.Success(); // only needed to delete for this user, not all.
+                return Result.Success();
+            }
+
+            // Admin path: physically delete the file only when no other user still has it on a playlist.
+            if (await customPlaylistService.VideoAppearsOnAnyPlaylistsForOtherUsers(videoId, userId))
+            {
+                return Result.Forbidden();
             }
 
             await customPlaylistService.RemoveVideoFromAllPlaylistsAsync(videoId);
@@ -455,17 +461,30 @@ public class VideoService : IVideoService
 
             if (isAdmin)
             {
-                predicate = PredicateBuilder.New<Video>(x => x.DownloadedAt != null);
+                // Admins see all downloaded videos; Video.IsIgnored is the admin-level global block.
+                predicate = PredicateBuilder.New<Video>(x => x.DownloadedAt != null && !x.IsIgnored);
             }
             else
             {
+                // Fetch IDs of videos the current user has personally ignored (user-level).
+                var userIgnoredVideoIds = (await userVideoRepository.FindAsync(
+                    new SearchOptions<UserVideo>
+                    {
+                        Query = x => x.UserId == userId && x.IsIgnored
+                    },
+                    x => x.VideoId)).ToHashSet();
+
                 var subscribedChannelIds = (await userChannelRepository.FindAsync(
                     new SearchOptions<UserChannel> { Query = x => x.UserId == userId },
                     x => x.ChannelId)).ToList();
 
                 if (subscribedChannelIds.Count > 0)
                 {
-                    predicate = predicate.Or(x => subscribedChannelIds.Contains(x.ChannelId) && x.DownloadedAt != null);
+                    predicate = predicate.Or(x =>
+                        subscribedChannelIds.Contains(x.ChannelId) &&
+                        x.DownloadedAt != null &&
+                        !x.IsIgnored &&
+                        !userIgnoredVideoIds.Contains(x.Id));
                 }
 
                 var standaloneTag = await tagService.GetStandaloneTagAsync(userId);
@@ -479,9 +498,10 @@ public class VideoService : IVideoService
                     if (standaloneVideoIds.Count > 0)
                     {
                         predicate = predicate.Or(x =>
-                            standaloneVideoIds.Contains(x.Id)
-                            && x.DownloadedAt != null
-                            && !x.IsIgnored);
+                            standaloneVideoIds.Contains(x.Id) &&
+                            x.DownloadedAt != null &&
+                            !x.IsIgnored &&
+                            !userIgnoredVideoIds.Contains(x.Id));
                     }
                 }
 
@@ -872,28 +892,45 @@ public class VideoService : IVideoService
     {
         try
         {
-            // Check user access
             if (!await channelService.UserSubscribedToChannelAsync(channelId))
             {
                 return Result.Forbidden();
             }
 
-            var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
-            {
-                Query = x =>
-                    x.Id == videoId &&
-                    x.ChannelId == channelId
-            });
+            string userId = userContextService.GetCurrentUserId()!;
+            bool isAdmin = userContextService.IsAdministrator();
 
-            if (video is null)
+            if (isAdmin)
             {
-                return Result.NotFound("Video not found");
+                // Admin: global block — affects all users.
+                var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+                {
+                    Query = x => x.Id == videoId && x.ChannelId == channelId
+                });
+
+                if (video is null)
+                {
+                    return Result.NotFound("Video not found");
+                }
+
+                video.IsIgnored = request.IsIgnored;
+                await videoRepository.UpdateAsync(video);
+                return Result.Success(video.IsIgnored);
             }
+            else
+            {
+                // Non-admin: personal hide — only affects this user.
+                bool videoExists = await videoRepository.ExistsAsync(
+                    x => x.Id == videoId && x.ChannelId == channelId);
 
-            video.IsIgnored = request.IsIgnored;
-            await videoRepository.UpdateAsync(video);
+                if (!videoExists)
+                {
+                    return Result.NotFound("Video not found");
+                }
 
-            return Result.Success(video.IsIgnored);
+                await UpsertUserVideoAsync(userId, videoId, watched: false, isIgnored: request.IsIgnored);
+                return Result.Success(request.IsIgnored);
+            }
         }
         catch (Exception ex)
         {
@@ -906,7 +943,7 @@ public class VideoService : IVideoService
         }
     }
 
-    private async Task UpsertUserVideoAsync(string userId, int videoId, bool watched)
+    private async Task UpsertUserVideoAsync(string userId, int videoId, bool watched, bool? isIgnored = null)
     {
         var existing = await userVideoRepository.FindOneAsync(new SearchOptions<UserVideo>
         {
@@ -916,6 +953,7 @@ public class VideoService : IVideoService
         if (existing is not null)
         {
             existing.Watched = watched;
+            if (isIgnored.HasValue) existing.IsIgnored = isIgnored.Value;
             await userVideoRepository.UpdateAsync(existing);
         }
         else
@@ -924,7 +962,8 @@ public class VideoService : IVideoService
             {
                 UserId = userId,
                 VideoId = videoId,
-                Watched = watched
+                Watched = watched,
+                IsIgnored = isIgnored ?? false
             });
         }
     }

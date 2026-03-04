@@ -13,6 +13,14 @@ class AdminViewModel {
         this.failedLoaded = false;
         this.failedCount = ko.observable(0);
 
+        // Tags tab
+        this.globalTags = ko.observableArray([]);
+        this.tagsLoading = ko.observable(false);
+        this.tagsLoaded = false;
+        this.newTagName = ko.observable('');
+        this.addingTag = ko.observable(false);
+        this.tagMessage = ko.observable('');
+
         this._pollTimer = null;
     }
 
@@ -114,6 +122,76 @@ class AdminViewModel {
         } finally {
             this.failedLoading(false);
         }
+    };
+
+    // ── Global Tags ───────────────────────────────────────────────────────────
+
+    loadGlobalTags = async () => {
+        if (this.tagsLoaded) return;
+        this.tagsLoading(true);
+        try {
+            const response = await fetch('/api/admin/tags');
+            if (!response.ok) return;
+            const data = await response.json();
+            this.globalTags(data.tags || []);
+            this.tagsLoaded = true;
+        } catch (error) {
+            console.error('Error loading global tags:', error);
+        } finally {
+            this.tagsLoading(false);
+        }
+    };
+
+    addGlobalTag = async () => {
+        const name = this.newTagName().trim();
+        if (!name) return;
+
+        this.addingTag(true);
+        this.tagMessage('');
+        try {
+            const response = await fetch('/api/admin/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            const data = await response.json();
+            if (response.ok) {
+                this.globalTags.push(data);
+                this.globalTags.sort((a, b) => a.name.localeCompare(b.name));
+                this.newTagName('');
+                this.tagMessage(`Tag "${data.name}" added.`);
+                setTimeout(() => this.tagMessage(''), 3000);
+            } else {
+                this.tagMessage(data.message || 'Failed to add tag.');
+            }
+        } catch (error) {
+            console.error('Error adding global tag:', error);
+            this.tagMessage('An unexpected error occurred.');
+        } finally {
+            this.addingTag(false);
+        }
+    };
+
+    deleteGlobalTag = async (tag) => {
+        if (!confirm(`Delete global tag "${tag.name}"? This will also remove it from all tagged videos.`)) return;
+
+        try {
+            const response = await fetch(`/api/admin/tags/${tag.id}`, { method: 'DELETE' });
+            if (response.ok) {
+                this.globalTags.remove(tag);
+            } else {
+                const data = await response.json().catch(() => ({}));
+                alert(data.message || 'Failed to delete tag.');
+            }
+        } catch (error) {
+            console.error('Error deleting global tag:', error);
+            alert('An unexpected error occurred.');
+        }
+    };
+
+    onNewTagKeyDown = (data, event) => {
+        if (event.key === 'Enter') this.addGlobalTag();
+        return true;
     };
 
     // ── Channel / Playlist Sync ───────────────────────────────────────────────

@@ -26,13 +26,157 @@ public class TagService : ITagService
         this.videoTagRepository = videoTagRepository;
     }
 
+    public async Task<Result<GlobalTagItem>> CreateGlobalTagAsync(string name)
+    {
+        try
+        {
+            name = name.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return Result.Invalid([new ValidationError("Name", "Tag name cannot be empty")]);
+            }
+
+            // Ensure no duplicate global tag with the same name.
+            var existing = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+            {
+                Query = x => x.UserId == Constants.GlobalUserId && x.Name.ToLower() == name.ToLower()
+            });
+
+            if (existing is not null)
+            {
+                return Result.Invalid([new ValidationError("Name", "A global tag with this name already exists")]);
+            }
+
+            var globalTag = new Tag { UserId = Constants.GlobalUserId, Name = name };
+            await tagRepository.InsertAsync(globalTag);
+
+            // Consolidate any per-user tags with the same name into this global tag.
+            var duplicateUserTags = await tagRepository.FindAsync(new SearchOptions<Tag>
+            {
+                Query = x => x.UserId != Constants.GlobalUserId && x.Name.ToLower() == name.ToLower()
+            });
+
+            foreach (var userTag in duplicateUserTags)
+            {
+                // Re-point all VideoTag rows that referenced the old user tag.
+                var linkedVideoTags = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>
+                {
+                    Query = x => x.TagId == userTag.Id
+                });
+
+                foreach (var vt in linkedVideoTags)
+                {
+                    // Skip if VideoTag for this video already points at the global tag.
+                    bool alreadyLinked = await videoTagRepository.ExistsAsync(
+                        x => x.VideoId == vt.VideoId && x.TagId == globalTag.Id);
+
+                    if (!alreadyLinked)
+                    {
+                        vt.TagId = globalTag.Id;
+                        await videoTagRepository.UpdateAsync(vt);
+                    }
+                    else
+                    {
+                        await videoTagRepository.DeleteAsync(vt);
+                    }
+                }
+
+                await tagRepository.DeleteAsync(userTag);
+            }
+
+            int usageCount = await videoTagRepository.CountAsync(x => x.TagId == globalTag.Id);
+            return Result.Success(new GlobalTagItem(globalTag.Id, globalTag.Name, usageCount));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error creating global tag '{Name}'", name);
+            }
+
+            return Result.Error("An error occurred while creating the global tag");
+        }
+    }
+
+    public async Task<Result> DeleteGlobalTagAsync(int tagId)
+    {
+        try
+        {
+            var tag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+            {
+                Query = x => x.Id == tagId && x.UserId == Constants.GlobalUserId
+            });
+
+            if (tag is null)
+            {
+                return Result.NotFound("Global tag not found");
+            }
+
+            await videoTagRepository.DeleteAsync(x => x.TagId == tagId);
+            await tagRepository.DeleteAsync(tag);
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error deleting global tag {TagId}", tagId);
+            }
+
+            return Result.Error("An error occurred while deleting the global tag");
+        }
+    }
+
+    public async Task<Result<GetGlobalTagsResponse>> GetGlobalTagsAsync()
+    {
+        try
+        {
+            var globalTags = await tagRepository.FindAsync(
+                new SearchOptions<Tag>
+                {
+                    Query = x => x.UserId == Constants.GlobalUserId,
+                    OrderBy = q => q.OrderBy(x => x.Name)
+                });
+
+            var items = new List<GlobalTagItem>();
+            foreach (var tag in globalTags)
+            {
+                int count = await videoTagRepository.CountAsync(x => x.TagId == tag.Id);
+                items.Add(new GlobalTagItem(tag.Id, tag.Name, count));
+            }
+
+            return Result.Success(new GetGlobalTagsResponse(items));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving global tags");
+            }
+
+            return Result.Error("An error occurred while retrieving global tags");
+        }
+    }
+
     public async Task<Tag> GetOrCreateTagAsync(string userId, string name)
     {
+        string nameLower = name.ToLower();
+
+        // Prefer a global tag with the same name so suggestions stay deduplicated.
+        var globalTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+        {
+            Query = x => x.UserId == Constants.GlobalUserId && x.Name.ToLower() == nameLower
+        });
+
+        if (globalTag is not null)
+        {
+            return globalTag;
+        }
+
         var existing = await tagRepository.FindOneAsync(new SearchOptions<Tag>
         {
-            Query = x =>
-                x.UserId == userId &&
-                x.Name.ToLower() == name.ToLower()
+            Query = x => x.UserId == userId && x.Name.ToLower() == nameLower
         });
 
         if (existing is not null)
@@ -48,16 +192,13 @@ public class TagService : ITagService
     public async Task<Tag> GetStandaloneTagAsync(string userId) =>
         await tagRepository.FindOneAsync(new SearchOptions<Tag>
         {
-            Query = x =>
-                x.UserId == userId &&
-
-            x.Name == Constants.StandaloneTag
+            Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
         });
 
     public async Task<IEnumerable<int>> GetTagIdsByNameAsync(string userId, IEnumerable<string> tagNames) =>
         await tagRepository.FindAsync(new SearchOptions<Tag>
         {
-            Query = x => x.UserId == userId && tagNames.Contains(x.Name)
+            Query = x => (x.UserId == userId || x.UserId == Constants.GlobalUserId) && tagNames.Contains(x.Name)
         },
         x => x.Id);
 
@@ -71,15 +212,22 @@ public class TagService : ITagService
                 return Result.Unauthorized();
             }
 
+            // Return user-specific tags merged with global tags, deduped by name (global takes precedence).
             var tags = await tagRepository.FindAsync(
                 new SearchOptions<Tag>
                 {
-                    Query = x => x.UserId == userId,
+                    Query = x => x.UserId == userId || x.UserId == Constants.GlobalUserId,
                     OrderBy = q => q.OrderBy(x => x.Name)
                 },
                 x => new UserTagItem(x.Id, x.Name));
 
-            return Result.Success(new GetUserTagsResponse(tags.ToList()));
+            var deduped = tags
+                .GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .OrderBy(t => t.Name)
+                .ToList();
+
+            return Result.Success(new GetUserTagsResponse(deduped));
         }
         catch (Exception ex)
         {
@@ -108,14 +256,20 @@ public class TagService : ITagService
                 return Result.NotFound("Video not found");
             }
 
+            // Include both this user's own tags and any global tags on the video.
             var videoTags = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>
             {
-                Query = x => x.VideoId == videoId && x.Tag.UserId == userId,
+                Query = x =>
+                    x.VideoId == videoId &&
+                    (x.Tag.UserId == userId || x.Tag.UserId == Constants.GlobalUserId),
                 Include = q => q.Include(x => x.Tag)
             });
 
-            var tags = videoTags
-                .Select(vt => new VideoTagItem(vt.Tag.Id, vt.Tag.Name))
+            // TODO: Should see if DistinctBy can be removed in Extenso.. assuming no longer useful.
+            var tags = Enumerable.DistinctBy(
+                    videoTags.Select(vt => new VideoTagItem(vt.Tag.Id, vt.Tag.Name)),
+                    t => t.Name,
+                    StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             return Result.Success(new GetVideoTagsResponse(tags));
@@ -200,12 +354,14 @@ public class TagService : ITagService
 
             var standaloneTag = await GetOrCreateTagAsync(userId, Constants.StandaloneTag);
 
+            // Existing tags on this video that belong to the current user OR are global.
+            // We never delete global-tag VideoTag rows here — the user can't remove a global tag.
             var existingTags = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>
             {
                 Query = x =>
                     x.TagId != standaloneTag.Id &&
                     x.VideoId == videoId &&
-                    x.Tag.UserId == userId,
+                    (x.Tag.UserId == userId || x.Tag.UserId == Constants.GlobalUserId),
 
                 Include = query => query.Include(x => x.Tag)
             });
@@ -214,8 +370,11 @@ public class TagService : ITagService
                 .Where(t => !existingTags.Any(td => td.Tag.Name.Equals(t, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
 
+            // Only delete user-owned tags (never touch global ones).
             var toDelete = existingTags
-                .Where(td => !selectedTags.Any(t => t.Equals(td.Tag.Name, StringComparison.OrdinalIgnoreCase)))
+                .Where(td =>
+                    td.Tag.UserId != Constants.GlobalUserId &&
+                    !selectedTags.Any(t => t.Equals(td.Tag.Name, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
 
             if (!toDelete.IsNullOrEmpty())
@@ -236,10 +395,9 @@ public class TagService : ITagService
                 }
             }
 
+            // Garbage-collect orphaned user tags (never touch global or standalone tags).
             using var videoTagConnection = videoTagRepository.OpenConnection();
             using var tagConnection = tagRepository.UseConnection(videoTagConnection);
-
-            var deletedTagIds = toDelete.Select(td => td.TagId).ToList();
 
             var unusedTagIdsQuery = from tag in tagConnection.Query()
                                     join videoTag in videoTagConnection.Query()

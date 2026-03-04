@@ -1,4 +1,4 @@
-﻿using System.Runtime.Serialization;
+using System.Runtime.Serialization;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace MyVideoArchive.Data.Entities;
@@ -13,6 +13,12 @@ public class UserVideo : IEntity
     public int VideoId { get; set; }
 
     public bool Watched { get; set; }
+
+    /// <summary>
+    /// When true, this video is hidden from the user's video index (user-level ignore).
+    /// Admins use <see cref="Video.IsIgnored"/> to block a video for all users.
+    /// </summary>
+    public bool IsIgnored { get; set; }
 
     public ApplicationUser User { get; set; } = null!;
 
