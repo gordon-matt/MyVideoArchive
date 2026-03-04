@@ -9,6 +9,7 @@ class VideoPlayerViewModel {
         this.loading = ko.observable(true);
         this.retrying = ko.observable(false);
         this.videoUrl = ko.observable(null);
+        this.deleting = ko.observable(false);
 
         // Standalone banner
         this.isStandalone = ko.observable(false);
@@ -284,6 +285,47 @@ class VideoPlayerViewModel {
             alert('An error occurred while retrying. Please try again.');
         } finally {
             this.retrying(false);
+        }
+    };
+
+    deleteVideoFile = async () => {
+        const video = this.video();
+        if (!video) {
+            return;
+        }
+
+        const title = video.Title || 'this video';
+        if (!confirm(`Delete the file for "${title}"? This cannot be undone. The video will be marked as ignored.`)) {
+            return;
+        }
+
+        const channelId = video.ChannelId;
+        const id = video.Id || this.videoId;
+        if (!channelId || !id) {
+            console.error('Missing channel or video ID for delete', video);
+            alert('Unable to delete this video file.');
+            return;
+        }
+
+        this.deleting(true);
+        try {
+            const response = await fetch(`/api/channels/${channelId}/videos/${id}/file`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (response.ok) {
+                alert(data.message || 'Video file deleted successfully.');
+                window.location.href = `/channels/${channelId}`;
+            } else {
+                alert(data.message || 'Failed to delete video file.');
+            }
+        } catch (error) {
+            console.error('Error deleting video file from details:', error);
+            alert('Error deleting video file. Please try again.');
+        } finally {
+            this.deleting(false);
         }
     };
 }

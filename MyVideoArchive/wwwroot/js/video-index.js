@@ -132,6 +132,45 @@ class VideoIndexViewModel {
         window.location.href = `/videos/${video.id}`;
     };
 
+    deleteVideoFile = async (video, event) => {
+        if (event) {
+            event.stopPropagation();
+            event.preventDefault();
+        }
+
+        const title = video.title || (video.Title ?? 'this video');
+        if (!confirm(`Delete the file for "${title}"? This cannot be undone. The video will be marked as ignored.`)) {
+            return;
+        }
+
+        const channel = video.channel || video.Channel;
+        const channelId = channel?.id ?? channel?.Id;
+        if (!channelId) {
+            console.error('Channel ID missing for video', video);
+            alert('Unable to determine channel for this video.');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/channels/${channelId}/videos/${video.id}/file`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (response.ok) {
+                this.videos.remove(video);
+                this.totalCount(Math.max(0, (this.totalCount() || 0) - 1));
+                alert(data.message || 'Video file deleted successfully.');
+            } else {
+                alert(data.message || 'Failed to delete video file.');
+            }
+        } catch (error) {
+            console.error('Error deleting video file from index:', error);
+            alert('Error deleting video file. Please try again.');
+        }
+    };
+
     // Paging
     previousPage = () => {
         if (this.currentPage() > 1) {

@@ -13,6 +13,7 @@ public class VideoService : IVideoService
     private readonly IUserContextService userContextService;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
     private readonly IChannelService channelService;
+    private readonly ICustomPlaylistService customPlaylistService;
     private readonly ITagService tagService;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<PlaylistVideo> playlistVideoRepository;
@@ -27,6 +28,7 @@ public class VideoService : IVideoService
         IBackgroundJobClient backgroundJobClient,
         VideoMetadataProviderFactory metadataProviderFactory,
         IChannelService channelService,
+        ICustomPlaylistService customPlaylistService,
         ITagService tagService,
         IRepository<Channel> channelRepository,
         IRepository<PlaylistVideo> playlistVideoRepository,
@@ -40,6 +42,7 @@ public class VideoService : IVideoService
         this.backgroundJobClient = backgroundJobClient;
         this.metadataProviderFactory = metadataProviderFactory;
         this.channelService = channelService;
+        this.customPlaylistService = customPlaylistService;
         this.tagService = tagService;
         this.channelRepository = channelRepository;
         this.playlistVideoRepository = playlistVideoRepository;
@@ -177,10 +180,7 @@ public class VideoService : IVideoService
     {
         try
         {
-            if (!await channelService.UserSubscribedToChannelAsync(channelId))
-            {
-                return Result.Forbidden();
-            }
+            bool isAdminUser = userContextService.IsAdministrator();
 
             var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
             {
@@ -191,6 +191,21 @@ public class VideoService : IVideoService
             {
                 return Result.NotFound("Video not found");
             }
+
+            string userId = userContextService.GetCurrentUserId()!;
+
+            await tagService.SetVideoTagsAsync(videoId, new SetVideoTagsRequest());
+            await userVideoRepository.DeleteAsync(x => x.UserId == userId && x.VideoId == videoId);
+
+            // Only proceeed if admin OR if no other users have access to the video
+
+            if (!isAdminUser || await customPlaylistService.VideoAppearsOnAnyPlaylistsForOtherUsers(videoId, userId))
+            {
+                await customPlaylistService.RemoveVideoFromAllPlaylistsForUserAsync(videoId, userId);
+                return Result.Success(); // only needed to delete for this user, not all.
+            }
+
+            await customPlaylistService.RemoveVideoFromAllPlaylistsAsync(videoId);
 
             if (!string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath))
             {
@@ -463,7 +478,10 @@ public class VideoService : IVideoService
 
                     if (standaloneVideoIds.Count > 0)
                     {
-                        predicate = predicate.Or(x => standaloneVideoIds.Contains(x.Id));
+                        predicate = predicate.Or(x =>
+                            standaloneVideoIds.Contains(x.Id)
+                            && x.DownloadedAt != null
+                            && !x.IsIgnored);
                     }
                 }
 

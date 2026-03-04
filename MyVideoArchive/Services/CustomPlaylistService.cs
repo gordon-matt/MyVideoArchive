@@ -628,6 +628,42 @@ public class CustomPlaylistService : ICustomPlaylistService
         }
     }
 
+    public async Task<Result> RemoveVideoFromAllPlaylistsAsync(int videoId)
+    {
+        try
+        {
+            await customPlaylistVideoRepository.DeleteAsync(x => x.VideoId == videoId);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error removing video {VideoId} from playlists", videoId);
+            }
+
+            return Result.Error("An error occurred while removing the video");
+        }
+    }
+
+    public async Task<Result> RemoveVideoFromAllPlaylistsForUserAsync(int videoId, string userId)
+    {
+        try
+        {
+            await customPlaylistVideoRepository.DeleteAsync(x => x.VideoId == videoId && x.CustomPlaylist.UserId == userId);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error removing video {VideoId} from playlists", videoId);
+            }
+
+            return Result.Error("An error occurred while removing the video");
+        }
+    }
+
     public async Task<Result> RemoveVideoFromPlaylistAsync(int id, int videoId)
     {
         try
@@ -764,6 +800,26 @@ public class CustomPlaylistService : ICustomPlaylistService
             }
 
             return Result.Error("An error occurred while saving the thumbnail");
+        }
+    }
+
+    public async Task<Result<bool>> VideoAppearsOnAnyPlaylistsForOtherUsers(int videoId, string userId)
+    {
+        try
+        {
+            bool exists = await customPlaylistVideoRepository.ExistsAsync(x =>
+                x.VideoId == videoId &&
+                x.CustomPlaylist.UserId != userId);
+
+            return Result.Success(exists);
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error checking if video {VideoId} appears on other users' playlists", videoId);
+            }
+            return Result.Error("An error occurred while checking playlist appearances");
         }
     }
 

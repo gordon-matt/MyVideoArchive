@@ -278,7 +278,7 @@ public class PlaylistService : IPlaylistService
     }
 
     public async Task<Result<RefreshPlaylistsResponse>> RefreshPlaylistsAsync(
-                    int channelId,
+        int channelId,
         CancellationToken cancellationToken = default)
     {
         try

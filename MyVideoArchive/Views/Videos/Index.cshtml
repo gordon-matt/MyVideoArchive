@@ -59,7 +59,7 @@
         <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
             <!-- ko foreach: videos -->
             <div class="col">
-                <div class="card h-100 video-card" data-bind="click: $parent.openVideo">
+                <div class="card h-100 video-card position-relative" data-bind="click: $parent.openVideo">
                     <div class="video-thumb-wrap">
                         <!-- ko if: thumbnailUrl -->
                         <img class="card-img-top video-thumb"
@@ -86,6 +86,12 @@
                         <!-- /ko -->
                     </div>
                     <div class="card-body p-2">
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger position-absolute top-0 end-0 m-1"
+                                title="Delete file"
+                                data-bind="click: function(data, event) { $parent.deleteVideoFile(data, event); }">
+                            <i class="bi bi-trash"></i>
+                        </button>
                         <p class="card-text video-title fw-semibold"
                            data-bind="text: title" title=""></p>
                         <p class="card-text text-muted small mb-1"

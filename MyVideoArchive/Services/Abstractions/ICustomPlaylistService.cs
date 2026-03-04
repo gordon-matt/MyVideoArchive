@@ -24,9 +24,15 @@ public interface ICustomPlaylistService
 
     Task<Result<PreviewPlaylistResponse>> PreviewPlaylistAsync(PreviewPlaylistRequest request, CancellationToken cancellationToken = default);
 
+    Task<Result> RemoveVideoFromAllPlaylistsAsync(int videoId);
+
+    Task<Result> RemoveVideoFromAllPlaylistsForUserAsync(int videoId, string userId);
+
     Task<Result> RemoveVideoFromPlaylistAsync(int id, int videoId);
 
     Task<Result<UpdatePlaylistResponse>> UpdatePlaylistAsync(int id, CreateCustomPlaylistRequest request);
 
     Task<Result<string>> UploadThumbnailAsync(int id, Stream fileStream, string fileName);
+
+    Task<Result<bool>> VideoAppearsOnAnyPlaylistsForOtherUsers(int videoId, string userId);
 }

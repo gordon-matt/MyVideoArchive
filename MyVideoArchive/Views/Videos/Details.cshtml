@@ -125,7 +125,14 @@
         <div class="col-12 col-lg-4 mt-4 mt-lg-0">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">Video Information</h5>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <h5 class="mb-0">Video Information</h5>
+                        <button class="btn btn-sm btn-outline-danger"
+                                data-bind="click: deleteVideoFile, enable: !deleting() && video() && video().DownloadedAt"
+                                title="Delete downloaded file">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <table class="table table-sm">
