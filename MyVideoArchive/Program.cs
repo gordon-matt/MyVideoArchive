@@ -7,15 +7,38 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OData;
 using MyVideoArchive.Data;
 using MyVideoArchive.Infrastructure;
+using Sejil;
+using Serilog;
+using Serilog.Sinks.PostgreSQL.ColumnWriters;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Use Autofac as DI container
-builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 
 // Add services to the container.
 // Connection string: from User Secrets (local), appsettings, or env (e.g. Docker: ConnectionStrings__DefaultConnection)
 string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.Console()
+    .WriteTo.PostgreSQL(
+        connectionString: connectionString!,
+        tableName: "Log",
+        columnOptions: new Dictionary<string, ColumnWriterBase>
+        {
+            { "message", new RenderedMessageColumnWriter() },
+            { "message_template", new MessageTemplateColumnWriter() },
+            { "level", new LevelColumnWriter() },
+            { "timestamp", new TimestampColumnWriter() },
+            { "exception", new ExceptionColumnWriter() },
+            { "properties", new LogEventSerializedColumnWriter() }
+        },
+        needAutoCreateTable: true)
+    .CreateLogger();
+
+// Use Autofac as DI container
+builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
+builder.Host.UseSerilog();
+builder.Host.UseSejil(writeToProviders: true);
 
 if (string.IsNullOrEmpty(connectionString))
 {
@@ -82,6 +105,14 @@ builder.Services.AddHangfireServer(options =>
     options.ServerName = "downloads";
     options.Queues = ["downloads"];
     options.WorkerCount = 1;
+});
+
+builder.Services.ConfigureSejil(options =>
+{
+    // Use the default Identity application cookie
+    options.AuthenticationScheme = IdentityConstants.ApplicationScheme;
+    // Optional: customize page title
+    //options.Title = "MyVideoArchive Logs";
 });
 
 // Register HTTP client (used by ThumbnailService)
@@ -171,6 +202,9 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseSerilogRequestLogging();
+app.UseSejil();
 
 // Configure Hangfire Dashboard
 app.MapHangfireDashboard("/hangfire", new DashboardOptions
