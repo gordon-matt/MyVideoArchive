@@ -30,6 +30,9 @@ public static class DbInitializer
             // Seed default admin user
             await SeedAdminUserAsync(userManager, configuration);
         }
+
+        // Always ensure the global standalone tag exists, consolidating any legacy per-user ones.
+        await SeedGlobalStandaloneTagAsync(context);
     }
 
     private static async Task<bool> SeedRolesAsync(RoleManager<ApplicationRole> roleManager)
@@ -48,6 +51,27 @@ public static class DbInitializer
         }
 
         return isFirstRun;
+    }
+
+    /// <summary>
+    /// Ensures the global "standalone" tag exists in the database
+    /// </summary>
+    private static async Task SeedGlobalStandaloneTagAsync(ApplicationDbContext context)
+    {
+        bool globalStandaloneTagExists = await context.Tags.AnyAsync(t =>
+            t.UserId == Constants.GlobalUserId &&
+            t.Name == Constants.StandaloneTag);
+
+        if (!globalStandaloneTagExists)
+        {
+            await context.Tags.AddAsync(new Tag
+            {
+                UserId = Constants.GlobalUserId,
+                Name = Constants.StandaloneTag
+            });
+
+            await context.SaveChangesAsync();
+        }
     }
 
     private static async Task SeedAdminUserAsync(UserManager<ApplicationUser> userManager, IConfiguration configuration)

@@ -72,17 +72,20 @@ public class VideoODataController : BaseODataController<Video, int>
 
         if (!canView)
         {
-            // Standalone videos (any download state)
-            int standaloneTagId = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+            // Standalone videos — check global tag first, then fall back to legacy per-user tag.
+            var standaloneTagIds = await tagRepository.FindAsync(new SearchOptions<Tag>
             {
-                Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
+                Query = x =>
+                    (x.UserId == Constants.GlobalUserId || x.UserId == userId) &&
+                    x.Name == Constants.StandaloneTag
             }, x => x.Id);
 
-            if (standaloneTagId > 0)
+            var standaloneTagIdList = standaloneTagIds.ToList();
+            if (standaloneTagIdList.Count > 0)
             {
                 return await videoTagRepository.ExistsAsync(x =>
                     x.VideoId == entity.Id &&
-                    x.TagId == standaloneTagId);
+                    standaloneTagIdList.Contains(x.TagId));
             }
         }
 
