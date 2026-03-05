@@ -35,6 +35,8 @@ public interface IChannelService
 
     Task<Channel> GetChannelAsync(string platformName, string channelId);
 
+    Task<Result<IPagedCollection<ChannelSubscriberResponse>>> GetChannelSubscribersAsync(int id, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Get downloaded videos for a channel with optional search and playlist filtering (paginated)
     /// </summary>

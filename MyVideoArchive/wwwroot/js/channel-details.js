@@ -37,6 +37,11 @@ class ChannelDetailsViewModel {
         this.scanMessage = ko.observable(null);
         this._scanPollTimer = null;
 
+        // ── Subscribers tab (admin only) ──────────────────────────────────────
+        this.subscribers = ko.observableArray([]);
+        this.subscribersLoading = ko.observable(false);
+        this.subscribersCount = ko.computed(() => this.subscribers().length);
+
         // ── Playlists tab ─────────────────────────────────────────────────────
         this.playlists = ko.observableArray([]);
         this.playlistsLoading = ko.observable(false);
@@ -468,6 +473,23 @@ class ChannelDetailsViewModel {
         }
     };
 
+    // ── Subscribers tab ───────────────────────────────────────────────────────
+
+    loadSubscribers = async () => {
+        this.subscribersLoading(true);
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/subscribers`);
+            if (response.ok) {
+                const data = await response.json();
+                this.subscribers(data.subscribers || []);
+            }
+        } catch (error) {
+            console.error('Error loading subscribers:', error);
+        } finally {
+            this.subscribersLoading(false);
+        }
+    };
+
     // ── Playlists tab ─────────────────────────────────────────────────────────
 
     loadPlaylists = async () => {
@@ -622,6 +644,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             viewModel.loadPlaylists();
         }
     });
+
+    // Load subscribers when the tab is clicked (admin only)
+    if (isAdmin) {
+        $('#subscribers-tab').on('shown.bs.tab', function () {
+            if (viewModel.subscribers().length === 0) {
+                viewModel.loadSubscribers();
+            }
+        });
+    }
 
     // Allow pressing Enter in the search boxes
     document.getElementById('videosSearchInput')?.addEventListener('keydown', (e) => {

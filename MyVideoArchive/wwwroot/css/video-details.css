@@ -1,6 +1,16 @@
-﻿#videoPlayer {
-    max-height: 80vh;
+#video-player-container {
     background-color: #000;
+    /* Constrain max-width so the 16:9 fluid player never exceeds 75vh in height.
+       At any viewport: max-width = 75vh × (16/9) = 133.33vh.
+       When the page is wider, the player's width gets capped → height is capped too. */
+    max-width: min(100%, calc(75vh * 16 / 9));
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Ensure Video.js wrapper fills the container */
+#videoPlayer {
+    width: 100% !important;
 }
 
 .description-box {

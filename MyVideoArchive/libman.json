@@ -37,6 +37,10 @@
     {
       "library": "@yaireo/tagify@4.36.0",
       "destination": "wwwroot/lib/yaireo/tagify/"
+    },
+    {
+      "library": "video.js@8.23.8",
+      "destination": "wwwroot/lib/video.js/"
     }
   ]
 }

@@ -25,3 +25,9 @@ public record DownloadedVideo(
     TimeSpan? Duration,
     DateTime? UploadDate,
     DateTime? DownloadedAt);
+
+public record ChannelSubscriberResponse(
+    string UserId,
+    string Username,
+    string Email,
+    DateTime SubscribedAt);

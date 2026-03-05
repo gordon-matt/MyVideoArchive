@@ -4,6 +4,7 @@
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/lib/video.js/dist/video-js.min.css" />
     <link rel="stylesheet" href="~/css/playlist-details.css" />
 }
 
@@ -11,16 +12,17 @@
     <div class="row g-0" data-bind="visible: playlist()">
         <div class="col-lg-8">
             <!-- Current Video Player -->
-            <div id="video-player-container" class="bg-dark" style="min-height: 400px;">
-                <div class="text-center text-white py-5" data-bind="visible: !currentVideo()">
-                    <h3>Select a video from the playlist</h3>
-                    <p>Click on any video in the playlist to start watching</p>
+            <div id="video-player-container" class="bg-dark">
+                <div class="player-placeholder" data-bind="visible: !currentVideo()">
+                    <i class="bi bi-collection-play display-4 mb-3 opacity-50"></i>
+                    <h5>Select a video from the playlist</h5>
+                    <p class="text-white-50 small mb-0">Click any video in the sidebar to start watching</p>
                 </div>
-                <div data-bind="visible: currentVideo()">
-                    <video id="videoPlayer" class="w-100" controls data-bind="attr: { src: currentVideoUrl }">
-                        Your browser does not support the video tag.
-                    </video>
-                </div>
+                <video id="videoPlayer"
+                       class="video-js vjs-default-skin vjs-big-play-centered"
+                       controls
+                       preload="auto">
+                </video>
             </div>
 
             <!-- Current Video Info -->
@@ -76,10 +78,18 @@
                         </div>
 
                         <!-- Show Hidden Toggle -->
-                        <div class="form-check form-switch">
+                        <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="showHiddenSwitch" data-bind="checked: showHidden, click: toggleShowHidden">
                             <label class="form-check-label" for="showHiddenSwitch">
                                 Show Hidden Videos
+                            </label>
+                        </div>
+
+                        <!-- Auto-advance Toggle -->
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="autoAdvanceSwitch" data-bind="checked: autoAdvance">
+                            <label class="form-check-label" for="autoAdvanceSwitch">
+                                <i class="bi bi-skip-end-fill me-1"></i> Auto-advance
                             </label>
                         </div>
                     </div>
@@ -167,6 +177,8 @@
 </div>
 
 @section Scripts {
+    <script src="~/lib/video.js/dist/video.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/videojs-playlist/dist/videojs-playlist.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script type="text/javascript">
         const playlistId = @playlistId;

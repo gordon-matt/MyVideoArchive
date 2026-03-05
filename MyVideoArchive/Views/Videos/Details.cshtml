@@ -4,6 +4,7 @@
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/lib/video.js/dist/video-js.min.css" />
     <link rel="stylesheet" href="~/css/video-details.css" />
     <link rel="stylesheet" href="~/lib/yaireo/tagify/dist/tagify.min.css" />
 }
@@ -11,7 +12,7 @@
 <div class="container-fluid px-0">
     <div class="row g-0">
         <div class="col-12">
-            <div id="video-player-container" class="bg-dark" style="min-height: 400px;">
+            <div id="video-player-container" class="bg-dark">
                 <div class="text-center text-white py-5" data-bind="visible: loading">
                     <div class="spinner-border" role="status">
                         <span class="visually-hidden">Loading...</span>
@@ -20,8 +21,10 @@
                 </div>
                 
                 <div data-bind="visible: !loading() && video()">
-                    <video id="videoPlayer" class="w-100" controls data-bind="attr: { src: videoUrl }">
-                        Your browser does not support the video tag.
+                    <video id="videoPlayer"
+                           class="video-js vjs-default-skin vjs-big-play-centered"
+                           controls
+                           preload="auto">
                     </video>
                 </div>
                 
@@ -235,6 +238,7 @@
 </div>
 
 @section Scripts {
+    <script src="~/lib/video.js/dist/video.min.js"></script>
     <script src="~/lib/yaireo/tagify/dist/tagify.min.js"></script>
     <script type="text/javascript">
         const videoId = @videoId;

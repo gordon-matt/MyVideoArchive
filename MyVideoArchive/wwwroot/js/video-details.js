@@ -1,5 +1,21 @@
 import { formatDate, formatDuration, formatFileSize, formatNumber } from './utils.js';
 
+/** @type {import('video.js').VideoJsPlayer | null} */
+let player = null;
+
+const STORAGE_KEY_RATE = 'mva-playback-rate';
+
+// ─── Playback position persistence ────────────────────────────────────────────
+function savePosition(vid, time) {
+    if (time > 5) localStorage.setItem(`mva-pos-${vid}`, Math.floor(time));
+}
+function loadSavedPosition(vid) {
+    return parseInt(localStorage.getItem(`mva-pos-${vid}`) || '0', 10);
+}
+function clearPosition(vid) {
+    localStorage.removeItem(`mva-pos-${vid}`);
+}
+
 class VideoPlayerViewModel {
     constructor(videoId) {
         this.videoId = videoId;
@@ -8,7 +24,6 @@ class VideoPlayerViewModel {
         this.watched = ko.observable(false);
         this.loading = ko.observable(true);
         this.retrying = ko.observable(false);
-        this.videoUrl = ko.observable(null);
         this.deleting = ko.observable(false);
 
         // Standalone banner
@@ -40,11 +55,9 @@ class VideoPlayerViewModel {
             .then(async data => {
                 this.video(data);
 
-                if (data.Id) {
-                    this.videoUrl(`/api/videos/${data.Id}/stream`);
-                    if (data.DownloadedAt) {
-                        await this.markWatched();
-                    }
+                if (data.Id && data.DownloadedAt) {
+                    this._pendingVideoUrl = `/api/videos/${data.Id}/stream`;
+                    await this.markWatched();
                 }
 
                 this.loading(false);
@@ -111,12 +124,10 @@ class VideoPlayerViewModel {
 
     initTags = async () => {
         try {
-            // Load all user tags for autocomplete
             const tagsResponse = await fetch('/api/tags');
             const tagsData = await tagsResponse.json();
             const allTagNames = (tagsData.tags || []).map(t => t.Name ?? t.name);
 
-            // Load current video tags
             const videoTagsResponse = await fetch(`/api/videos/${this.videoId}/tags`);
             const videoTagsData = await videoTagsResponse.json();
             const currentTags = (videoTagsData.tags || []).map(t => t.name ?? t.Name);
@@ -161,7 +172,6 @@ class VideoPlayerViewModel {
                 body: JSON.stringify({ tagNames })
             });
 
-            // Refresh standalone info in case "standalone" tag was manually removed
             await this.loadStandaloneInfo();
         } catch (error) {
             console.error('Error saving tags:', error);
@@ -189,7 +199,6 @@ class VideoPlayerViewModel {
             });
 
             if (response.ok) {
-                // Server will have removed the standalone tags; refresh UI
                 this.isStandalone(false);
                 this.standaloneInfo({ ...info, isSubscribed: true });
             } else {
@@ -290,9 +299,7 @@ class VideoPlayerViewModel {
 
     deleteVideoFile = async () => {
         const video = this.video();
-        if (!video) {
-            return;
-        }
+        if (!video) return;
 
         const title = video.Title || 'this video';
         if (!confirm(`Delete the file for "${title}"? This cannot be undone. The video will be marked as ignored.`)) {
@@ -332,10 +339,72 @@ class VideoPlayerViewModel {
 
 var viewModel;
 
+function initVideoJsPlayer() {
+    player = videojs('videoPlayer', {
+        controls: true,
+        fluid: true,
+        aspectRatio: '16:9',
+        playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5],
+        controlBar: {
+            skipButtons: {
+                forward: 10,
+                backward: 10
+            }
+        },
+        userActions: {
+            hotkeys: true
+        }
+    });
+
+    // Restore saved playback rate
+    player.ready(() => {
+        const savedRate = parseFloat(localStorage.getItem(STORAGE_KEY_RATE) || '1');
+        player.playbackRate(savedRate);
+    });
+
+    // Persist playback rate across videos
+    player.on('ratechange', () => {
+        localStorage.setItem(STORAGE_KEY_RATE, player.playbackRate());
+    });
+
+    return player;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     viewModel = new VideoPlayerViewModel(videoId);
     ko.applyBindings(viewModel);
+
+    // Load video data first so the container is visible before Video.js measures it
     await viewModel.loadVideo();
+
+    initVideoJsPlayer();
+
+    // Set the video source once player is ready
+    if (viewModel._pendingVideoUrl) {
+        player.src({ type: 'video/mp4', src: viewModel._pendingVideoUrl });
+    }
+
+    // Restore saved playback position after metadata is available
+    player.on('loadedmetadata', () => {
+        const saved = loadSavedPosition(videoId);
+        if (saved > 5 && isFinite(player.duration()) && saved < player.duration() - 5) {
+            player.currentTime(saved);
+        }
+    });
+
+    // Save position every 2 seconds while playing
+    let _lastSave = 0;
+    player.on('timeupdate', () => {
+        const now = Date.now();
+        if (now - _lastSave >= 2000) {
+            _lastSave = now;
+            savePosition(videoId, player.currentTime());
+        }
+    });
+
+    // Clear saved position when the video ends (user finished watching)
+    player.on('ended', () => clearPosition(videoId));
+
     await Promise.all([
         viewModel.loadPlaylists(),
         viewModel.loadWatchedStatus(),

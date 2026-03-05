@@ -363,6 +363,28 @@ public class ChannelService : IChannelService
             Query = x => x.ChannelId == channelId && x.Platform == platformName
         });
 
+    public async Task<Result<IPagedCollection<ChannelSubscriberResponse>>> GetChannelSubscribersAsync(int id, CancellationToken cancellationToken = default)
+    {
+        bool channelExists = await channelRepository.ExistsAsync(
+            x => x.Id == id,
+            ContextOptions.ForCancellationToken(cancellationToken));
+
+        if (!channelExists)
+        {
+            return Result.NotFound("Channel not found.");
+        }
+
+        var subscribers = await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.ChannelId == id,
+            Include = query => query.Include(x => x.User),
+            OrderBy = query => query.OrderBy(x => x.SubscribedAt)
+        }, x => new ChannelSubscriberResponse(x.UserId, x.User.UserName!, x.User.Email!, x.SubscribedAt));
+
+        return Result.Success(subscribers);
+    }
+
     public async Task<Result<IPagedCollection<DownloadedVideo>>> GetDownloadedVideosAsync(
         int channelId,
         int page = 1,

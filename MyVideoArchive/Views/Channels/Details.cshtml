@@ -44,6 +44,16 @@
             Playlists
         </button>
     </li>
+    @if (isAdminUser)
+    {
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="subscribers-tab" data-bs-toggle="tab" data-bs-target="#subscribers" type="button" role="tab">
+                <i class="bi bi-people"></i> Subscribers
+                <span class="badge bg-primary rounded-pill ms-1"
+                      data-bind="text: subscribersCount(), visible: subscribersCount() > 0"></span>
+            </button>
+        </li>
+    }
 </ul>
 
 <div class="tab-content" id="channelTabsContent">
@@ -345,6 +355,55 @@
         </div>
     </div>
 
+    @if (isAdminUser)
+    {
+        <!-- ── Subscribers tab (admin only) ──────────────────────────────────────── -->
+        <div class="tab-pane fade" id="subscribers" role="tabpanel">
+            <div data-bind="visible: subscribersLoading" class="text-center my-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading&hellip;</span>
+                </div>
+            </div>
+
+            <div data-bind="visible: !subscribersLoading() && subscribers().length === 0" class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                No users are subscribed to this channel.
+            </div>
+
+            <div data-bind="visible: !subscribersLoading() && subscribers().length > 0">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-people-fill text-primary fs-5"></i>
+                    <h5 class="mb-0">
+                        <span data-bind="text: subscribersCount()"></span>
+                        subscriber<span data-bind="visible: subscribersCount() !== 1">s</span>
+                    </h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th><i class="bi bi-person me-1"></i>Username</th>
+                                <th><i class="bi bi-envelope me-1"></i>Email</th>
+                                <th><i class="bi bi-calendar-check me-1"></i>Subscribed</th>
+                            </tr>
+                        </thead>
+                        <tbody data-bind="foreach: subscribers">
+                            <tr>
+                                <td>
+                                    <span class="fw-semibold" data-bind="text: username"></span>
+                                </td>
+                                <td class="text-muted" data-bind="text: email"></td>
+                                <td class="text-muted">
+                                    <span data-bind="text: $parent.formatDate(subscribedAt)"></span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
     <!-- ── Playlists tab ──────────────────────────────────────────────────── -->
     <div class="tab-pane fade" id="playlists" role="tabpanel">
         <div id="playlists-grid">
@@ -462,6 +521,7 @@
 @section Scripts {
     <script type="text/javascript">
         const channelId = @channelId;
+        const isAdmin = @(isAdminUser ? "true" : "false");
     </script>
     <script type="module" src="~/js/channel-details.js"></script>
 }

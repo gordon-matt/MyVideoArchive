@@ -1,3 +1,5 @@
+using Ardalis.Result.AspNetCore;
+
 namespace MyVideoArchive.Controllers.Api;
 
 [Authorize]
@@ -17,6 +19,14 @@ public class ChannelApiController : ControllerBase
     {
         var result = channelService.SyncAllChannels();
         return result.ToActionResult(this, () => Ok(new { message = "Sync job queued successfully for all channels" }));
+    }
+
+    [HttpGet("{id:int}/subscribers")]
+    [Authorize(Roles = Constants.Roles.Administrator)]
+    public async Task<IActionResult> GetChannelSubscribers(int id, CancellationToken cancellationToken = default)
+    {
+        var result = await channelService.GetChannelSubscribersAsync(id, cancellationToken);
+        return result.ToActionResult(this, value => Ok(new { subscribers = value, count = value.Count }));
     }
 
     [HttpDelete("{id:int}")]

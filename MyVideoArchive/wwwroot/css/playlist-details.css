@@ -1,7 +1,23 @@
-﻿#videoPlayer {
-    max-height: 70vh;
-    background-color: #000;
+/* Player container */
+#video-player-container {
+    position: relative;
 }
+
+/* Placeholder overlay shown when no video is selected */
+.player-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    color: #fff;
+    background: #000;
+    z-index: 10;
+    pointer-events: none;
+    min-height: 300px;
+}
+
 
 .description-box {
     max-height: 300px;
@@ -96,6 +112,22 @@
 .sortable-ghost {
     opacity: 0.4;
     background-color: #e9ecef;
+}
+
+/* ── Playlist prev / next buttons in the Video.js control bar ──────────────── */
+.vjs-playlist-prev-btn .vjs-icon-placeholder::before,
+.vjs-playlist-next-btn .vjs-icon-placeholder::before {
+    font-family: sans-serif;
+    font-size: 1.3em;
+    line-height: 2.4em;
+}
+
+.vjs-playlist-prev-btn .vjs-icon-placeholder::before {
+    content: '⏮';
+}
+
+.vjs-playlist-next-btn .vjs-icon-placeholder::before {
+    content: '⏭';
 }
 
 @media (max-width: 991px) {
