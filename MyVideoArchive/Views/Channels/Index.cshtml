@@ -252,26 +252,33 @@
                             No platform images found. Use "Upload Custom" to add your own.
                         </div>
                         <div data-bind="visible: !thumbnailPickerLoading() && thumbnailPickerItems().length > 0">
+                            <p class="text-muted small mb-2">Choose <strong>Banner</strong> or <strong>Avatar</strong>, then click a thumbnail below to assign it.</p>
                             <div class="d-flex gap-3 mb-3 flex-wrap">
-                                <div class="thumbnail-selection-preview">
-                                    <label class="form-label fw-semibold">Banner</label>
+                                <div class="thumbnail-selection-preview thumbnail-assign-target"
+                                     data-bind="css: { 'thumbnail-assign-target-active': thumbnailPickerAssignTo() === 'banner' }, click: setThumbnailAssignToBanner">
+                                    <label class="form-label fw-semibold mb-1 cursor-pointer">
+                                        <i class="bi bi-layout-text-sidebar-reverse me-1"></i> Banner
+                                        <span data-bind="visible: thumbnailPickerAssignTo() === 'banner'" class="badge bg-primary ms-1">Select thumbnail for this</span>
+                                    </label>
                                     <img data-bind="attr: { src: selectedBannerUrl() || 'https://placehold.co/240x80?text=None' }"
                                          class="thumbnail-selection-preview-img banner-preview-img" />
-                                    <button class="btn btn-sm btn-outline-danger mt-1 w-100" data-bind="click: clearBannerSelection, visible: selectedBannerUrl()">
+                                    <button class="btn btn-sm btn-outline-danger mt-1 w-100" data-bind="click: function(d,e){ clearBannerSelection(); e.stopPropagation(); }, visible: selectedBannerUrl()">
                                         <i class="bi bi-x"></i> Clear
                                     </button>
                                 </div>
-                                <div class="thumbnail-selection-preview">
-                                    <label class="form-label fw-semibold">Avatar</label>
+                                <div class="thumbnail-selection-preview thumbnail-assign-target"
+                                     data-bind="css: { 'thumbnail-assign-target-active': thumbnailPickerAssignTo() === 'avatar' }, click: setThumbnailAssignToAvatar">
+                                    <label class="form-label fw-semibold mb-1 cursor-pointer">
+                                        <i class="bi bi-person-circle me-1"></i> Avatar
+                                        <span data-bind="visible: thumbnailPickerAssignTo() === 'avatar'" class="badge bg-success ms-1">Select thumbnail for this</span>
+                                    </label>
                                     <img data-bind="attr: { src: selectedAvatarUrl() || 'https://placehold.co/80x80?text=None' }"
                                          class="thumbnail-selection-preview-img avatar-preview-img" />
-                                    <button class="btn btn-sm btn-outline-danger mt-1 w-100" data-bind="click: clearAvatarSelection, visible: selectedAvatarUrl()">
+                                    <button class="btn btn-sm btn-outline-danger mt-1 w-100" data-bind="click: function(d,e){ clearAvatarSelection(); e.stopPropagation(); }, visible: selectedAvatarUrl()">
                                         <i class="bi bi-x"></i> Clear
                                     </button>
                                 </div>
                             </div>
-
-                            <p class="text-muted small">Click a thumbnail to assign it. First click sets banner, second click (different thumbnail) sets avatar.</p>
                             <div class="thumbnail-picker-grid">
                                 <!-- ko foreach: thumbnailPickerItems -->
                                 <div class="thumbnail-picker-item"

@@ -183,6 +183,28 @@
     min-width: 120px;
 }
 
+.thumbnail-assign-target {
+    padding: 10px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.thumbnail-assign-target:hover {
+    background-color: rgba(13, 110, 253, 0.06);
+    border-color: rgba(13, 110, 253, 0.3);
+}
+
+.thumbnail-assign-target-active {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.08);
+}
+
+.thumbnail-assign-target .cursor-pointer {
+    cursor: pointer;
+}
+
 .thumbnail-selection-preview-img {
     border: 1px solid #ddd;
     border-radius: 4px;

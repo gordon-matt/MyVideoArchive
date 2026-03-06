@@ -38,6 +38,7 @@ class ChannelsViewModel {
         this.thumbnailPickerChannelId = ko.observable(null); // id of the newly added channel
         this.thumbnailPickerItems = ko.observableArray([]);
         this.thumbnailPickerLoading = ko.observable(false);
+        this.thumbnailPickerAssignTo = ko.observable('banner'); // 'banner' | 'avatar' — which slot the next thumbnail click will fill
         this.selectedBannerUrl = ko.observable(null);
         this.selectedAvatarUrl = ko.observable(null);
         this.bannerUploadFile = ko.observable(null);
@@ -113,6 +114,7 @@ class ChannelsViewModel {
 
             // Show thumbnail picker for the newly added channel
             this.thumbnailPickerChannelId(data.Id);
+            this.thumbnailPickerAssignTo('banner');
             this.selectedBannerUrl(null);
             this.selectedAvatarUrl(null);
             this.bannerUploadFile(null);
@@ -151,20 +153,15 @@ class ChannelsViewModel {
         }
     };
 
+    setThumbnailAssignToBanner = () => this.thumbnailPickerAssignTo('banner');
+    setThumbnailAssignToAvatar = () => this.thumbnailPickerAssignTo('avatar');
+
     selectThumbnailForIndex = (thumbnail) => {
         const url = thumbnail.url;
-        // First click → banner, second different thumbnail → avatar, same → toggle off
-        if (this.selectedBannerUrl() === url) {
-            this.selectedBannerUrl(null);
-        } else if (this.selectedAvatarUrl() === url) {
-            this.selectedAvatarUrl(null);
-        } else if (!this.selectedBannerUrl()) {
+        if (this.thumbnailPickerAssignTo() === 'banner') {
             this.selectedBannerUrl(url);
-        } else if (!this.selectedAvatarUrl()) {
-            this.selectedAvatarUrl(url);
         } else {
-            // Both set – replace banner
-            this.selectedBannerUrl(url);
+            this.selectedAvatarUrl(url);
         }
     };
 
