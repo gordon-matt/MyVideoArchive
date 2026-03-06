@@ -18,8 +18,13 @@ class ChannelsViewModel {
 
         this.formatDate = formatDate;
 
+        // Platforms that are added via a URL (not the custom manual flow)
+        this.urlBasedPlatforms = ['YouTube', 'BitChute'];
+
+        this.isUrlBasedPlatform = ko.computed(() => this.urlBasedPlatforms.includes(this.selectedPlatform()));
+
         this.canSubmit = ko.computed(() => {
-            if (this.selectedPlatform() === 'YouTube') {
+            if (this.isUrlBasedPlatform()) {
                 return this.newChannelUrl().length > 0;
             }
             return this.customChannelName().length > 0;
@@ -47,21 +52,22 @@ class ChannelsViewModel {
     };
 
     addChannel = async () => {
-        if (this.selectedPlatform() === 'YouTube') {
-            await this.addYouTubeChannel();
+        if (this.isUrlBasedPlatform()) {
+            await this.addPlatformChannel();
         } else {
             await this.addCustomChannel();
         }
     };
 
-    addYouTubeChannel = async () => {
+    addPlatformChannel = async () => {
         const url = this.newChannelUrl();
+        const platform = this.selectedPlatform();
         if (!url) return;
 
         const channelId = this.extractChannelId(url);
 
         const newChannel = {
-            Platform: 'YouTube',
+            Platform: platform,
             ChannelId: channelId,
             Name: 'Loading...',
             Url: url,
@@ -80,7 +86,7 @@ class ChannelsViewModel {
             bootstrap.Modal.getInstance(document.getElementById('addChannelModal')).hide();
         })
         .catch(error => {
-            console.error('Error adding YouTube channel:', error);
+            console.error(`Error adding ${platform} channel:`, error);
             toast.error('Failed to add channel. Please try again.');
         });
     };

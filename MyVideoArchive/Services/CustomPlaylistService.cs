@@ -209,17 +209,17 @@ public class CustomPlaylistService : ICustomPlaylistService
                     ChannelMetadata? channelMeta = null;
                     if (!string.IsNullOrEmpty(videoMeta.ChannelId))
                     {
-                        string channelUrl = $"https://www.youtube.com/channel/{videoMeta.ChannelId}";
+                        string channelUrl = provider.BuildChannelUrl(videoMeta.ChannelId);
                         channelMeta = await provider.GetChannelMetadataAsync(channelUrl, cancellationToken);
                     }
 
                     channel = new Channel
                     {
                         ChannelId = channelPlatformId,
-                        Name = videoMeta.ChannelName ?? "Unknown Channel",
+                        Name = channelMeta?.Name ?? videoMeta.ChannelName ?? "Unknown Channel",
                         Url = string.IsNullOrEmpty(videoMeta.ChannelId)
                             ? string.Empty
-                            : $"https://www.youtube.com/channel/{videoMeta.ChannelId}",
+                            : channelMeta?.Url ?? provider.BuildChannelUrl(videoMeta.ChannelId),
                         Platform = videoMeta.Platform,
                         SubscribedAt = DateTime.UtcNow
                     };

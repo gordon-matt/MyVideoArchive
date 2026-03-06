@@ -26,6 +26,7 @@
             <select class="form-select" data-bind="value: platformFilter">
                 <option value="">All Platforms</option>
                 <option value="YouTube">YouTube</option>
+                <option value="BitChute">BitChute</option>
                 <option value="Custom">Custom</option>
             </select>
         </div>
@@ -51,17 +52,18 @@
                             <label for="platformSelect" class="form-label">Platform</label>
                             <select class="form-select" id="platformSelect" data-bind="value: selectedPlatform">
                                 <option value="YouTube">YouTube</option>
+                                <option value="BitChute">BitChute</option>
                                 <option value="Custom">Custom (archive videos from any source)</option>
                             </select>
                         </div>
 
-                        <!-- YouTube fields -->
-                        <div data-bind="visible: selectedPlatform() === 'YouTube'">
+                        <!-- URL-based platform fields (YouTube, BitChute, etc.) -->
+                        <div data-bind="visible: isUrlBasedPlatform()">
                             <div class="mb-3">
                                 <label for="channelUrl" class="form-label">Channel URL</label>
                                 <input type="text" class="form-control" id="channelUrl" data-bind="value: newChannelUrl"
-                                       placeholder="https://www.youtube.com/channel/..." />
-                                <div class="form-text">Enter a YouTube channel URL. Metadata will be fetched automatically.</div>
+                                       placeholder="https://www.youtube.com/channel/... or https://www.bitchute.com/channel/..." />
+                                <div class="form-text">Enter the channel URL. Metadata will be fetched automatically.</div>
                             </div>
                         </div>
 

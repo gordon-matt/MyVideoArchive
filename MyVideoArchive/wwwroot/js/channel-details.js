@@ -598,7 +598,8 @@ class ChannelDetailsViewModel {
     };
 
     refreshPlaylists = async () => {
-        if (!confirm('This will fetch the latest playlists from YouTube. Continue?')) {
+        const platformName = this.channel()?.Platform ?? 'the platform';
+        if (!confirm(`This will fetch the latest playlists from ${platformName}. Continue?`)) {
             return;
         }
 
@@ -616,7 +617,7 @@ class ChannelDetailsViewModel {
         } catch (error) {
             console.error('Error refreshing playlists:', error);
             this.refreshingPlaylists(false);
-            toast.error('Error refreshing playlists from YouTube. Please try again.');
+            toast.error('Error refreshing playlists from the platform. Please try again.');
         }
     };
 }

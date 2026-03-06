@@ -27,6 +27,8 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
 
     public bool CanHandle(string url) => YouTubeUrlRegex().IsMatch(url);
 
+    public string BuildChannelUrl(string channelId) => $"https://www.youtube.com/channel/{channelId}";
+
     public async Task<ChannelMetadata?> GetChannelMetadataAsync(string channelUrl, CancellationToken cancellationToken = default)
     {
         try

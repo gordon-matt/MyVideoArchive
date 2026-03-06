@@ -31,6 +31,7 @@
     <PackageReference Include="Sejil" Version="3.0.4" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.Postgresql.Alternative" Version="4.2.0" />
+    <PackageReference Include="Xabe.FFmpeg" Version="6.0.2" />
     <PackageReference Include="YoutubeDLSharp" Version="1.2.0" />
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
   </ItemGroup>

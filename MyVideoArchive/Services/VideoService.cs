@@ -86,7 +86,7 @@ public class VideoService : IVideoService
                 ChannelMetadata? channelMeta = null;
                 if (!string.IsNullOrEmpty(videoMeta.ChannelId))
                 {
-                    string channelUrl = $"https://www.youtube.com/channel/{videoMeta.ChannelId}";
+                    string channelUrl = provider.BuildChannelUrl(videoMeta.ChannelId);
                     channelMeta = await provider.GetChannelMetadataAsync(channelUrl, cancellationToken);
                 }
 
@@ -94,7 +94,7 @@ public class VideoService : IVideoService
                 {
                     ChannelId = videoMeta.ChannelId ?? videoMeta.ChannelName ?? "unknown",
                     Name = channelMeta?.Name ?? videoMeta.ChannelName ?? "Unknown Channel",
-                    Url = channelMeta?.Url ?? (string.IsNullOrEmpty(videoMeta.ChannelId) ? string.Empty : $"https://www.youtube.com/channel/{videoMeta.ChannelId}"),
+                    Url = channelMeta?.Url ?? (string.IsNullOrEmpty(videoMeta.ChannelId) ? string.Empty : provider.BuildChannelUrl(videoMeta.ChannelId)),
                     Description = channelMeta?.Description,
                     ThumbnailUrl = channelMeta?.ThumbnailUrl,
                     SubscriberCount = channelMeta?.SubscriberCount,

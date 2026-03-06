@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Extenso.AspNetCore.OData;
@@ -10,6 +11,7 @@ using MyVideoArchive.Infrastructure;
 using Sejil;
 using Serilog;
 using Serilog.Sinks.PostgreSQL.ColumnWriters;
+using Xabe.FFmpeg;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -128,9 +130,11 @@ builder.Services.AddSingleton(sp =>
 
 // Register metadata providers
 builder.Services.AddSingleton<IVideoMetadataProvider, YouTubeMetadataProvider>();
+builder.Services.AddSingleton<IVideoMetadataProvider, BitChuteMetadataProvider>();
 
 // Register downloaders
 builder.Services.AddSingleton<IVideoDownloader, YouTubeDownloader>();
+builder.Services.AddSingleton<IVideoDownloader, BitChuteDownloader>();
 
 // Register factories
 builder.Services.AddSingleton<VideoMetadataProviderFactory>();
@@ -256,10 +260,29 @@ using var scope = app.Services.CreateScope();
 var services = scope.ServiceProvider;
 try
 {
+    var configuration = services.GetRequiredService<IConfiguration>();
+
+    #region Xabe.Ffmpeg configuration
+
+    bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    string ffmpegName = isWindows ? "ffmpeg.exe" : "ffmpeg";
+
+    string? configuredFfmpegPath = configuration["YoutubeDL:FFmpegPath"];
+    if (string.IsNullOrWhiteSpace(configuredFfmpegPath))
+    {
+        configuredFfmpegPath = null;
+    }
+
+    string ffmpegPath = configuredFfmpegPath
+        ?? Path.Combine(Directory.GetCurrentDirectory(), ffmpegName);
+
+    FFmpeg.SetExecutablesPath(ffmpegPath);
+
+    #endregion
+
     var context = services.GetRequiredService<ApplicationDbContext>();
     var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
-    var configuration = services.GetRequiredService<IConfiguration>();
 
     await DbInitializer.InitializeAsync(context, userManager, roleManager, configuration);
 }

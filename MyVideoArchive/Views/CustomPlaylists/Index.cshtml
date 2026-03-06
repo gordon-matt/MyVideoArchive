@@ -14,7 +14,7 @@
         </div>
         <div class="col-auto d-flex gap-2">
             <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#clonePlaylistModal">
-                <i class="bi bi-copy"></i> Clone from YouTube
+                <i class="bi bi-copy"></i> Clone from URL
             </button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPlaylistModal">
                 <i class="bi bi-plus-circle"></i> New Playlist
@@ -186,7 +186,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="clonePlaylistModalLabel">
-                    <i class="bi bi-copy me-2"></i>Clone from YouTube
+                    <i class="bi bi-copy me-2"></i>Clone from URL
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
                         data-bind="disable: cloneState() === 'fetching' || cloneState() === 'cloning'"></button>
@@ -197,11 +197,11 @@
                 <!-- ── Input ── -->
                 <div data-bind="visible: cloneState() === 'input'">
                     <p class="text-muted small mb-3">
-                        Paste a YouTube playlist URL. We'll fetch the video list so you can choose which ones to include.
+                        Paste a playlist URL (YouTube, BitChute, etc.). We'll fetch the video list so you can choose which ones to include.
                     </p>
-                    <label class="form-label">YouTube Playlist URL <span class="text-danger">*</span></label>
+                    <label class="form-label">Playlist URL <span class="text-danger">*</span></label>
                     <input type="url" class="form-control" data-bind="value: cloneUrl, valueUpdate: 'input'"
-                           placeholder="https://www.youtube.com/playlist?list=..." />
+                           placeholder="https://www.youtube.com/playlist?list=... or https://www.bitchute.com/playlist/..." />
                 </div>
 
                 <!-- ── Fetching ── -->
@@ -209,7 +209,7 @@
                     <div class="spinner-border text-primary mb-3" role="status">
                         <span class="visually-hidden">Loading…</span>
                     </div>
-                    <p class="text-muted mb-1">Fetching playlist info from YouTube&hellip;</p>
+                    <p class="text-muted mb-1">Fetching playlist info&hellip;</p>
                     <small class="text-muted">This may take a moment for large playlists.</small>
                 </div>
 

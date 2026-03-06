@@ -18,6 +18,11 @@ public interface IVideoMetadataProvider
     bool CanHandle(string url);
 
     /// <summary>
+    /// Builds a canonical channel URL for the given platform-native channel ID
+    /// </summary>
+    string BuildChannelUrl(string channelId);
+
+    /// <summary>
     /// Retrieves metadata for a channel
     /// </summary>
     Task<ChannelMetadata?> GetChannelMetadataAsync(string channelUrl, CancellationToken cancellationToken = default);

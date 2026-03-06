@@ -418,7 +418,7 @@
             
             <div class="mb-3">
                 <button class="btn btn-info me-2" data-bind="click: refreshPlaylists, enable: !refreshingPlaylists() && !subscribingPlaylists()">
-                    <span data-bind="visible: !refreshingPlaylists()"><i class="bi bi-arrow-clockwise"></i> Refresh from YouTube</span>
+                    <span data-bind="visible: !refreshingPlaylists()"><i class="bi bi-arrow-clockwise"></i> Refresh from <span data-bind="text: channel() ? channel().Platform : ''"></span></span>
                     <span data-bind="visible: refreshingPlaylists()">
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                         Refreshing…
