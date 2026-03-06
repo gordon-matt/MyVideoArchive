@@ -14,6 +14,8 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
 {
     private readonly ILogger<BitChuteMetadataProvider> logger;
     private readonly YoutubeDL ytdl;
+    private readonly IHttpClientFactory httpClientFactory;
+    private readonly HttpClient thumbnailHttpClient;
 
     public string PlatformName => "BitChute";
 
@@ -26,10 +28,15 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
     [GeneratedRegex(@"bitchute\.com/playlist/([^/?#]+)", RegexOptions.IgnoreCase)]
     private static partial Regex BitChutePlaylistIdRegex();
 
-    public BitChuteMetadataProvider(ILogger<BitChuteMetadataProvider> logger, YoutubeDL ytdl)
+    public BitChuteMetadataProvider(
+        ILogger<BitChuteMetadataProvider> logger,
+        YoutubeDL ytdl,
+        IHttpClientFactory httpClientFactory)
     {
         this.logger = logger;
         this.ytdl = ytdl;
+        this.httpClientFactory = httpClientFactory;
+        thumbnailHttpClient = httpClientFactory.CreateClient("thumbnails");
     }
 
     public bool CanHandle(string url) => BitChuteUrlRegex().IsMatch(url);
@@ -77,7 +84,7 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
                 Name = data.Channel ?? data.Uploader ?? data.Title ?? "Unknown Channel",
                 Url = data.WebpageUrl ?? channelUrl,
                 Description = data.Description,
-                ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
+                ThumbnailUrl = GetBestThumbnailFromYtDlp(data.Thumbnails),
                 SubscriberCount = data.ChannelFollowerCount is not null ? (int?)data.ChannelFollowerCount : null,
                 Platform = PlatformName
             };
@@ -115,13 +122,19 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
 
             var data = result.Data;
 
+            string? thumbnailUrl = await ResolveThumbnailUrlAsync(
+                thumbnails: data.Thumbnails,
+                channelId: data.ChannelID,
+                videoId: data.ID,
+                cancellationToken);
+
             return new VideoMetadata
             {
                 VideoId = data.ID ?? string.Empty,
                 Title = data.Title ?? "Unknown Title",
                 Description = data.Description,
                 Url = data.WebpageUrl ?? videoUrl,
-                ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
+                ThumbnailUrl = thumbnailUrl,
                 Duration = data.Duration.HasValue ? TimeSpan.FromSeconds(data.Duration.Value) : null,
                 UploadDate = data.UploadDate.AsUtc(),
                 ViewCount = data.ViewCount.HasValue ? (int?)data.ViewCount : null,
@@ -180,7 +193,7 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
                 PlaylistId = playlistId,
                 Name = data.Title ?? "Unknown Playlist",
                 Url = data.WebpageUrl ?? playlistUrl,
-                ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
+                ThumbnailUrl = GetBestThumbnailFromYtDlp(data.Thumbnails),
                 Description = data.Description,
                 ChannelId = data.ChannelID ?? data.UploaderID ?? string.Empty,
                 ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
@@ -232,7 +245,7 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
 
             string channelName = result.Data.Channel ?? result.Data.Uploader ?? "Unknown Channel";
 
-            return MapEntriesToVideoMetadata(result.Data.Entries, channelId, channelName);
+            return await MapEntriesToVideoMetadataAsync(result.Data.Entries, channelId, channelName, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -275,7 +288,7 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
             string channelId = result.Data.ChannelID ?? result.Data.UploaderID ?? string.Empty;
             string channelName = result.Data.Channel ?? result.Data.Uploader ?? "Unknown Channel";
 
-            return MapEntriesToVideoMetadata(result.Data.Entries, channelId, channelName);
+            return await MapEntriesToVideoMetadataAsync(result.Data.Entries, channelId, channelName, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -292,39 +305,55 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
     /// BitChute does not expose a playlists listing on a channel page. Returns an empty list.
     /// Users must subscribe to individual playlist URLs (bitchute.com/playlist/{id}).
     /// </summary>
-    public Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult<List<PlaylistMetadata>>([]);
-    }
+    public Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default) => Task.FromResult<List<PlaylistMetadata>>([]);
 
-    private List<VideoMetadata> MapEntriesToVideoMetadata(VideoData[]? entries, string fallbackChannelId, string fallbackChannelName)
+    private async Task<List<VideoMetadata>> MapEntriesToVideoMetadataAsync(
+        VideoData[]? entries,
+        string channelId,
+        string channelName,
+        CancellationToken cancellationToken)
     {
         if (entries is null or { Length: 0 })
         {
             return [];
         }
 
-        return entries
-            .Select(x => new VideoMetadata
+        // Sequential by design (polite to BitChute + avoids spinning up many ffmpeg processes)
+        var results = new List<VideoMetadata>(entries.Length);
+        foreach (var x in entries)
+        {
+            string videoId = x.ID ?? string.Empty;
+
+            string? thumbnailUrl = await ResolveThumbnailUrlAsync(
+                thumbnails: x.Thumbnails,
+                channelId: channelId,
+                videoId: videoId,
+                cancellationToken);
+
+            results.Add(new VideoMetadata
             {
-                VideoId = x.ID ?? string.Empty,
+                VideoId = videoId,
                 Title = x.Title ?? "Unknown Title",
                 Description = x.Description,
-                Url = x.Url ?? x.WebpageUrl ?? $"https://www.bitchute.com/video/{x.ID}/",
-                ThumbnailUrl = GetBestThumbnail(x.Thumbnails),
+                Url = x.WebpageUrl ?? x.Url ?? (string.IsNullOrEmpty(videoId)
+                    ? string.Empty
+                    : $"https://www.bitchute.com/video/{videoId}/"),
+                ThumbnailUrl = thumbnailUrl,
                 Duration = x.Duration.HasValue ? TimeSpan.FromSeconds(x.Duration.Value) : null,
                 UploadDate = x.UploadDate.AsUtc(),
                 ViewCount = x.ViewCount.HasValue ? (int?)x.ViewCount : null,
                 LikeCount = x.LikeCount.HasValue ? (int?)x.LikeCount : null,
-                ChannelId = x.ChannelID ?? x.UploaderID ?? fallbackChannelId,
-                ChannelName = x.Channel ?? x.Uploader ?? fallbackChannelName,
+                ChannelId = channelId,
+                ChannelName = channelName,
                 Platform = PlatformName,
                 PlaylistId = null
-            })
-            .ToList();
+            });
+        }
+
+        return results;
     }
 
-    private static string? GetBestThumbnail(ThumbnailData[]? thumbnails)
+    private static string? GetBestThumbnailFromYtDlp(ThumbnailData[]? thumbnails)
     {
         if (thumbnails.IsNullOrEmpty())
         {
@@ -337,5 +366,58 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
             .FirstOrDefault();
 
         return best?.Url;
+    }
+
+    private async Task<string?> ResolveThumbnailUrlAsync(
+        ThumbnailData[]? thumbnails,
+        string? channelId,
+        string? videoId,
+        CancellationToken cancellationToken)
+    {
+        string? fromYtDlp = GetBestThumbnailFromYtDlp(thumbnails);
+        if (!string.IsNullOrEmpty(fromYtDlp))
+        {
+            return fromYtDlp;
+        }
+
+        if (!string.IsNullOrWhiteSpace(channelId) && !string.IsNullOrWhiteSpace(videoId))
+        {
+            string? cover = await TryGetStaticCoverImageUrlAsync(channelId, videoId, cancellationToken);
+            if (!string.IsNullOrEmpty(cover))
+            {
+                return cover;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<string?> TryGetStaticCoverImageUrlAsync(string channelId, string videoId, CancellationToken cancellationToken)
+    {
+        // Prefer higher-res first
+        string[] candidates =
+        [
+            $"https://static-3.bitchute.com/live/cover_images/{channelId}/{videoId}_1280x720.jpg",
+            $"https://static-3.bitchute.com/live/cover_images/{channelId}/{videoId}_640x360.jpg",
+        ];
+
+        foreach (string url in candidates)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Head, url);
+                using var response = await thumbnailHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    return url;
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                // Ignore and fall back; we'll try the next candidate or generate
+            }
+        }
+
+        return null;
     }
 }

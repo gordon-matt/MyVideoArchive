@@ -1,5 +1,6 @@
 using Hangfire;
 using MyVideoArchive.Infrastructure;
+using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services.Jobs;
 
@@ -17,19 +18,22 @@ public class VideoDownloadJob
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly VideoDownloaderFactory downloaderFactory;
     private readonly IRepository<Video> videoRepository;
+    private readonly ThumbnailService thumbnailService;
 
     public VideoDownloadJob(
         ILogger<VideoDownloadJob> logger,
         IConfiguration configuration,
         IBackgroundJobClient backgroundJobClient,
         VideoDownloaderFactory downloaderFactory,
-        IRepository<Video> videoRepository)
+        IRepository<Video> videoRepository,
+        ThumbnailService thumbnailService)
     {
         this.logger = logger;
         this.configuration = configuration;
         this.backgroundJobClient = backgroundJobClient;
         this.downloaderFactory = downloaderFactory;
         this.videoRepository = videoRepository;
+        this.thumbnailService = thumbnailService;
     }
 
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
@@ -183,6 +187,18 @@ public class VideoDownloadJob
             video.DownloadedAt = DateTime.UtcNow;
             video.IsQueued = false;
             video.DownloadFailed = false;
+
+            // Generate a thumbnail from the downloaded file if one is not already archived
+            if (!video.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
+            {
+                string? generated = await thumbnailService.GenerateFromVideoAsync(
+                    filePath, channelPath, video.VideoId, cancellationToken);
+
+                if (!string.IsNullOrEmpty(generated))
+                {
+                    video.ThumbnailUrl = generated;
+                }
+            }
 
             await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
             if (logger.IsEnabled(LogLevel.Information))

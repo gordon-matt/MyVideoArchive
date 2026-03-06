@@ -1,8 +1,11 @@
+using Xabe.FFmpeg;
+
 namespace MyVideoArchive.Services.Content;
 
 /// <summary>
 /// Downloads thumbnails from external URLs, saves them to disk for archival, and returns a
 /// base64 data URL suitable for storing in the database.
+/// Also supports generating thumbnails from locally downloaded video files via ffmpeg.
 /// </summary>
 public class ThumbnailService
 {
@@ -75,6 +78,79 @@ public class ThumbnailService
             }
 
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Generates a thumbnail from a locally downloaded video file using ffmpeg, writes the
+    /// resulting JPEG to <c><paramref name="saveDirectory"/>/<paramref name="fileNameWithoutExtension"/>.jpg</c>
+    /// for archival, and returns a <c>data:image/jpeg;base64,…</c> URL for storing in the database.
+    /// </summary>
+    /// <returns>
+    /// A <c>data:…;base64,…</c> URL on success, or <c>null</c> if the file does not exist or
+    /// ffmpeg fails.
+    /// </returns>
+    public async Task<string?> GenerateFromVideoAsync(
+        string videoFilePath,
+        string saveDirectory,
+        string fileNameWithoutExtension,
+        CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(videoFilePath))
+        {
+            return null;
+        }
+
+        string outPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jpg");
+
+        try
+        {
+            IConversion conversion = await FFmpeg.Conversions.FromSnippet.Snapshot(
+                videoFilePath, outPath, TimeSpan.FromSeconds(3));
+
+            conversion.SetOverwriteOutput(true);
+
+            // Xabe.FFmpeg.Start() does not accept a CancellationToken; check before and after.
+            cancellationToken.ThrowIfCancellationRequested();
+            await conversion.Start();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!File.Exists(outPath))
+            {
+                return null;
+            }
+
+            byte[] bytes = await File.ReadAllBytesAsync(outPath, cancellationToken);
+
+            Directory.CreateDirectory(saveDirectory);
+            string savePath = Path.Combine(saveDirectory, fileNameWithoutExtension + ".jpg");
+            await File.WriteAllBytesAsync(savePath, bytes, cancellationToken);
+
+            string base64 = Convert.ToBase64String(bytes);
+            return $"data:image/jpeg;base64,{base64}";
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Failed to generate thumbnail from video file {FilePath}", videoFilePath);
+            }
+
+            return null;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(outPath))
+                {
+                    File.Delete(outPath);
+                }
+            }
+            catch
+            {
+                // Ignore temp file cleanup failures
+            }
         }
     }
 }
