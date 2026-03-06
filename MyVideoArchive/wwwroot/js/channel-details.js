@@ -310,11 +310,11 @@ class ChannelDetailsViewModel {
                 this.videos.remove(video);
                 this.videosTotalCount(this.videosTotalCount() - 1);
             } else {
-                alert(data.message || 'Failed to delete video file.');
+                toast.error(data.message || 'Failed to delete video file.');
             }
         } catch (error) {
             console.error('Error deleting video file:', error);
-            alert('Error deleting video file. Please try again.');
+            toast.error('Error deleting video file. Please try again.');
         }
     };
 
@@ -374,7 +374,7 @@ class ChannelDetailsViewModel {
         const selectedIds = selectedVideos.map(v => v.id);
 
         if (selectedIds.length === 0) {
-            alert('Please select at least one video to download.');
+            toast.warning('Please select at least one video to download.');
             return;
         }
 
@@ -387,10 +387,10 @@ class ChannelDetailsViewModel {
             const data = await response.json();
             selectedVideos.forEach(video => this.availableVideos.remove(video));
             this.selectAll(false);
-            alert(data.message);
+            toast.success(data.message);
         } catch (error) {
             console.error('Error downloading videos:', error);
-            alert('Error queueing downloads. Please try again.');
+            toast.error('Error queueing downloads. Please try again.');
         }
     };
 
@@ -406,10 +406,10 @@ class ChannelDetailsViewModel {
             });
             const data = await response.json();
             this.availableVideos([]);
-            alert(data.message);
+            toast.success(data.message);
         } catch (error) {
             console.error('Error downloading all videos:', error);
-            alert('Error queueing downloads. Please try again.');
+            toast.error('Error queueing downloads. Please try again.');
         }
     };
 
@@ -423,7 +423,7 @@ class ChannelDetailsViewModel {
             await this.loadAvailableVideos();
         } catch (error) {
             console.error('Error ignoring video:', error);
-            alert('Error updating video status. Please try again.');
+            toast.error('Error updating video status. Please try again.');
         }
     };
 
@@ -539,7 +539,7 @@ class ChannelDetailsViewModel {
         const selectedIds = this.playlists().filter(p => p.selected()).map(p => p.id);
 
         if (selectedIds.length === 0) {
-            alert('Please select at least one playlist to subscribe.');
+            toast.warning('Please select at least one playlist to subscribe.');
             return;
         }
 
@@ -551,11 +551,11 @@ class ChannelDetailsViewModel {
                 body: JSON.stringify({ playlistIds: selectedIds })
             });
             const data = await response.json();
-            alert(data.message);
+            toast.success(data.message);
             await this.loadPlaylists();
         } catch (error) {
             console.error('Error subscribing to playlists:', error);
-            alert('Error subscribing to playlists. Please try again.');
+            toast.error('Error subscribing to playlists. Please try again.');
         } finally {
             this.subscribingPlaylists(false);
         }
@@ -573,11 +573,11 @@ class ChannelDetailsViewModel {
                 headers: { 'Content-Type': 'application/json' }
             });
             const data = await response.json();
-            alert(data.message);
+            toast.success(data.message);
             await this.loadPlaylists();
         } catch (error) {
             console.error('Error subscribing to all playlists:', error);
-            alert('Error subscribing to playlists. Please try again.');
+            toast.error('Error subscribing to playlists. Please try again.');
         } finally {
             this.subscribingPlaylists(false);
         }
@@ -593,7 +593,7 @@ class ChannelDetailsViewModel {
             await this.loadPlaylists();
         } catch (error) {
             console.error('Error ignoring playlist:', error);
-            alert('Error updating playlist status. Please try again.');
+            toast.error('Error updating playlist status. Please try again.');
         }
     };
 
@@ -611,12 +611,12 @@ class ChannelDetailsViewModel {
             });
             const data = await response.json();
             this.refreshingPlaylists(false);
-            alert(data.message);
+            toast.success(data.message);
             await this.loadPlaylists();
         } catch (error) {
             console.error('Error refreshing playlists:', error);
             this.refreshingPlaylists(false);
-            alert('Error refreshing playlists from YouTube. Please try again.');
+            toast.error('Error refreshing playlists from YouTube. Please try again.');
         }
     };
 }

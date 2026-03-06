@@ -98,7 +98,7 @@ class CustomPlaylistIndexViewModel {
             });
 
             if (!response.ok) {
-                alert('Failed to create playlist. Please try again.');
+                toast.error('Failed to create playlist. Please try again.');
                 return;
             }
 
@@ -117,7 +117,7 @@ class CustomPlaylistIndexViewModel {
             await this.loadPlaylists();
         } catch (error) {
             console.error('Error creating playlist:', error);
-            alert('An error occurred. Please try again.');
+            toast.error('An error occurred. Please try again.');
         }
     };
 
@@ -130,11 +130,11 @@ class CustomPlaylistIndexViewModel {
                 this.playlists.remove(playlist);
                 this.totalCount(this.totalCount() - 1);
             } else {
-                alert('Failed to delete playlist.');
+                toast.error('Failed to delete playlist.');
             }
         } catch (error) {
             console.error('Error deleting playlist:', error);
-            alert('An error occurred. Please try again.');
+            toast.error('An error occurred. Please try again.');
         }
     };
 
@@ -168,7 +168,7 @@ class CustomPlaylistIndexViewModel {
             });
 
             if (!response.ok) {
-                alert('Failed to update playlist. Please try again.');
+                toast.error('Failed to update playlist. Please try again.');
                 return;
             }
 
@@ -180,7 +180,7 @@ class CustomPlaylistIndexViewModel {
             await this.loadPlaylists();
         } catch (error) {
             console.error('Error updating playlist:', error);
-            alert('An error occurred. Please try again.');
+            toast.error('An error occurred. Please try again.');
         }
     };
 

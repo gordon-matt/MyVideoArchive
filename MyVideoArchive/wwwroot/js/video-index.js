@@ -147,7 +147,7 @@ class VideoIndexViewModel {
         const channelId = channel?.id ?? channel?.Id;
         if (!channelId) {
             console.error('Channel ID missing for video', video);
-            alert('Unable to determine channel for this video.');
+            toast.error('Unable to determine channel for this video.');
             return;
         }
 
@@ -161,13 +161,13 @@ class VideoIndexViewModel {
             if (response.ok) {
                 this.videos.remove(video);
                 this.totalCount(Math.max(0, (this.totalCount() || 0) - 1));
-                alert(data.message || 'Video file deleted successfully.');
+                toast.success(data.message || 'Video file deleted successfully.');
             } else {
-                alert(data.message || 'Failed to delete video file.');
+                toast.error(data.message || 'Failed to delete video file.');
             }
         } catch (error) {
             console.error('Error deleting video file from index:', error);
-            alert('Error deleting video file. Please try again.');
+            toast.error('Error deleting video file. Please try again.');
         }
     };
 

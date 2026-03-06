@@ -165,11 +165,11 @@ class CustomPlaylistDetailsViewModel {
                 const newPrevTime = wasCurrentVideo || !player ? 0 : Math.floor(player.currentTime());
                 this._syncPlayerPlaylist(newPrevId, newPrevTime);
             } else {
-                alert('Failed to remove video from playlist.');
+                toast.error('Failed to remove video from playlist.');
             }
         } catch (error) {
             console.error('Error removing video:', error);
-            alert('An error occurred. Please try again.');
+            toast.error('An error occurred. Please try again.');
         }
     };
 }

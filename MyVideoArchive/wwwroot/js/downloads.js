@@ -143,20 +143,20 @@ class DownloadsViewModel {
             const data = await response.json();
 
             this.checking(false);
-            alert(data.message || 'Sync job queued successfully!');
+            toast.success(data.message || 'Sync job queued successfully!');
 
             await delay(2000);
             await this.loadVideos();
         } catch (error) {
             console.error('Error syncing channels:', error);
             this.checking(false);
-            alert('Error syncing channels. Please try again.');
+            toast.error('Error syncing channels. Please try again.');
         }
     };
 
     downloadVideo = async (video) => {
         if (video.isQueued) {
-            alert('This video is already queued for download.');
+            toast.warning('This video is already queued for download.');
             return;
         }
 
@@ -171,14 +171,14 @@ class DownloadsViewModel {
         })
         .then(response => response.json())
         .then(data => {
-            alert(data.message);
+            toast.info(data.message);
             // Remove from UI or mark as queued
             video.isQueued = true;
             this.videos.remove(video);
         })
         .catch(error => {
             console.error('Error queueing video:', error);
-            alert('Error queueing video for download. Please try again.');
+            toast.error('Error queueing video for download. Please try again.');
         });
     };
 }

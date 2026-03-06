@@ -243,7 +243,7 @@ class CustomChannelViewModel {
                     body: form
                 });
                 if (!uploadRes.ok) {
-                    alert('Failed to upload thumbnail. Please try again.');
+                    toast.error('Failed to upload thumbnail. Please try again.');
                     return;
                 }
                 const data = await uploadRes.json();
@@ -263,11 +263,11 @@ class CustomChannelViewModel {
                 bootstrap.Modal.getInstance(document.getElementById('editChannelModal')).hide();
                 await this.loadChannel();
             } else {
-                alert('Failed to update channel. Please try again.');
+                toast.error('Failed to update channel. Please try again.');
             }
         } catch (error) {
             console.error('Error saving channel:', error);
-            alert('Failed to update channel.');
+            toast.error('Failed to update channel.');
         }
     };
 
@@ -326,11 +326,11 @@ class CustomChannelViewModel {
                 bootstrap.Modal.getInstance(document.getElementById('createPlaylistModal')).hide();
                 window.location.href = `/playlists/${data.id}`;
             } else {
-                alert('Failed to create playlist. Please try again.');
+                toast.error('Failed to create playlist. Please try again.');
             }
         } catch (error) {
             console.error('Error creating playlist:', error);
-            alert('Failed to create playlist.');
+            toast.error('Failed to create playlist.');
         }
     };
 
@@ -343,11 +343,11 @@ class CustomChannelViewModel {
             if (response.ok) {
                 await this.loadPlaylists();
             } else {
-                alert('Failed to delete playlist. Please try again.');
+                toast.error('Failed to delete playlist. Please try again.');
             }
         } catch (error) {
             console.error('Error deleting playlist:', error);
-            alert('Failed to delete playlist.');
+            toast.error('Failed to delete playlist.');
         }
     };
 
@@ -415,11 +415,11 @@ class CustomChannelViewModel {
                 }
                 bootstrap.Modal.getInstance(document.getElementById('playlistThumbnailModal')).hide();
             } else {
-                alert('Failed to upload thumbnail. Please try again.');
+                toast.error('Failed to upload thumbnail. Please try again.');
             }
         } catch (error) {
             console.error('Error uploading thumbnail:', error);
-            alert('Failed to upload thumbnail.');
+            toast.error('Failed to upload thumbnail.');
         } finally {
             this.uploadingThumbnail(false);
         }

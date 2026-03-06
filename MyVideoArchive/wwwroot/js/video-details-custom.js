@@ -199,7 +199,7 @@ class CustomVideoViewModel {
             });
 
             if (!metaResponse.ok) {
-                alert('Failed to save metadata. Please try again.');
+                toast.error('Failed to save metadata. Please try again.');
                 return;
             }
 
@@ -212,7 +212,7 @@ class CustomVideoViewModel {
             this.showEditForm(false);
         } catch (error) {
             console.error('Error saving metadata:', error);
-            alert('Failed to save metadata.');
+            toast.error('Failed to save metadata.');
         }
     };
 
@@ -251,7 +251,7 @@ class CustomVideoViewModel {
         const id = video.Id || this.videoId;
         if (!channelId || !id) {
             console.error('Missing channel or video ID for delete', video);
-            alert('Unable to delete this video file.');
+            toast.error('Unable to delete this video file.');
             return;
         }
 
@@ -264,14 +264,14 @@ class CustomVideoViewModel {
             const data = await response.json().catch(() => ({}));
 
             if (response.ok) {
-                alert(data.message || 'Video file deleted successfully.');
+                toast.success(data.message || 'Video file deleted successfully.');
                 window.location.href = `/channels/${channelId}`;
             } else {
-                alert(data.message || 'Failed to delete video file.');
+                toast.error(data.message || 'Failed to delete video file.');
             }
         } catch (error) {
             console.error('Error deleting video file from custom details:', error);
-            alert('Error deleting video file. Please try again.');
+            toast.error('Error deleting video file. Please try again.');
         } finally {
             this.deleting(false);
         }
@@ -354,7 +354,7 @@ class CustomVideoViewModel {
             this.thumbnailCacheBust(Date.now());
             await this.loadVideo();
         } else {
-            alert('Metadata saved, but thumbnail upload failed. Please try again.');
+            toast.warning('Metadata saved, but thumbnail upload failed. Please try again.');
             await this.loadVideo();
         }
     };

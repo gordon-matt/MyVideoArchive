@@ -195,7 +195,7 @@ class PlaylistDetailsViewModel {
 
     downloadVideo = async (video, event) => {
         event.stopPropagation();
-        if (video.isQueued) { alert('This video is already queued for download.'); return; }
+        if (video.isQueued) { toast.warning('This video is already queued for download.'); return; }
         if (!confirm(`Queue "${video.title}" for download?`)) return;
 
         try {
@@ -205,11 +205,11 @@ class PlaylistDetailsViewModel {
                 body: JSON.stringify({ videoIds: [video.id] })
             });
             const data = await response.json();
-            alert(data.message);
+            toast.info(data.message);
             await this.loadPlaylistVideos();
         } catch (error) {
             console.error('Error queueing video:', error);
-            alert('Error queueing video for download. Please try again.');
+            toast.error('Error queueing video for download. Please try again.');
         }
     };
 
@@ -293,7 +293,7 @@ class PlaylistDetailsViewModel {
             if (reloadAfterSave) await this.loadPlaylistVideos();
         } catch (error) {
             console.error('Error saving order:', error);
-            alert('Error saving custom order: ' + error.message);
+            toast.error('Error saving custom order: ' + error.message);
         }
     };
 }

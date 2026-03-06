@@ -181,11 +181,11 @@ class AdminViewModel {
                 this.globalTags.remove(tag);
             } else {
                 const data = await response.json().catch(() => ({}));
-                alert(data.message || 'Failed to delete tag.');
+                toast.error(data.message || 'Failed to delete tag.');
             }
         } catch (error) {
             console.error('Error deleting global tag:', error);
-            alert('An unexpected error occurred.');
+            toast.error('An unexpected error occurred.');
         }
     };
 

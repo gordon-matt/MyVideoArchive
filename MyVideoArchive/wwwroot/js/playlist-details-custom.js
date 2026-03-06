@@ -270,7 +270,7 @@ class CustomPlaylistDetailsViewModel {
                 bootstrap.Modal.getInstance(document.getElementById('editPlaylistModal')).hide();
                 await this._fetchPlaylist();
             } else {
-                alert('Failed to update playlist. Please try again.');
+                toast.error('Failed to update playlist. Please try again.');
             }
         } catch (error) {
             console.error('Error saving playlist:', error);

@@ -203,11 +203,11 @@ class VideoPlayerViewModel {
                 this.standaloneInfo({ ...info, isSubscribed: true });
             } else {
                 const data = await response.json().catch(() => ({}));
-                alert(data.message || 'Failed to subscribe. Please try again.');
+                toast.error(data.message || 'Failed to subscribe. Please try again.');
             }
         } catch (error) {
             console.error('Error subscribing to channel:', error);
-            alert('An error occurred while subscribing. Please try again.');
+            toast.error('An error occurred while subscribing. Please try again.');
         } finally {
             this.subscribing(false);
         }
@@ -287,11 +287,11 @@ class VideoPlayerViewModel {
             if (data.success) {
                 await this.loadVideo();
             } else {
-                alert(data.message || 'Metadata still unavailable from the platform. Please try again later.');
+                toast.warning(data.message || 'Metadata still unavailable from the platform. Please try again later.');
             }
         } catch (error) {
             console.error('Error retrying metadata:', error);
-            alert('An error occurred while retrying. Please try again.');
+            toast.error('An error occurred while retrying. Please try again.');
         } finally {
             this.retrying(false);
         }
@@ -310,7 +310,7 @@ class VideoPlayerViewModel {
         const id = video.Id || this.videoId;
         if (!channelId || !id) {
             console.error('Missing channel or video ID for delete', video);
-            alert('Unable to delete this video file.');
+            toast.error('Unable to delete this video file.');
             return;
         }
 
@@ -323,14 +323,14 @@ class VideoPlayerViewModel {
             const data = await response.json().catch(() => ({}));
 
             if (response.ok) {
-                alert(data.message || 'Video file deleted successfully.');
+                toast.success(data.message || 'Video file deleted successfully.');
                 window.location.href = `/channels/${channelId}`;
             } else {
-                alert(data.message || 'Failed to delete video file.');
+                toast.error(data.message || 'Failed to delete video file.');
             }
         } catch (error) {
             console.error('Error deleting video file from details:', error);
-            alert('Error deleting video file. Please try again.');
+            toast.error('Error deleting video file. Please try again.');
         } finally {
             this.deleting(false);
         }

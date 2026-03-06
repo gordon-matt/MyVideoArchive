@@ -81,7 +81,7 @@ class ChannelsViewModel {
         })
         .catch(error => {
             console.error('Error adding YouTube channel:', error);
-            alert('Failed to add channel. Please try again.');
+            toast.error('Failed to add channel. Please try again.');
         });
     };
 
@@ -105,7 +105,7 @@ class ChannelsViewModel {
         })
         .catch(error => {
             console.error('Error adding custom channel:', error);
-            alert('Failed to create custom channel. Please try again.');
+            toast.error('Failed to create custom channel. Please try again.');
         });
     };
 
@@ -161,12 +161,12 @@ class ChannelsViewModel {
                 this.channels.remove(channel);
                 this.channelToDelete(null);
             } else {
-                alert('Failed to delete channel.');
+                toast.error('Failed to delete channel.');
             }
         })
         .catch(error => {
             console.error('Error deleting channel:', error);
-            alert('Failed to delete channel.');
+            toast.error('Failed to delete channel.');
         });
     };
 
@@ -182,12 +182,12 @@ class ChannelsViewModel {
             if (response.ok) {
                 this.channels.remove(channel);
             } else {
-                alert('Failed to unsubscribe from channel.');
+                toast.error('Failed to unsubscribe from channel.');
             }
         })
         .catch(error => {
             console.error('Error unsubscribing from channel:', error);
-            alert('Failed to unsubscribe from channel.');
+            toast.error('Failed to unsubscribe from channel.');
         });
     };
 }

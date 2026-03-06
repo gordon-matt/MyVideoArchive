@@ -9,12 +9,14 @@
     <environment include="Development">
         <link rel="stylesheet" href="~/lib/bootswatch/dist/flatly/bootstrap.css" />
         <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.css">
+        <link rel="stylesheet" href="~/lib/egalink-toasty.js/dist/toasty.css" />
         <link rel="stylesheet" href="~/lib/yaireo/tagify/dist/tagify.css" />
         <link rel="stylesheet" href="~/lib/video.js/dist/video-js.css" />
     </environment>
     <environment exclude="Development">
         <link rel="stylesheet" href="~/lib/bootswatch/dist/flatly/bootstrap.min.css" />
         <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css">
+        <link rel="stylesheet" href="~/lib/egalink-toasty.js/dist/toasty.min.css" />
         <link rel="stylesheet" href="~/lib/yaireo/tagify/dist/tagify.min.css" />
         <link rel="stylesheet" href="~/lib/video.js/dist/video-js.min.css" />
     </environment>
@@ -80,6 +82,7 @@
         <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.js"></script>
         <script src="~/lib/knockout/build/output/knockout-latest.js"></script>
         <script src="~/lib/yaireo/tagify/dist/tagify.js"></script>
+        <script src="~/lib/egalink-toasty.js/dist/toasty.js"></script>
         <script src="~/lib/video.js/dist/video.js"></script>
         <script src="~/lib/videojs-playlist/dist/videojs-playlist.js"></script>
     </environment>
@@ -88,9 +91,24 @@
         <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
         <script src="~/lib/knockout/build/output/knockout-latest.min.js"></script>
         <script src="~/lib/yaireo/tagify/dist/tagify.min.js"></script>
+        <script src="~/lib/egalink-toasty.js/dist/toasty.min.js"></script>
         <script src="~/lib/video.js/dist/video.min.js"></script>
         <script src="~/lib/videojs-playlist/dist/videojs-playlist.min.js"></script>
     </environment>
+
+    <script type="text/javascript">
+        $.migrateMute = true;
+        $.migrateTrace = false;
+        const toast = new Toasty({
+            enableSounds: true,
+            sounds: {
+                info: "/lib/egalink-toasty.js/dist/sounds/info/1.mp3",
+                success: "/lib/egalink-toasty.js/dist/sounds/success/1.mp3",
+                warning: "/lib/egalink-toasty.js/dist/sounds/warning/1.mp3",
+                error: "/lib/egalink-toasty.js/dist/sounds/error/1.mp3",
+            }
+        });
+    </script>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>

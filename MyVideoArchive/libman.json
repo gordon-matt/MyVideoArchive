@@ -93,6 +93,21 @@
       ]
     },
     {
+      "library": "egalink-toasty.js@1.5.5",
+      "destination": "wwwroot/lib/egalink-toasty.js/",
+      "files": [
+        "README.md",
+        "dist/toasty.css",
+        "dist/toasty.js",
+        "dist/toasty.min.css",
+        "dist/toasty.min.js",
+        "dist/sounds/error/1.mp3",
+        "dist/sounds/info/1.mp3",
+        "dist/sounds/success/1.mp3",
+        "dist/sounds/warning/1.mp3"
+      ]
+    },
+    {
       "library": "jquery@3.7.1",
       "destination": "wwwroot/lib/jquery/",
       "files": [
