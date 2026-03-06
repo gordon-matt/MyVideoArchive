@@ -36,7 +36,6 @@ class VideoPlayerViewModel {
         this.videoInPlaylists = ko.observableArray([]);
         this.selectedPlaylistId = ko.observable('');
         this.addingToPlaylist = ko.observable(false);
-        this.addToPlaylistMessage = ko.observable('');
 
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
@@ -218,7 +217,6 @@ class VideoPlayerViewModel {
         if (!playlistId) return;
 
         this.addingToPlaylist(true);
-        this.addToPlaylistMessage('');
 
         try {
             const response = await fetch(`/api/custom-playlists/${playlistId}/videos/${this.videoId}`, {
@@ -230,13 +228,13 @@ class VideoPlayerViewModel {
             if (response.ok) {
                 this.selectedPlaylistId('');
                 await this.loadVideoPlaylists();
+                toast.success(data.message || 'Video added to playlist.');
             } else {
-                this.addToPlaylistMessage(data.message || 'Failed to add to playlist.');
-                setTimeout(() => this.addToPlaylistMessage(''), 3000);
+                toast.error(data.message || 'Failed to add to playlist.');
             }
         } catch (error) {
             console.error('Error adding to playlist:', error);
-            this.addToPlaylistMessage('An error occurred. Please try again.');
+            toast.error('An error occurred. Please try again.');
         } finally {
             this.addingToPlaylist(false);
         }

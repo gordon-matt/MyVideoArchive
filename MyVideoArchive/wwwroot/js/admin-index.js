@@ -19,7 +19,6 @@ class AdminViewModel {
         this.tagsLoaded = false;
         this.newTagName = ko.observable('');
         this.addingTag = ko.observable(false);
-        this.tagMessage = ko.observable('');
 
         this._pollTimer = null;
     }
@@ -147,7 +146,6 @@ class AdminViewModel {
         if (!name) return;
 
         this.addingTag(true);
-        this.tagMessage('');
         try {
             const response = await fetch('/api/admin/tags', {
                 method: 'POST',
@@ -159,14 +157,13 @@ class AdminViewModel {
                 this.globalTags.push(data);
                 this.globalTags.sort((a, b) => a.name.localeCompare(b.name));
                 this.newTagName('');
-                this.tagMessage(`Tag "${data.name}" added.`);
-                setTimeout(() => this.tagMessage(''), 3000);
+                toast.success(`Tag "${data.name}" added.`);
             } else {
-                this.tagMessage(data.message || 'Failed to add tag.');
+                toast.error(data.message || 'Failed to add tag.');
             }
         } catch (error) {
             console.error('Error adding global tag:', error);
-            this.tagMessage('An unexpected error occurred.');
+            toast.error('An unexpected error occurred.');
         } finally {
             this.addingTag(false);
         }
