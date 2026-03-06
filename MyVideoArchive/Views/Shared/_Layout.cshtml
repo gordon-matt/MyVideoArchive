@@ -9,10 +9,14 @@
     <environment include="Development">
         <link rel="stylesheet" href="~/lib/bootswatch/dist/flatly/bootstrap.css" />
         <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.css">
+        <link rel="stylesheet" href="~/lib/yaireo/tagify/dist/tagify.css" />
+        <link rel="stylesheet" href="~/lib/video.js/dist/video-js.css" />
     </environment>
     <environment exclude="Development">
         <link rel="stylesheet" href="~/lib/bootswatch/dist/flatly/bootstrap.min.css" />
         <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css">
+        <link rel="stylesheet" href="~/lib/yaireo/tagify/dist/tagify.min.css" />
+        <link rel="stylesheet" href="~/lib/video.js/dist/video-js.min.css" />
     </environment>
 
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -75,11 +79,17 @@
         <script src="~/lib/jquery/dist/jquery.js"></script>
         <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.js"></script>
         <script src="~/lib/knockout/build/output/knockout-latest.js"></script>
+        <script src="~/lib/yaireo/tagify/dist/tagify.js"></script>
+        <script src="~/lib/video.js/dist/video.js"></script>
+        <script src="~/lib/videojs-playlist/dist/videojs-playlist.js"></script>
     </environment>
     <environment exclude="Development">
         <script src="~/lib/jquery/dist/jquery.min.js"></script>
         <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
         <script src="~/lib/knockout/build/output/knockout-latest.min.js"></script>
+        <script src="~/lib/yaireo/tagify/dist/tagify.min.js"></script>
+        <script src="~/lib/video.js/dist/video.min.js"></script>
+        <script src="~/lib/videojs-playlist/dist/videojs-playlist.min.js"></script>
     </environment>
 
     @await RenderSectionAsync("Scripts", required: false)

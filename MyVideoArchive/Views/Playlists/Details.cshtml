@@ -4,7 +4,6 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/lib/video.js/dist/video-js.min.css" />
     <link rel="stylesheet" href="~/css/playlist-details.css" />
 }
 
@@ -204,9 +203,13 @@
 </div>
 
 @section Scripts {
-    <script src="~/lib/video.js/dist/video.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/videojs-playlist/dist/videojs-playlist.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <environment include="Development">
+        <script src="~/lib/sortablejs/Sortable.js"></script>
+    </environment>
+    <environment exclude="Development">
+        <script src="~/lib/sortablejs/Sortable.min.js"></script>
+    </environment>
+
     <script type="text/javascript">
         const playlistId = @playlistId;
     </script>

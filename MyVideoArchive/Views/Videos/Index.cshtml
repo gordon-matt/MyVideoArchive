@@ -3,7 +3,6 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/lib/yaireo/tagify/dist/tagify.min.css" />
     <link rel="stylesheet" href="~/css/video-index.css" />
 }
 
@@ -139,8 +138,7 @@
                            data-bind="value: newVideoUrl"
                            placeholder="https://www.youtube.com/watch?v=..." />
                 </div>
-                <div data-bind="visible: addVideoError" class="alert alert-danger py-2 small"
-                     data-bind="text: addVideoError"></div>
+                <div data-bind="visible: addVideoError, text: addVideoError" class="alert alert-danger py-2 small"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -159,6 +157,5 @@
 </div>
 
 @section Scripts {
-    <script src="~/lib/yaireo/tagify/dist/tagify.min.js"></script>
     <script type="module" src="~/js/video-index.js"></script>
 }
