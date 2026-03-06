@@ -20,6 +20,32 @@ class AdminViewModel {
         this.newTagName = ko.observable('');
         this.addingTag = ko.observable(false);
 
+        // Users tab
+        this.users = ko.observableArray([]);
+        this.availableRoles = ko.observableArray([]);
+        this.usersSearchTerm = ko.observable('');
+        this.usersLoading = ko.observable(false);
+        this.usersLoaded = false;
+        this.userSaving = ko.observable(false);
+        this.currentUserId = ko.observable('');
+        this.isCreatingUser = ko.observable(true);
+        this.currentUser = {
+            id: ko.observable(''),
+            email: ko.observable(''),
+            password: ko.observable(''),
+            role: ko.observable('')
+        };
+        this.userModalTitle = ko.computed(() => this.isCreatingUser() ? 'Add User' : 'Edit User');
+        this.filteredUsers = ko.computed(() => {
+            const term = this.usersSearchTerm().toLowerCase().trim();
+            if (!term) return this.users();
+            return this.users().filter(u =>
+                (u.email || '').toLowerCase().includes(term) ||
+                (u.userName || '').toLowerCase().includes(term) ||
+                (u.roles || []).some(r => (r || '').toLowerCase().includes(term))
+            );
+        });
+
         this._pollTimer = null;
     }
 
@@ -224,6 +250,198 @@ class AdminViewModel {
             showAlert('danger', 'An unexpected error occurred.');
         } finally {
             this.syncing(false);
+        }
+    };
+
+    // ── Users tab ───────────────────────────────────────────────────────────────
+
+    loadUsersTab = async () => {
+        if (this.usersLoaded) return;
+        this.usersLoading(true);
+        try {
+            await this._loadCurrentUser();
+            await this._loadRoles();
+            await this._loadUsers();
+            this.usersLoaded = true;
+        } catch (error) {
+            console.error('Error loading users tab:', error);
+            toast.error('Error loading users.');
+        } finally {
+            this.usersLoading(false);
+        }
+    };
+
+    _loadCurrentUser = async () => {
+        try {
+            const response = await fetch('/api/admin/users/current');
+            const result = await response.json();
+            if (result.success && result.data) this.currentUserId(result.data.id || '');
+        } catch (error) {
+            console.error('Error loading current user:', error);
+        }
+    };
+
+    _loadRoles = async () => {
+        try {
+            const response = await fetch('/api/admin/roles');
+            const result = await response.json();
+            if (result.success && result.data)
+                this.availableRoles(result.data.map(r => ({ id: r.id, name: r.name })));
+        } catch (error) {
+            console.error('Error loading roles:', error);
+        }
+    };
+
+    _loadUsers = async () => {
+        try {
+            const response = await fetch('/api/admin/users');
+            const result = await response.json();
+            if (!result.success) {
+                toast.error(result.message || 'Failed to load users.');
+                return;
+            }
+            const list = (result.data || []).map(u => ({
+                id: u.id,
+                userName: u.userName,
+                email: u.email,
+                isActive: u.isActive,
+                roles: u.roles || [],
+                initials: this._getInitials(u.userName || u.email)
+            }));
+            this.users(list);
+        } catch (error) {
+            console.error('Error loading users:', error);
+            toast.error('Error loading users.');
+        }
+    };
+
+    _getInitials = (name) => {
+        if (!name) return '??';
+        const parts = String(name).split(/[@\s]+/);
+        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+        return name.substring(0, 2).toUpperCase();
+    };
+
+    getRoleBadgeClass = (role) => {
+        switch (role) {
+            case 'Administrator': return 'bg-danger bg-opacity-10 text-danger';
+            case 'User': return 'bg-primary bg-opacity-10 text-primary';
+            default: return 'bg-secondary bg-opacity-10 text-secondary';
+        }
+    };
+
+    isCurrentUser = (user) => user && user.id === this.currentUserId();
+
+    canEditUser = (user) => !this.isCurrentUser(user);
+
+    canToggleUser = (user) => !this.isCurrentUser(user);
+
+    canDeleteUser = (user) => !this.isCurrentUser(user);
+
+    showCreateUserModal = () => {
+        this.isCreatingUser(true);
+        this.currentUser.id('');
+        this.currentUser.email('');
+        this.currentUser.password('');
+        this.currentUser.role('');
+        const modal = new bootstrap.Modal(document.getElementById('userModal'));
+        modal.show();
+    };
+
+    editUser = async (user) => {
+        if (this.isCurrentUser(user)) {
+            toast.warning('You cannot edit your own account.');
+            return;
+        }
+        this.isCreatingUser(false);
+        this.currentUser.id(user.id);
+        this.currentUser.email(user.email);
+        this.currentUser.password('');
+        this.currentUser.role(user.roles && user.roles.length > 0 ? user.roles[0] : '');
+        const modal = new bootstrap.Modal(document.getElementById('userModal'));
+        modal.show();
+    };
+
+    saveUser = async (vm, event) => {
+        const form = event && event.target;
+        if (form && !form.checkValidity()) {
+            form.reportValidity();
+            return false;
+        }
+        this.userSaving(true);
+        try {
+            const url = this.isCreatingUser()
+                ? '/api/admin/users'
+                : `/api/admin/users/${this.currentUser.id()}`;
+            const body = this.isCreatingUser()
+                ? { email: this.currentUser.email(), password: this.currentUser.password(), role: this.currentUser.role() || null }
+                : { email: this.currentUser.email(), role: this.currentUser.role() || null };
+            const response = await fetch(url, {
+                method: this.isCreatingUser() ? 'POST' : 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const result = await response.json();
+            if (result.success) {
+                toast.success(result.message);
+                await this._loadUsers();
+                bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+                this.currentUser.id('');
+                this.currentUser.email('');
+                this.currentUser.password('');
+                this.currentUser.role('');
+            } else {
+                toast.error(result.message || 'Failed to save user.');
+            }
+        } catch (error) {
+            console.error('Error saving user:', error);
+            toast.error('An unexpected error occurred.');
+        } finally {
+            this.userSaving(false);
+        }
+        return false;
+    };
+
+    toggleUserStatus = async (user) => {
+        if (this.isCurrentUser(user)) {
+            toast.warning('You cannot disable your own account.');
+            return;
+        }
+        const action = user.isActive ? 'disable' : 'enable';
+        if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+        try {
+            const response = await fetch(`/api/admin/users/${user.id}/toggle-status`, { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                toast.success(result.message);
+                await this._loadUsers();
+            } else {
+                toast.error(result.message || 'Failed to update status.');
+            }
+        } catch (error) {
+            console.error('Error toggling user status:', error);
+            toast.error('An unexpected error occurred.');
+        }
+    };
+
+    deleteUser = async (user) => {
+        if (this.isCurrentUser(user)) {
+            toast.warning('You cannot delete your own account.');
+            return;
+        }
+        if (!confirm(`Are you sure you want to delete the user "${user.email}"? This cannot be undone.`)) return;
+        try {
+            const response = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (result.success) {
+                toast.success(result.message);
+                await this._loadUsers();
+            } else {
+                toast.error(result.message || 'Failed to delete user.');
+            }
+        } catch (error) {
+            console.error('Error deleting user:', error);
+            toast.error('An unexpected error occurred.');
         }
     };
 }
