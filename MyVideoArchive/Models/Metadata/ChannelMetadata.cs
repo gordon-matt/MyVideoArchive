@@ -1,5 +1,7 @@
 namespace MyVideoArchive.Models.Metadata;
 
+public record ThumbnailInfo(string? Id, string Url, int? Width, int? Height, int? Preference);
+
 public class ChannelMetadata
 {
     public required string ChannelId { get; set; }
@@ -10,7 +12,11 @@ public class ChannelMetadata
 
     public string? Description { get; set; }
 
-    public string? ThumbnailUrl { get; set; }
+    public string? BannerUrl { get; set; }
+
+    public string? AvatarUrl { get; set; }
+
+    public List<ThumbnailInfo> Thumbnails { get; set; } = [];
 
     public int? SubscriberCount { get; set; }
 

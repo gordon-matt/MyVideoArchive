@@ -15,13 +15,26 @@
         </a>
         <div data-bind="with: channel">
             <div class="channel-header-card">
-                <div class="channel-details-banner-wrap">
-                    <img class="channel-details-banner" data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/1200x200?text=' + Name, alt: Name }" />
+                <div class="channel-details-banner-wrap position-relative">
+                    <img class="channel-details-banner" data-bind="attr: { src: BannerUrl || 'https://placehold.co/1200x200?text=' + Name, alt: Name }" />
+                    <button class="channel-img-edit-btn" title="Change banner image"
+                            data-bind="click: $parent.editBanner">
+                        <i class="bi bi-pencil-fill"></i>
+                    </button>
                 </div>
-                <div class="channel-header-body">
-                    <h2 data-bind="text: Name"></h2>
-                    <p data-bind="text: Description" class="channel-header-desc"></p>
-                    <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+                <div class="channel-header-body d-flex align-items-start gap-3">
+                    <div class="channel-avatar-wrap position-relative flex-shrink-0">
+                        <img class="channel-avatar-img" data-bind="attr: { src: AvatarUrl || 'https://placehold.co/80x80?text=' + Name.charAt(0), alt: Name }" />
+                        <button class="channel-img-edit-btn channel-avatar-edit-btn" title="Change avatar image"
+                                data-bind="click: $parent.editAvatar">
+                            <i class="bi bi-pencil-fill"></i>
+                        </button>
+                    </div>
+                    <div>
+                        <h2 data-bind="text: Name" class="mb-1"></h2>
+                        <p data-bind="text: Description" class="channel-header-desc"></p>
+                        <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -513,6 +526,96 @@
                     NextPageFn: "playlistsNextPage",
                     GoToPageFn: "playlistsGoToPage",
                     ItemLabel: "playlists"))
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Thumbnail Picker Modal ──────────────────────────────────────────────── -->
+<div class="modal fade" id="thumbnailPickerModal" tabindex="-1" aria-labelledby="thumbnailPickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="thumbnailPickerModalLabel">
+                    <span data-bind="visible: thumbnailPickerMode() === 'banner'">Change Banner Image</span>
+                    <span data-bind="visible: thumbnailPickerMode() === 'avatar'">Change Avatar Image</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="thumbPicker-platform-tab" data-bs-toggle="tab" data-bs-target="#thumbPicker-platform" type="button">
+                            <i class="bi bi-images"></i> Platform Images
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="thumbPicker-upload-tab" data-bs-toggle="tab" data-bs-target="#thumbPicker-upload" type="button">
+                            <i class="bi bi-upload"></i> Upload Custom
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Platform Images Tab -->
+                    <div class="tab-pane fade show active" id="thumbPicker-platform" role="tabpanel">
+                        <div data-bind="visible: thumbnailPickerLoading()" class="text-center py-4">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2 text-muted">Fetching images from platform…</p>
+                        </div>
+                        <div data-bind="visible: !thumbnailPickerLoading() && thumbnailPickerItems().length === 0" class="alert alert-info">
+                            No platform images available for this channel. Use "Upload Custom" to add your own.
+                        </div>
+                        <div data-bind="visible: !thumbnailPickerLoading() && thumbnailPickerItems().length > 0" class="thumbnail-picker-grid">
+                            <!-- ko foreach: thumbnailPickerItems -->
+                            <div class="thumbnail-picker-item" data-bind="css: { 'thumb-selected': $parent.isSelectedForCurrentMode($data) }, click: $parent.selectThumbnail">
+                                <img data-bind="attr: { src: url, alt: '' }" class="thumbnail-picker-img" loading="lazy" />
+                                <div class="thumbnail-picker-meta">
+                                    <!-- ko if: width && height -->
+                                    <span class="badge bg-dark" data-bind="text: width + ' × ' + height"></span>
+                                    <!-- /ko -->
+                                    <!-- ko ifnot: width && height -->
+                                    <span class="badge bg-secondary">Unknown size</span>
+                                    <!-- /ko -->
+                                </div>
+                                <div class="thumbnail-picker-selected-badge" data-bind="visible: $parent.isSelectedForCurrentMode($data)">
+                                    <i class="bi bi-check-circle-fill text-success"></i> Selected
+                                </div>
+                            </div>
+                            <!-- /ko -->
+                        </div>
+                    </div>
+
+                    <!-- Upload Custom Tab -->
+                    <div class="tab-pane fade" id="thumbPicker-upload" role="tabpanel">
+                        <div class="thumbnail-upload-zone"
+                             data-bind="event: { dragover: onImageDragOver, drop: onImageDrop }"
+                             onclick="document.getElementById('thumbnailPickerFileInput').click()">
+                            <i class="bi bi-cloud-upload fs-1 text-muted"></i>
+                            <p class="mt-2 mb-0">Drag &amp; drop an image here, or <strong>click to browse</strong></p>
+                            <small class="text-muted">JPG, PNG or WebP &middot; Max 10 MB</small>
+                            <input type="file" id="thumbnailPickerFileInput" accept="image/jpeg,image/png,image/webp" class="d-none"
+                                   data-bind="event: { change: onImageFileSelected }" />
+                        </div>
+                        <div data-bind="visible: thumbnailPickerUploadPreview()" class="mt-3 text-center">
+                            <img data-bind="attr: { src: thumbnailPickerUploadPreview() }" class="thumbnail-upload-preview" />
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-outline-danger" data-bind="click: clearUploadPreview">
+                                    <i class="bi bi-x"></i> Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" data-bind="click: confirmThumbnailPicker, enable: canConfirmThumbnailPicker()">
+                    Apply
+                </button>
             </div>
         </div>
     </div>

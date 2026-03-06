@@ -92,6 +92,17 @@ class ChannelDetailsViewModel {
 
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
+
+        // ── Thumbnail picker ──────────────────────────────────────────────────
+        this.thumbnailPickerMode = ko.observable('banner'); // 'banner' | 'avatar'
+        this.thumbnailPickerItems = ko.observableArray([]);
+        this.thumbnailPickerLoading = ko.observable(false);
+        this.thumbnailPickerSelectedUrl = ko.observable(null);
+        this.thumbnailPickerUploadFile = ko.observable(null);
+        this.thumbnailPickerUploadPreview = ko.observable(null);
+        this.canConfirmThumbnailPicker = ko.computed(() =>
+            !!this.thumbnailPickerSelectedUrl() || !!this.thumbnailPickerUploadFile()
+        );
     }
 
     _buildPageNumbers(current, total) {
@@ -581,6 +592,130 @@ class ChannelDetailsViewModel {
         } finally {
             this.subscribingPlaylists(false);
         }
+    };
+
+    // ── Thumbnail picker ──────────────────────────────────────────────────────
+
+    editBanner = () => this._openThumbnailPicker('banner');
+    editAvatar = () => this._openThumbnailPicker('avatar');
+
+    _openThumbnailPicker = async (mode) => {
+        this.thumbnailPickerMode(mode);
+        this.thumbnailPickerSelectedUrl(null);
+        this.thumbnailPickerUploadFile(null);
+        this.thumbnailPickerUploadPreview(null);
+        this.thumbnailPickerItems([]);
+
+        // Pre-select the current value
+        const ch = this.channel();
+        if (ch) {
+            const currentUrl = mode === 'banner' ? ch.BannerUrl : ch.AvatarUrl;
+            if (currentUrl && !currentUrl.startsWith('/api/')) {
+                this.thumbnailPickerSelectedUrl(currentUrl);
+            }
+        }
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('thumbnailPickerModal')).show();
+        await this._loadThumbnailPickerItems();
+    };
+
+    _loadThumbnailPickerItems = async () => {
+        this.thumbnailPickerLoading(true);
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/images/available`);
+            if (response.ok) {
+                const data = await response.json();
+                this.thumbnailPickerItems(data.thumbnails || []);
+                // Pre-select default if nothing currently selected
+                if (!this.thumbnailPickerSelectedUrl() && data.defaultBannerUrl && this.thumbnailPickerMode() === 'banner') {
+                    this.thumbnailPickerSelectedUrl(data.defaultBannerUrl);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading thumbnail picker items:', error);
+        } finally {
+            this.thumbnailPickerLoading(false);
+        }
+    };
+
+    isSelectedForCurrentMode = (thumbnail) => this.thumbnailPickerSelectedUrl() === thumbnail.url;
+
+    selectThumbnail = (thumbnail) => {
+        this.thumbnailPickerSelectedUrl(thumbnail.url);
+        this.thumbnailPickerUploadFile(null);
+        this.thumbnailPickerUploadPreview(null);
+    };
+
+    confirmThumbnailPicker = async () => {
+        const mode = this.thumbnailPickerMode();
+        const channelId = this.channelId;
+
+        try {
+            let resolvedUrl = this.thumbnailPickerSelectedUrl();
+
+            const uploadFile = this.thumbnailPickerUploadFile();
+            if (uploadFile) {
+                const form = new FormData();
+                form.append('file', uploadFile);
+                const endpoint = mode === 'banner' ? 'banner' : 'avatar';
+                const res = await fetch(`/api/channels/${channelId}/${endpoint}/upload`, {
+                    method: 'POST', body: form
+                });
+                if (!res.ok) {
+                    toast.error('Failed to upload image.');
+                    return;
+                }
+                const d = await res.json();
+                resolvedUrl = mode === 'banner' ? d.bannerUrl : d.avatarUrl;
+            } else if (resolvedUrl) {
+                const body = mode === 'banner'
+                    ? { bannerUrl: resolvedUrl, avatarUrl: null }
+                    : { bannerUrl: null, avatarUrl: resolvedUrl };
+                await fetch(`/api/channels/${channelId}/images`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+            }
+
+            // Update local channel object
+            const ch = this.channel();
+            if (ch) {
+                if (mode === 'banner') ch.BannerUrl = resolvedUrl;
+                else ch.AvatarUrl = resolvedUrl;
+                this.channel.valueHasMutated();
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('thumbnailPickerModal')).hide();
+        } catch (error) {
+            console.error('Error applying thumbnail:', error);
+            toast.error('Failed to apply image.');
+        }
+    };
+
+    clearUploadPreview = () => {
+        this.thumbnailPickerUploadFile(null);
+        this.thumbnailPickerUploadPreview(null);
+    };
+
+    onImageDragOver = (data, event) => { event.preventDefault(); return true; };
+    onImageDrop = (data, event) => {
+        event.preventDefault();
+        const file = event.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) this._setPickerFile(file);
+        return true;
+    };
+    onImageFileSelected = (data, event) => {
+        const file = event.target.files?.[0];
+        if (file) this._setPickerFile(file);
+        event.target.value = '';
+    };
+    _setPickerFile = (file) => {
+        this.thumbnailPickerUploadFile(file);
+        this.thumbnailPickerSelectedUrl(null);
+        const reader = new FileReader();
+        reader.onload = e => this.thumbnailPickerUploadPreview(e.target.result);
+        reader.readAsDataURL(file);
     };
 
     ignorePlaylist = async (playlist) => {

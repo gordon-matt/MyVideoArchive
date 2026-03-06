@@ -52,13 +52,15 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
 
             var data = result.Data;
 
+            var thumbnailInfos = MapThumbnails(data.Thumbnails);
             return new ChannelMetadata
             {
                 ChannelId = data.ChannelID,
                 Name = data.Channel ?? data.Uploader ?? "Unknown Channel",
                 Url = data.WebpageUrl ?? channelUrl,
                 Description = data.Description,
-                ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
+                BannerUrl = GetBestThumbnail(data.Thumbnails),
+                Thumbnails = thumbnailInfos,
                 SubscriberCount = data.ChannelFollowerCount is not null ? (int?)data.ChannelFollowerCount : null,
                 Platform = PlatformName
             };
@@ -303,6 +305,15 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
             .FirstOrDefault();
 
         return best?.Url;
+    }
+
+    private static List<ThumbnailInfo> MapThumbnails(ThumbnailData[]? thumbnails)
+    {
+        if (thumbnails.IsNullOrEmpty()) return [];
+        return thumbnails!
+            .Where(t => !string.IsNullOrEmpty(t.Url))
+            .Select(t => new ThumbnailInfo(t.ID, t.Url!, (int?)t.Width, (int?)t.Height, (int?)t.Preference))
+            .ToList();
     }
 
     public async Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default)

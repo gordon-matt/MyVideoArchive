@@ -241,7 +241,7 @@ public class CustomChannelService : ICustomChannelService
 
             channel.Name = request.Name;
             channel.Description = request.Description;
-            channel.ThumbnailUrl = request.ThumbnailUrl;
+            channel.BannerUrl = request.BannerUrl;
             await channelRepository.UpdateAsync(channel);
             return Result.Success();
         }
@@ -368,9 +368,9 @@ public class CustomChannelService : ICustomChannelService
             }
         }
 
-        channel.ThumbnailUrl = $"/api/custom/channels/{channelId}/thumbnail";
+        channel.BannerUrl = $"/api/custom/channels/{channelId}/thumbnail";
         await channelRepository.UpdateAsync(channel);
-        return Result.Success(channel.ThumbnailUrl);
+        return Result.Success(channel.BannerUrl);
     }
 
     public async Task<Result<string>> UploadPlaylistThumbnailAsync(int playlistId, Stream fileStream, string fileName)

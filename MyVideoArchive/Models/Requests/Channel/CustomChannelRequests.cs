@@ -2,7 +2,7 @@ namespace MyVideoArchive.Models.Requests.Channel;
 
 public record CreateCustomChannelRequest(string Name, string? Description);
 
-public record UpdateCustomChannelRequest(string Name, string? Description, string? ThumbnailUrl);
+public record UpdateCustomChannelRequest(string Name, string? Description, string? BannerUrl);
 
 public record CreateCustomChannelPlaylistRequest(string Name, string? Description);
 

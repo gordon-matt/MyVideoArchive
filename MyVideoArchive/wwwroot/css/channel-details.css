@@ -22,6 +22,56 @@
     display: block;
 }
 
+/* Edit icon that floats over banner / avatar */
+.channel-img-edit-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 5;
+}
+
+.channel-details-banner-wrap:hover .channel-img-edit-btn,
+.channel-avatar-wrap:hover .channel-img-edit-btn {
+    opacity: 1;
+}
+
+/* Avatar in channel header */
+.channel-avatar-wrap {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    overflow: visible;
+    flex-shrink: 0;
+    margin-top: -20px; /* slightly overlap the banner */
+}
+
+.channel-avatar-img {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid rgba(255, 255, 255, 0.6);
+    display: block;
+}
+
+.channel-avatar-edit-btn {
+    bottom: 0;
+    right: 0;
+}
+
 .channel-header-body {
     padding: 24px 30px;
 }
@@ -37,6 +87,75 @@
 
 .channel-header-body small {
     opacity: 0.9;
+}
+
+/* ── Thumbnail picker modal ──────────────────────────────────────────────── */
+
+.thumbnail-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.thumbnail-picker-item {
+    position: relative;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+}
+
+    .thumbnail-picker-item:hover {
+        border-color: #0d6efd;
+        transform: scale(1.02);
+    }
+
+    .thumbnail-picker-item.thumb-selected {
+        border-color: #0d6efd;
+    }
+
+.thumbnail-picker-img {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    display: block;
+}
+
+.thumbnail-picker-meta {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+}
+
+.thumbnail-picker-selected-badge {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    font-size: 0.75rem;
+}
+
+.thumbnail-upload-zone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+    .thumbnail-upload-zone:hover {
+        border-color: #0d6efd;
+        background-color: #f0f4ff;
+    }
+
+.thumbnail-upload-preview {
+    max-height: 200px;
+    object-fit: contain;
+    border-radius: 6px;
+    border: 1px solid #ddd;
 }
 
 .video-item {

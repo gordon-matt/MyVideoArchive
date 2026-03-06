@@ -78,13 +78,15 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
                 ?? BitChuteChannelIdRegex().Match(channelUrl).Groups[1].Value
                 ?? string.Empty;
 
+            var thumbnailInfos = MapThumbnails(data.Thumbnails);
             return new ChannelMetadata
             {
                 ChannelId = channelId,
                 Name = data.Channel ?? data.Uploader ?? data.Title ?? "Unknown Channel",
                 Url = data.WebpageUrl ?? channelUrl,
                 Description = data.Description,
-                ThumbnailUrl = GetBestThumbnailFromYtDlp(data.Thumbnails),
+                BannerUrl = GetBestThumbnailFromYtDlp(data.Thumbnails),
+                Thumbnails = thumbnailInfos,
                 SubscriberCount = data.ChannelFollowerCount is not null ? (int?)data.ChannelFollowerCount : null,
                 Platform = PlatformName
             };
@@ -366,6 +368,15 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
             .FirstOrDefault();
 
         return best?.Url;
+    }
+
+    private static List<ThumbnailInfo> MapThumbnails(ThumbnailData[]? thumbnails)
+    {
+        if (thumbnails.IsNullOrEmpty()) return [];
+        return thumbnails!
+            .Where(t => !string.IsNullOrEmpty(t.Url))
+            .Select(t => new ThumbnailInfo(t.ID, t.Url!, (int?)t.Width, (int?)t.Height, (int?)t.Preference))
+            .ToList();
     }
 
     private async Task<string?> ResolveThumbnailUrlAsync(

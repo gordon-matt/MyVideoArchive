@@ -27,11 +27,17 @@ class CustomChannelViewModel {
         // Edit channel form
         this.editName = ko.observable('');
         this.editDescription = ko.observable('');
-        this.editThumbnailUrl = ko.observable('');
+        this.editBannerUrl = ko.observable('');
 
         // Channel thumbnail upload (in edit modal)
         this.channelThumbnailPreviewUrl = ko.observable(null);
         this.channelThumbnailFile = ko.observable(null);
+
+        // ── Thumbnail picker (banner / avatar) ────────────────────────────────
+        this.thumbnailPickerMode = ko.observable('banner'); // 'banner' | 'avatar'
+        this.thumbnailPickerUploadFile = ko.observable(null);
+        this.thumbnailPickerUploadPreview = ko.observable(null);
+        this.canConfirmThumbnailPicker = ko.computed(() => !!this.thumbnailPickerUploadFile());
 
         // Create playlist form
         this.newPlaylistName = ko.observable('');
@@ -225,15 +231,15 @@ class CustomChannelViewModel {
         if (!ch) return;
         this.editName(ch.Name || '');
         this.editDescription(ch.Description || '');
-        this.editThumbnailUrl(ch.ThumbnailUrl || '');
-        this.channelThumbnailPreviewUrl(ch.ThumbnailUrl ? ch.ThumbnailUrl + '?t=' + Date.now() : null);
+        this.editBannerUrl(ch.BannerUrl || '');
+        this.channelThumbnailPreviewUrl(ch.BannerUrl ? ch.BannerUrl + '?t=' + Date.now() : null);
         this.channelThumbnailFile(null);
         new bootstrap.Modal(document.getElementById('editChannelModal')).show();
     };
 
     saveChannel = async () => {
         try {
-            let thumbnailUrl = this.editThumbnailUrl() || null;
+            let bannerUrl = this.editBannerUrl() || null;
             const file = this.channelThumbnailFile();
             if (file) {
                 const form = new FormData();
@@ -247,7 +253,7 @@ class CustomChannelViewModel {
                     return;
                 }
                 const data = await uploadRes.json();
-                thumbnailUrl = data.thumbnailUrl;
+                bannerUrl = data.thumbnailUrl;
             }
 
             const response = await fetch(`/api/custom/channels/${this.channelId}`, {
@@ -256,7 +262,7 @@ class CustomChannelViewModel {
                 body: JSON.stringify({
                     name: this.editName(),
                     description: this.editDescription() || null,
-                    thumbnailUrl
+                    bannerUrl
                 })
             });
             if (response.ok) {
@@ -269,6 +275,72 @@ class CustomChannelViewModel {
             console.error('Error saving channel:', error);
             toast.error('Failed to update channel.');
         }
+    };
+
+    // ── Thumbnail picker (banner / avatar via upload) ─────────────────────────
+
+    editBanner = () => this._openThumbnailPicker('banner');
+    editAvatar = () => this._openThumbnailPicker('avatar');
+
+    _openThumbnailPicker = (mode) => {
+        this.thumbnailPickerMode(mode);
+        this.thumbnailPickerUploadFile(null);
+        this.thumbnailPickerUploadPreview(null);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('thumbnailPickerModal')).show();
+    };
+
+    confirmThumbnailPicker = async () => {
+        const mode = this.thumbnailPickerMode();
+        const uploadFile = this.thumbnailPickerUploadFile();
+        if (!uploadFile) return;
+
+        try {
+            const form = new FormData();
+            form.append('file', uploadFile);
+            const endpoint = mode === 'banner' ? 'banner' : 'avatar';
+            const res = await fetch(`/api/channels/${this.channelId}/${endpoint}/upload`, {
+                method: 'POST', body: form
+            });
+            if (!res.ok) {
+                toast.error('Failed to upload image.');
+                return;
+            }
+            const d = await res.json();
+            const ch = this.channel();
+            if (ch) {
+                if (mode === 'banner') ch.BannerUrl = d.bannerUrl;
+                else ch.AvatarUrl = d.avatarUrl;
+                this.channel.valueHasMutated();
+            }
+            bootstrap.Modal.getInstance(document.getElementById('thumbnailPickerModal')).hide();
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            toast.error('Failed to upload image.');
+        }
+    };
+
+    clearUploadPreview = () => {
+        this.thumbnailPickerUploadFile(null);
+        this.thumbnailPickerUploadPreview(null);
+    };
+
+    onImageDragOver = (data, event) => { event.preventDefault(); return true; };
+    onImageDrop = (data, event) => {
+        event.preventDefault();
+        const file = event.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) this._setPickerFile(file);
+        return true;
+    };
+    onImageFileSelected = (data, event) => {
+        const file = event.target.files?.[0];
+        if (file) this._setPickerFile(file);
+        event.target.value = '';
+    };
+    _setPickerFile = (file) => {
+        this.thumbnailPickerUploadFile(file);
+        const reader = new FileReader();
+        reader.onload = e => this.thumbnailPickerUploadPreview(e.target.result);
+        reader.readAsDataURL(file);
     };
 
     // Channel thumbnail upload (in edit modal)

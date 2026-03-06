@@ -21,7 +21,7 @@
         </div>
     </div>
 
-    <div class="row mb-4">
+    <div class="row mb-4 align-items-center">
         <div class="col-md-3">
             <select class="form-select" data-bind="value: platformFilter">
                 <option value="">All Platforms</option>
@@ -29,6 +29,18 @@
                 <option value="BitChute">BitChute</option>
                 <option value="Custom">Custom</option>
             </select>
+        </div>
+        <div class="col-md-9 text-end">
+            <div class="btn-group">
+                <button class="btn btn-outline-secondary" title="Banner view"
+                        data-bind="click: function(){ setChannelViewMode('banner'); }, css: { active: channelViewMode() === 'banner' }">
+                    <i class="bi bi-layout-text-sidebar-reverse"></i> Banner
+                </button>
+                <button class="btn btn-outline-secondary" title="Avatar grid view"
+                        data-bind="click: function(){ setChannelViewMode('avatar'); }, css: { active: channelViewMode() === 'avatar' }">
+                    <i class="bi bi-grid-3x3-gap"></i> Avatar
+                </button>
+            </div>
         </div>
     </div>
 
@@ -110,26 +122,55 @@
     </div>
 
     <div data-bind="visible: !loading() && channels().length > 0">
-        <!-- ko foreach: channels -->
-        <div class="channel-card">
-            <div class="channel-banner-wrap" data-bind="click: $parent.viewChannel">
-                <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/1200x200?text=' + Name, alt: Name }" class="channel-banner" />
-            </div>
-            <div class="channel-card-body">
-                <div class="channel-info" data-bind="click: $parent.viewChannel">
-                    <div class="channel-name" data-bind="text: Name"></div>
-                    <div class="channel-url" data-bind="text: Url"></div>
-                    <div class="channel-meta">
-                        <span data-bind="if: Platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
-                        Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span>
+
+        <!-- ── Banner view (list) ──────────────────────────────────────────── -->
+        <div data-bind="visible: channelViewMode() === 'banner'">
+            <!-- ko foreach: channels -->
+            <div class="channel-card">
+                <div class="channel-banner-wrap" data-bind="click: $parent.viewChannel">
+                    <img data-bind="attr: { src: BannerUrl || AvatarUrl || 'https://placehold.co/1200x200?text=' + Name, alt: Name }" class="channel-banner" />
+                </div>
+                <div class="channel-card-body">
+                    <div class="channel-info" data-bind="click: $parent.viewChannel">
+                        <div class="channel-name" data-bind="text: Name"></div>
+                        <div class="channel-url" data-bind="text: Url"></div>
+                        <div class="channel-meta">
+                            <span data-bind="if: Platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
+                            Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span>
+                        </div>
+                    </div>
+                    <div class="channel-actions">
+                        <button class="btn btn-danger btn-sm" data-bind="click: $parent.deleteChannel, text: $parent.isAdmin ? 'Delete' : 'Unsubscribe'" onclick="event.stopPropagation();"></button>
                     </div>
                 </div>
-                <div class="channel-actions">
-                    <button class="btn btn-danger btn-sm" data-bind="click: $parent.deleteChannel, text: $parent.isAdmin ? 'Delete' : 'Unsubscribe'" onclick="event.stopPropagation();"></button>
+            </div>
+            <!-- /ko -->
+        </div>
+
+        <!-- ── Avatar grid view ───────────────────────────────────────────── -->
+        <div data-bind="visible: channelViewMode() === 'avatar'" class="row">
+            <!-- ko foreach: channels -->
+            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
+                <div class="channel-avatar-card" data-bind="click: $parent.viewChannel">
+                    <div class="channel-avatar-card-img-wrap">
+                        <img data-bind="attr: { src: AvatarUrl || BannerUrl || 'https://placehold.co/160x160?text=' + Name.charAt(0), alt: Name }"
+                             class="channel-avatar-card-img" />
+                    </div>
+                    <div class="channel-avatar-card-body">
+                        <div class="channel-avatar-card-name" data-bind="text: Name, attr: { title: Name }"></div>
+                        <div class="channel-avatar-card-meta">
+                            <span data-bind="if: Platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
+                            <span data-bind="text: $parent.formatDate(SubscribedAt)" class="text-muted small"></span>
+                        </div>
+                    </div>
+                    <div class="channel-avatar-card-actions" onclick="event.stopPropagation()">
+                        <button class="btn btn-danger btn-sm w-100" data-bind="click: $parent.deleteChannel, text: $parent.isAdmin ? 'Delete' : 'Unsubscribe'"></button>
+                    </div>
                 </div>
             </div>
+            <!-- /ko -->
         </div>
-        <!-- /ko -->
+
     </div>
 
     <!-- Admin Delete Channel Modal -->
@@ -168,6 +209,144 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-danger" data-bind="click: confirmAdminDelete">
                         Confirm Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Thumbnail Picker Modal ──────────────────────────────────────────────── -->
+<div class="modal fade" id="thumbnailPickerModal" tabindex="-1" aria-labelledby="thumbnailPickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="thumbnailPickerModalLabel">Select Channel Images</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Choose which images to use as the <strong>banner</strong> and <strong>avatar</strong> for this channel. You can also upload your own.</p>
+
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="thumbPicker-platform-tab" data-bs-toggle="tab" data-bs-target="#thumbPicker-platform" type="button">
+                            <i class="bi bi-images"></i> Platform Images
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="thumbPicker-upload-tab" data-bs-toggle="tab" data-bs-target="#thumbPicker-upload" type="button">
+                            <i class="bi bi-upload"></i> Upload Custom
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Platform Images Tab -->
+                    <div class="tab-pane fade show active" id="thumbPicker-platform" role="tabpanel">
+                        <div data-bind="visible: thumbnailPickerLoading()" class="text-center py-4">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2 text-muted">Fetching images from platform…</p>
+                        </div>
+                        <div data-bind="visible: !thumbnailPickerLoading() && thumbnailPickerItems().length === 0" class="alert alert-info">
+                            No platform images found. Use "Upload Custom" to add your own.
+                        </div>
+                        <div data-bind="visible: !thumbnailPickerLoading() && thumbnailPickerItems().length > 0">
+                            <div class="d-flex gap-3 mb-3 flex-wrap">
+                                <div class="thumbnail-selection-preview">
+                                    <label class="form-label fw-semibold">Banner</label>
+                                    <img data-bind="attr: { src: selectedBannerUrl() || 'https://placehold.co/240x80?text=None' }"
+                                         class="thumbnail-selection-preview-img banner-preview-img" />
+                                    <button class="btn btn-sm btn-outline-danger mt-1 w-100" data-bind="click: clearBannerSelection, visible: selectedBannerUrl()">
+                                        <i class="bi bi-x"></i> Clear
+                                    </button>
+                                </div>
+                                <div class="thumbnail-selection-preview">
+                                    <label class="form-label fw-semibold">Avatar</label>
+                                    <img data-bind="attr: { src: selectedAvatarUrl() || 'https://placehold.co/80x80?text=None' }"
+                                         class="thumbnail-selection-preview-img avatar-preview-img" />
+                                    <button class="btn btn-sm btn-outline-danger mt-1 w-100" data-bind="click: clearAvatarSelection, visible: selectedAvatarUrl()">
+                                        <i class="bi bi-x"></i> Clear
+                                    </button>
+                                </div>
+                            </div>
+
+                            <p class="text-muted small">Click a thumbnail to assign it. First click sets banner, second click (different thumbnail) sets avatar.</p>
+                            <div class="thumbnail-picker-grid">
+                                <!-- ko foreach: thumbnailPickerItems -->
+                                <div class="thumbnail-picker-item"
+                                     data-bind="css: { 'thumb-banner': $parent.selectedBannerUrl() === url, 'thumb-avatar': $parent.selectedAvatarUrl() === url }, click: $parent.selectThumbnailForIndex">
+                                    <img data-bind="attr: { src: url, alt: '' }" class="thumbnail-picker-img" loading="lazy" />
+                                    <div class="thumbnail-picker-meta">
+                                        <!-- ko if: width && height -->
+                                        <span class="badge bg-dark" data-bind="text: width + ' × ' + height"></span>
+                                        <!-- /ko -->
+                                        <!-- ko ifnot: width && height -->
+                                        <span class="badge bg-secondary">Unknown size</span>
+                                        <!-- /ko -->
+                                    </div>
+                                    <div class="thumbnail-picker-selected-badge" data-bind="visible: $parent.selectedBannerUrl() === url">
+                                        <span class="badge bg-primary">Banner</span>
+                                    </div>
+                                    <div class="thumbnail-picker-selected-badge thumbnail-avatar-badge" data-bind="visible: $parent.selectedAvatarUrl() === url">
+                                        <span class="badge bg-success">Avatar</span>
+                                    </div>
+                                </div>
+                                <!-- /ko -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload Custom Tab -->
+                    <div class="tab-pane fade" id="thumbPicker-upload" role="tabpanel">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Banner Image</label>
+                                <div class="thumbnail-upload-zone"
+                                     data-bind="event: { dragover: onBannerDragOver, drop: onBannerDrop }"
+                                     onclick="document.getElementById('bannerFileInput').click()">
+                                    <i class="bi bi-panorama fs-2 text-muted"></i>
+                                    <p class="mt-1 mb-0 small">Click or drag &amp; drop</p>
+                                    <input type="file" id="bannerFileInput" accept="image/jpeg,image/png,image/webp" class="d-none"
+                                           data-bind="event: { change: onBannerFileSelected }" />
+                                </div>
+                                <div data-bind="visible: bannerUploadPreview()" class="mt-2 text-center">
+                                    <img data-bind="attr: { src: bannerUploadPreview() }" class="thumbnail-upload-preview w-100" />
+                                    <button class="btn btn-sm btn-outline-danger mt-1" data-bind="click: clearBannerUpload">
+                                        <i class="bi bi-x"></i> Remove
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Avatar Image</label>
+                                <div class="thumbnail-upload-zone"
+                                     data-bind="event: { dragover: onAvatarDragOver, drop: onAvatarDrop }"
+                                     onclick="document.getElementById('avatarFileInput').click()">
+                                    <i class="bi bi-person-circle fs-2 text-muted"></i>
+                                    <p class="mt-1 mb-0 small">Click or drag &amp; drop</p>
+                                    <input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp" class="d-none"
+                                           data-bind="event: { change: onAvatarFileSelected }" />
+                                </div>
+                                <div data-bind="visible: avatarUploadPreview()" class="mt-2 text-center">
+                                    <img data-bind="attr: { src: avatarUploadPreview() }" class="thumbnail-upload-preview avatar-upload-preview" />
+                                    <button class="btn btn-sm btn-outline-danger mt-1" data-bind="click: clearAvatarUpload">
+                                        <i class="bi bi-x"></i> Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" data-bind="click: skipThumbnailPicker">
+                    Skip
+                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" data-bind="click: confirmThumbnailPicker">
+                        Apply &amp; Continue
                     </button>
                 </div>
             </div>

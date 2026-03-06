@@ -96,7 +96,7 @@ public class VideoService : IVideoService
                     Name = channelMeta?.Name ?? videoMeta.ChannelName ?? "Unknown Channel",
                     Url = channelMeta?.Url ?? (string.IsNullOrEmpty(videoMeta.ChannelId) ? string.Empty : provider.BuildChannelUrl(videoMeta.ChannelId)),
                     Description = channelMeta?.Description,
-                    ThumbnailUrl = channelMeta?.ThumbnailUrl,
+                    BannerUrl = channelMeta?.BannerUrl,
                     SubscriberCount = channelMeta?.SubscriberCount,
                     Platform = videoMeta.Platform,
                     SubscribedAt = DateTime.UtcNow

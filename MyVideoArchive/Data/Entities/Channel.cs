@@ -10,7 +10,9 @@ public class Channel : BaseEntity<int>
 
     public required string Url { get; set; }
 
-    public string? ThumbnailUrl { get; set; }
+    public string? BannerUrl { get; set; }
+
+    public string? AvatarUrl { get; set; }
 
     public string? Description { get; set; }
 
@@ -38,7 +40,8 @@ public class ChannelMap : IEntityTypeConfiguration<Channel>
         builder.Property(m => m.ChannelId).IsRequired().HasMaxLength(128);
         builder.Property(m => m.Name).IsRequired().HasMaxLength(256).IsUnicode(true);
         builder.Property(m => m.Url).IsRequired().HasMaxLength(512);
-        builder.Property(m => m.ThumbnailUrl);
+        builder.Property(m => m.BannerUrl);
+        builder.Property(m => m.AvatarUrl);
         builder.Property(m => m.Description).IsUnicode(true);
         builder.Property(m => m.Platform).IsRequired().HasMaxLength(64);
         builder.Property(m => m.SubscribedAt).IsRequired();

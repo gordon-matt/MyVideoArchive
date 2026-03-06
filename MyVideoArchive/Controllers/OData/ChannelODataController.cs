@@ -228,7 +228,8 @@ public class ChannelODataController : ODataController
                 channel.ChannelId = channelMetadata!.ChannelId;
                 channel.Name = channelMetadata.Name;
                 channel.Description = channelMetadata.Description;
-                channel.ThumbnailUrl = channelMetadata.ThumbnailUrl;
+                channel.BannerUrl ??= channelMetadata.BannerUrl;
+                channel.AvatarUrl ??= channelMetadata.AvatarUrl;
                 channel.SubscriberCount = channelMetadata.SubscriberCount;
                 channel.SubscribedAt = DateTime.UtcNow;
                 channel = await channelRepository.InsertAsync(channel);

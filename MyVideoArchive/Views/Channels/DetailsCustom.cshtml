@@ -15,21 +15,34 @@
 
         <div data-bind="with: channel">
             <div class="channel-header-card">
-                <div class="channel-details-banner-wrap">
-                    <img class="channel-details-banner" data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/1200x200?text=' + Name, alt: Name }" />
+                <div class="channel-details-banner-wrap position-relative">
+                    <img class="channel-details-banner" data-bind="attr: { src: BannerUrl || 'https://placehold.co/1200x200?text=' + Name, alt: Name }" />
+                    <button class="channel-img-edit-btn" title="Change banner image"
+                            data-bind="click: $parent.editBanner">
+                        <i class="bi bi-pencil-fill"></i>
+                    </button>
                 </div>
-                <div class="channel-header-body">
-                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <h2 data-bind="text: Name" class="mb-0"></h2>
-                            <span class="badge bg-secondary">Custom</span>
-                        </div>
-                        <button class="btn btn-outline-light btn-sm" data-bind="click: $parent.openEditChannel">
-                            <i class="bi bi-pencil"></i> Edit
+                <div class="channel-header-body d-flex align-items-start gap-3">
+                    <div class="channel-avatar-wrap position-relative flex-shrink-0">
+                        <img class="channel-avatar-img" data-bind="attr: { src: AvatarUrl || 'https://placehold.co/80x80?text=' + Name.charAt(0), alt: Name }" />
+                        <button class="channel-img-edit-btn channel-avatar-edit-btn" title="Change avatar image"
+                                data-bind="click: $parent.editAvatar">
+                            <i class="bi bi-pencil-fill"></i>
                         </button>
                     </div>
-                    <p data-bind="text: Description" class="channel-header-desc"></p>
-                    <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+                            <div class="d-flex align-items-center gap-2">
+                                <h2 data-bind="text: Name" class="mb-0"></h2>
+                                <span class="badge bg-secondary">Custom</span>
+                            </div>
+                            <button class="btn btn-outline-light btn-sm" data-bind="click: $parent.openEditChannel">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                        </div>
+                        <p data-bind="text: Description" class="channel-header-desc"></p>
+                        <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -309,6 +322,46 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" data-bind="click: createPlaylist, enable: newPlaylistName().length > 0">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Thumbnail Picker Modal (upload-only for custom channels) ─────────────── -->
+<div class="modal fade" id="thumbnailPickerModal" tabindex="-1" aria-labelledby="thumbnailPickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="thumbnailPickerModalLabel">
+                    <span data-bind="visible: thumbnailPickerMode() === 'banner'">Change Banner Image</span>
+                    <span data-bind="visible: thumbnailPickerMode() === 'avatar'">Change Avatar Image</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="thumbnail-upload-zone"
+                     data-bind="event: { dragover: onImageDragOver, drop: onImageDrop }"
+                     onclick="document.getElementById('thumbnailPickerFileInput').click()">
+                    <i class="bi bi-cloud-upload fs-1 text-muted"></i>
+                    <p class="mt-2 mb-0">Drag &amp; drop an image here, or <strong>click to browse</strong></p>
+                    <small class="text-muted">JPG, PNG or WebP &middot; Max 10 MB</small>
+                    <input type="file" id="thumbnailPickerFileInput" accept="image/jpeg,image/png,image/webp" class="d-none"
+                           data-bind="event: { change: onImageFileSelected }" />
+                </div>
+                <div data-bind="visible: thumbnailPickerUploadPreview()" class="mt-3 text-center">
+                    <img data-bind="attr: { src: thumbnailPickerUploadPreview() }" class="thumbnail-upload-preview" />
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-danger" data-bind="click: clearUploadPreview">
+                            <i class="bi bi-x"></i> Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" data-bind="click: confirmThumbnailPicker, enable: canConfirmThumbnailPicker()">
+                    Apply
+                </button>
             </div>
         </div>
     </div>

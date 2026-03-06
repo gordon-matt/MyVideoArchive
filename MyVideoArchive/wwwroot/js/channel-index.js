@@ -29,7 +29,27 @@ class ChannelsViewModel {
             }
             return this.customChannelName().length > 0;
         });
+
+        // ── Channel view mode (banner list vs avatar grid) ────────────────────
+        const savedViewMode = localStorage.getItem('channelIndexViewMode') || 'banner';
+        this.channelViewMode = ko.observable(savedViewMode);
+
+        // ── Thumbnail picker state ─────────────────────────────────────────────
+        this.thumbnailPickerChannelId = ko.observable(null); // id of the newly added channel
+        this.thumbnailPickerItems = ko.observableArray([]);
+        this.thumbnailPickerLoading = ko.observable(false);
+        this.selectedBannerUrl = ko.observable(null);
+        this.selectedAvatarUrl = ko.observable(null);
+        this.bannerUploadFile = ko.observable(null);
+        this.avatarUploadFile = ko.observable(null);
+        this.bannerUploadPreview = ko.observable(null);
+        this.avatarUploadPreview = ko.observable(null);
     }
+
+    setChannelViewMode = (mode) => {
+        this.channelViewMode(mode);
+        localStorage.setItem('channelIndexViewMode', mode);
+    };
 
     loadChannels = async () => {
         this.loading(true);
@@ -74,22 +94,185 @@ class ChannelsViewModel {
             SubscribedAt: new Date().toISOString()
         };
 
-        await fetch('/odata/ChannelOData', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newChannel)
-        })
-        .then(response => response.json())
-        .then(data => {
+        try {
+            const response = await fetch('/odata/ChannelOData', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newChannel)
+            });
+
+            if (!response.ok) {
+                toast.error('Failed to add channel. Please try again.');
+                return;
+            }
+
+            const data = await response.json();
             this.channels.push(data);
             this.newChannelUrl('');
             bootstrap.Modal.getInstance(document.getElementById('addChannelModal')).hide();
-        })
-        .catch(error => {
+
+            // Show thumbnail picker for the newly added channel
+            this.thumbnailPickerChannelId(data.Id);
+            this.selectedBannerUrl(null);
+            this.selectedAvatarUrl(null);
+            this.bannerUploadFile(null);
+            this.avatarUploadFile(null);
+            this.bannerUploadPreview(null);
+            this.avatarUploadPreview(null);
+            this.thumbnailPickerItems([]);
+
+            const pickerModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('thumbnailPickerModal'));
+            pickerModal.show();
+
+            await this.loadThumbnailPickerItems(data.Id);
+
+        } catch (error) {
             console.error(`Error adding ${platform} channel:`, error);
             toast.error('Failed to add channel. Please try again.');
-        });
+        }
     };
+
+    loadThumbnailPickerItems = async (channelId) => {
+        this.thumbnailPickerLoading(true);
+        try {
+            const response = await fetch(`/api/channels/${channelId}/images/available`);
+            if (response.ok) {
+                const data = await response.json();
+                this.thumbnailPickerItems(data.thumbnails || []);
+                // Pre-select the default banner if available
+                if (!this.selectedBannerUrl() && data.defaultBannerUrl) {
+                    this.selectedBannerUrl(data.defaultBannerUrl);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading thumbnail picker items:', error);
+        } finally {
+            this.thumbnailPickerLoading(false);
+        }
+    };
+
+    selectThumbnailForIndex = (thumbnail) => {
+        const url = thumbnail.url;
+        // First click → banner, second different thumbnail → avatar, same → toggle off
+        if (this.selectedBannerUrl() === url) {
+            this.selectedBannerUrl(null);
+        } else if (this.selectedAvatarUrl() === url) {
+            this.selectedAvatarUrl(null);
+        } else if (!this.selectedBannerUrl()) {
+            this.selectedBannerUrl(url);
+        } else if (!this.selectedAvatarUrl()) {
+            this.selectedAvatarUrl(url);
+        } else {
+            // Both set – replace banner
+            this.selectedBannerUrl(url);
+        }
+    };
+
+    clearBannerSelection = () => this.selectedBannerUrl(null);
+    clearAvatarSelection = () => this.selectedAvatarUrl(null);
+
+    confirmThumbnailPicker = async () => {
+        const channelId = this.thumbnailPickerChannelId();
+        if (!channelId) return;
+
+        try {
+            // Handle file uploads first
+            let bannerUrl = this.selectedBannerUrl();
+            let avatarUrl = this.selectedAvatarUrl();
+
+            const bannerFile = this.bannerUploadFile();
+            if (bannerFile) {
+                const form = new FormData();
+                form.append('file', bannerFile);
+                const res = await fetch(`/api/channels/${channelId}/banner/upload`, { method: 'POST', body: form });
+                if (res.ok) {
+                    const d = await res.json();
+                    bannerUrl = d.bannerUrl;
+                }
+            }
+
+            const avatarFile = this.avatarUploadFile();
+            if (avatarFile) {
+                const form = new FormData();
+                form.append('file', avatarFile);
+                const res = await fetch(`/api/channels/${channelId}/avatar/upload`, { method: 'POST', body: form });
+                if (res.ok) {
+                    const d = await res.json();
+                    avatarUrl = d.avatarUrl;
+                }
+            }
+
+            // Update URLs
+            if (bannerUrl !== null || avatarUrl !== null) {
+                await fetch(`/api/channels/${channelId}/images`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bannerUrl, avatarUrl })
+                });
+            }
+
+            // Refresh the channel in the list
+            const updated = this.channels().find(c => c.Id === channelId);
+            if (updated) {
+                updated.BannerUrl = bannerUrl;
+                updated.AvatarUrl = avatarUrl;
+                this.channels.valueHasMutated();
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('thumbnailPickerModal')).hide();
+        } catch (error) {
+            console.error('Error applying thumbnail selection:', error);
+            toast.error('Failed to apply image selection.');
+        }
+    };
+
+    skipThumbnailPicker = () => {
+        bootstrap.Modal.getInstance(document.getElementById('thumbnailPickerModal')).hide();
+    };
+
+    // ── Drag & drop / file input for banner ──────────────────────────────────
+
+    onBannerDragOver = (data, event) => { event.preventDefault(); return true; };
+    onBannerDrop = (data, event) => {
+        event.preventDefault();
+        const file = event.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) this._setBannerFile(file);
+        return true;
+    };
+    onBannerFileSelected = (data, event) => {
+        const file = event.target.files?.[0];
+        if (file) this._setBannerFile(file);
+        event.target.value = '';
+    };
+    _setBannerFile = (file) => {
+        this.bannerUploadFile(file);
+        const reader = new FileReader();
+        reader.onload = e => this.bannerUploadPreview(e.target.result);
+        reader.readAsDataURL(file);
+    };
+    clearBannerUpload = () => { this.bannerUploadFile(null); this.bannerUploadPreview(null); };
+
+    // ── Drag & drop / file input for avatar ──────────────────────────────────
+
+    onAvatarDragOver = (data, event) => { event.preventDefault(); return true; };
+    onAvatarDrop = (data, event) => {
+        event.preventDefault();
+        const file = event.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) this._setAvatarFile(file);
+        return true;
+    };
+    onAvatarFileSelected = (data, event) => {
+        const file = event.target.files?.[0];
+        if (file) this._setAvatarFile(file);
+        event.target.value = '';
+    };
+    _setAvatarFile = (file) => {
+        this.avatarUploadFile(file);
+        const reader = new FileReader();
+        reader.onload = e => this.avatarUploadPreview(e.target.result);
+        reader.readAsDataURL(file);
+    };
+    clearAvatarUpload = () => { this.avatarUploadFile(null); this.avatarUploadPreview(null); };
 
     addCustomChannel = async () => {
         const name = this.customChannelName().trim();

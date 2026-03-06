@@ -86,9 +86,15 @@ public class ChannelSyncJob
                 channel.SubscriberCount = channelMetadata.SubscriberCount;
 
                 string channelDir = Path.Combine(downloadPath, channel.ChannelId);
-                channel.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
-                    channelMetadata.ThumbnailUrl, channelDir, channel.ChannelId, cancellationToken)
-                    ?? channel.ThumbnailUrl;
+
+                // Don't overwrite BannerUrl if the user has already uploaded a custom image
+                bool bannerIsUserUploaded = channel.BannerUrl?.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) == true;
+                if (!bannerIsUserUploaded)
+                {
+                    channel.BannerUrl = await thumbnailService.DownloadAndSaveAsync(
+                        channelMetadata.BannerUrl, channelDir, channel.ChannelId, cancellationToken)
+                        ?? channel.BannerUrl;
+                }
             }
 
             // Get all videos from the channel
