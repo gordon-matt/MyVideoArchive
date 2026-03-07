@@ -18,19 +18,19 @@ WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-# Build stage
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+# Build stage (Ubuntu for reliable LibMan restore; wwwroot/lib is gitignored so it must be created in-container)
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["MyVideoArchive/MyVideoArchive.csproj", "MyVideoArchive/"]
 RUN dotnet restore "./MyVideoArchive/MyVideoArchive.csproj"
 COPY . .
 WORKDIR "/src/MyVideoArchive"
-# Restore client-side libraries (wwwroot/lib). Build package may not run in Docker, so run CLI explicitly.
+# Restore client-side libraries (wwwroot/lib). Must succeed in CI where wwwroot/lib is not in repo.
 RUN dotnet tool install -g Microsoft.Web.LibraryManager.Cli --version 2.1.113 && \
     export PATH="${PATH}:/root/.dotnet/tools" && \
-    libman restore --verbose
-RUN test -d wwwroot/lib && test -f wwwroot/lib/jquery/dist/jquery.min.js || (echo "ERROR: wwwroot/lib missing; LibMan restore may have failed." && exit 1)
+    libman restore --verbose && \
+    test -d wwwroot/lib -a -f wwwroot/lib/jquery/dist/jquery.min.js || (echo "ERROR: wwwroot/lib missing after LibMan restore." && exit 1)
 RUN dotnet build "./MyVideoArchive.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # Publish stage
