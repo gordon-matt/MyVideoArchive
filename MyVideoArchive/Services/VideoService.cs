@@ -495,8 +495,8 @@ public class VideoService : IVideoService
                     var standaloneVideoIds = (await videoTagRepository.FindAsync(
                         new SearchOptions<VideoTag>
                         {
-                            Query = x => x.TagId == standaloneTag.Id,
-                        }
+                            Query = x => x.TagId == standaloneTag.Id
+                        },
                         x => x.VideoId)).ToList();
 
                     if (standaloneVideoIds.Count > 0)
