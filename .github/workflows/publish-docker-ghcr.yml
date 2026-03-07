@@ -43,7 +43,7 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            ${{ github.event_name == 'release' && 'type=ref,event=release' || '' }}
+            type=raw,value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' }}
             type=raw,value=latest,enable=${{ github.event_name == 'release' }}
             type=sha,prefix=
 
