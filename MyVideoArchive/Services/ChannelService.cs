@@ -8,15 +8,15 @@ namespace MyVideoArchive.Services;
 
 public class ChannelService : IChannelService
 {
-    private readonly ILogger<ChannelService> logger;
-    private readonly IConfiguration configuration;
     private readonly IBackgroundJobClient backgroundJobClient;
-    private readonly IUserContextService userContextService;
     private readonly IRepository<Channel> channelRepository;
+    private readonly IConfiguration configuration;
     private readonly IRepository<CustomPlaylistVideo> customPlaylistVideoRepository;
+    private readonly ILogger<ChannelService> logger;
     private readonly IRepository<Playlist> playlistRepository;
     private readonly IRepository<PlaylistVideo> playlistVideoRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
+    private readonly IUserContextService userContextService;
     private readonly IRepository<UserPlaylist> userPlaylistRepository;
     private readonly IRepository<UserPlaylistVideo> userPlaylistVideoRepository;
     private readonly IRepository<UserVideo> userVideoRepository;
@@ -81,31 +81,30 @@ public class ChannelService : IChannelService
 
             if (deleteFiles)
             {
-                int deletedFileCount = 0;
-
                 string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
                     ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
                 string channelPath = Path.Combine(downloadPath, channel.ChannelId);
 
+                int deletedFileCount = 0;
+
                 if (!string.IsNullOrEmpty(channelPath) && Directory.Exists(channelPath))
                 {
-                    string[] files = Directory.GetFiles(channelPath);
+                    var files = Directory.EnumerateFiles(channelPath, "*", SearchOption.AllDirectories).ToList();
+                    deletedFileCount = files.Count;
 
                     foreach (string file in files)
                     {
-                        System.IO.File.SetAttributes(file, FileAttributes.Normal); // handle read-only files
-                        System.IO.File.Delete(file);
-                        deletedFileCount++;
+                        File.SetAttributes(file, FileAttributes.Normal);
                     }
 
-                    Directory.Delete(channelPath);
-                }
+                    Directory.Delete(channelPath, recursive: true);
 
-                if (logger.IsEnabled(LogLevel.Information))
-                {
-                    logger.LogInformation("Admin deleted {Count} video file(s) for channel {ChannelId}",
-                        deletedFileCount, id);
+                    if (logger.IsEnabled(LogLevel.Information))
+                    {
+                        logger.LogInformation("Admin deleted {Count} video file(s) for channel {ChannelId}",
+                            deletedFileCount, id);
+                    }
                 }
 
                 if (!deleteMetadata)
