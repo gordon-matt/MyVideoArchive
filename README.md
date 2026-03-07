@@ -84,7 +84,7 @@ Access is restricted to authenticated admin users.
 
 ### Logging dashboard (Sejil)
 
-Application logs are available in the **Sejil** log dashboard at `/sejil`, linked from **Admin → Monitoring & Diagnostics**. Use it to:
+Application logs are available in the [Sejil](https://github.com/alaatm/Sejil) log dashboard at `/sejil`, linked from **Admin → Monitoring & Diagnostics**. Use it to:
 
 - Search and filter log entries by level, message, and time.
 - Diagnose errors and trace behaviour of syncs, downloads, and file system scans.
