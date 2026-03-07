@@ -2,7 +2,7 @@
 
 # MyVideoArchive
 
-A simple video archiving application inspired by TubeArchivist, built with ASP.NET Core MVC and OData.
+A simple video archiving application inspired by TubeArchivist, built with ASP.NET Core.
 
 ## Features
 
