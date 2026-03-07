@@ -1,3 +1,5 @@
+<img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/MyVideoArchive/wwwroot/img/MVA-Logo.png" alt="Logo" width="250" />
+
 # MyVideoArchive
 
 A simple video archiving application inspired by TubeArchivist, built with ASP.NET Core MVC and OData.
