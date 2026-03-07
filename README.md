@@ -120,7 +120,7 @@ Results are paginated. Combined with tags and custom playlists, you can organise
 
 ## Getting Started
 
-Run the app as you would any standard .NET application. An official Docker image may be provided later for easier deployment.
+Run the app as you would any standard .NET application. A Docker image is published to **GitHub Container Registry** for easy deployment.
 
 ### Configuration
 
@@ -131,3 +131,38 @@ Run the app as you would any standard .NET application. An official Docker image
 - **Initial admin user:** On first run, an admin user is seeded. Configure via `SeedAdmin:Email` and `SeedAdmin:Password` (User Secrets or appsettings) or `SeedAdmin__Email` and `SeedAdmin__Password` (environment/Docker). Defaults: `admin@myvideoarchive.local` / `Admin@123`.
 
 **NOTE:** The application will automatically download yt-dlp and ffmpeg binaries on first run.
+
+---
+
+## Publishing the Docker image (maintainers)
+
+The app image is published to **GitHub Container Registry** at `ghcr.io/gordon-matt/myvideoarchive`.
+
+### How to push to GHCR
+
+1. **Automatically on release**  
+   Create a new [GitHub Release](https://github.com/gordon-matt/MyVideoArchive/releases/new) (tag + publish). The workflow [`.github/workflows/publish-docker-ghcr.yml`](.github/workflows/publish-docker-ghcr.yml) builds and pushes the image. Tags like `v1.0.0` become image tags `ghcr.io/gordon-matt/myvideoarchive:v1.0.0`; `latest` is also updated.
+
+2. **Manually**  
+   In the repo: **Actions → Publish Docker image to GHCR → Run workflow**. This pushes from the default branch (no release tag).
+
+### Make the image public
+
+By default, GHCR packages are private. To allow public pulls:
+
+- Go to **GitHub → Your profile → Packages** (or the package page from the repo).
+- Open the **myvideoarchive** (or **MyVideoArchive**) package.
+- **Package settings → Danger zone → Change visibility → Public**.
+
+### Running with the published image
+
+Users can run the app without building locally by using the pre-built image. Example `docker-compose` override:
+
+```yaml
+services:
+  app:
+    image: ghcr.io/gordon-matt/myvideoarchive:latest
+    # Remove or comment out "build:" so Docker uses the image instead.
+```
+
+Use a specific version for production, e.g. `ghcr.io/gordon-matt/myvideoarchive:v1.0.0`. Keep `db`, `environment`, `volumes`, and `depends_on` as in the repo’s `docker-compose.yml`; only the app service needs to switch from `build` to `image`.
