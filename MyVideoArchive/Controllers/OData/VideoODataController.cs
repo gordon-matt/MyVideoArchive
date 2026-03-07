@@ -32,6 +32,7 @@ public class VideoODataController : BaseODataController<Video, int>
     {
     }
 
+    // TODO: Currently doesn't include standalone videos.
     public override async Task<IActionResult> Get(ODataQueryOptions<Video> options, CancellationToken cancellationToken)
     {
         if (!await AuthorizeAsync(ReadPermission))
@@ -72,20 +73,15 @@ public class VideoODataController : BaseODataController<Video, int>
 
         if (!canView)
         {
-            // Standalone videos — check global tag first, then fall back to legacy per-user tag.
-            var standaloneTagIds = await tagRepository.FindAsync(new SearchOptions<Tag>
+            // Standalone videos — user may only view videos they have tagged as standalone (user's tag only).
+            var userStandaloneTag = await tagRepository.FindOneAsync(new SearchOptions<Tag>
             {
-                Query = x =>
-                    (x.UserId == Constants.GlobalUserId || x.UserId == userId) &&
-                    x.Name == Constants.StandaloneTag
-            }, x => x.Id);
-
-            var standaloneTagIdList = standaloneTagIds.ToList();
-            if (standaloneTagIdList.Count > 0)
+                Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
+            });
+            if (userStandaloneTag is not null)
             {
                 return await videoTagRepository.ExistsAsync(x =>
-                    x.VideoId == entity.Id &&
-                    standaloneTagIdList.Contains(x.TagId));
+                    x.VideoId == entity.Id && x.TagId == userStandaloneTag.Id);
             }
         }
 

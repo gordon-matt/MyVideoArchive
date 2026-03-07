@@ -139,7 +139,7 @@ public class VideoService : IVideoService
                 }
             }
 
-            var standaloneTag = await tagService.GetOrCreateTagAsync(userId, Constants.StandaloneTag);
+            var standaloneTag = await tagService.GetStandaloneTagAsync(userId);
 
             bool alreadyTagged = await videoTagRepository.ExistsAsync(x => x.VideoId == video.Id && x.TagId == standaloneTag.Id);
             if (!alreadyTagged)
@@ -491,8 +491,12 @@ public class VideoService : IVideoService
 
                 if (standaloneTag is not null)
                 {
+                    // TODO: This should be optimized
                     var standaloneVideoIds = (await videoTagRepository.FindAsync(
-                        new SearchOptions<VideoTag> { Query = x => x.TagId == standaloneTag.Id },
+                        new SearchOptions<VideoTag>
+                        {
+                            Query = x => x.TagId == standaloneTag.Id,
+                        }
                         x => x.VideoId)).ToList();
 
                     if (standaloneVideoIds.Count > 0)
@@ -507,12 +511,7 @@ public class VideoService : IVideoService
 
                 if (!predicate.IsStarted)
                 {
-                    return Result.Success(new VideoIndexPageResponse(
-                        [],
-                        page,
-                        pageSize,
-                        0,
-                        0));
+                    return Result.Success(new VideoIndexPageResponse([], page, pageSize, 0, 0));
                 }
             }
 

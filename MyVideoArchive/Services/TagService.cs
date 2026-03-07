@@ -36,10 +36,16 @@ public class TagService : ITagService
                 return Result.Invalid([new ValidationError("Name", "Tag name cannot be empty")]);
             }
 
+            name = name.ToLower();
+            if (name == Constants.StandaloneTag)
+            {
+                return Result.Forbidden("The standalone tag is reserved as a special system tag.");
+            }
+
             // Ensure no duplicate global tag with the same name.
             bool tagExists = await tagRepository.ExistsAsync(x =>
                 x.UserId == Constants.GlobalUserId &&
-                x.Name.ToLower() == name.ToLower());
+                x.Name.ToLower() == name);
 
             if (tagExists)
             {
@@ -57,7 +63,7 @@ public class TagService : ITagService
             {
                 Query = x =>
                     x.UserId != Constants.GlobalUserId &&
-                    x.Name.ToLower() == name.ToLower()
+                    x.Name.ToLower() == name
             });
 
             var duplicateUserTagIds = duplicateUserTags.Select(t => t.Id).ToList();
@@ -137,11 +143,6 @@ public class TagService : ITagService
                 return Result.NotFound("Global tag not found");
             }
 
-            if (tag.Name == Constants.StandaloneTag)
-            {
-                return Result.Forbidden();
-            }
-
             await videoTagRepository.DeleteAsync(x => x.TagId == tagId);
             await tagRepository.DeleteAsync(tag);
 
@@ -162,11 +163,10 @@ public class TagService : ITagService
     {
         try
         {
-            // Exclude the built-in standalone tag — it is system-managed and must not be deleted.
             var globalTags = await tagRepository.FindAsync(
                 new SearchOptions<Tag>
                 {
-                    Query = x => x.UserId == Constants.GlobalUserId && x.Name != Constants.StandaloneTag,
+                    Query = x => x.UserId == Constants.GlobalUserId,
                     OrderBy = q => q.OrderBy(x => x.Name)
                 });
 
@@ -220,14 +220,19 @@ public class TagService : ITagService
         return tag;
     }
 
+    /// <summary>
+    /// Gets or creates the current user's "standalone" tag. Used for visibility and when tagging standalone videos.
+    /// Only the user's own tag is returned so that non-admin users see only videos they have marked as standalone.
+    /// </summary>
     public async Task<Tag> GetStandaloneTagAsync(string userId) =>
-        // Global standalone tag is preferred (seeded on startup).
-        // Fall back to a legacy per-user tag for backward compatibility.
         await tagRepository.FindOneAsync(new SearchOptions<Tag>
         {
-            Query = x => (x.UserId == Constants.GlobalUserId || x.UserId == userId)
-                         && x.Name == Constants.StandaloneTag,
-            OrderBy = q => q.OrderBy(x => x.UserId == Constants.GlobalUserId ? 0 : 1)
+            Query = x => x.UserId == userId && x.Name == Constants.StandaloneTag
+        })
+        ?? await tagRepository.InsertAsync(new Tag
+        {
+            UserId = userId,
+            Name = Constants.StandaloneTag
         });
 
     public async Task<IEnumerable<int>> GetTagIdsByNameAsync(string userId, IEnumerable<string> tagNames) =>
@@ -379,7 +384,7 @@ public class TagService : ITagService
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList() ?? [];
 
-            var standaloneTag = await GetOrCreateTagAsync(userId, Constants.StandaloneTag);
+            var standaloneTag = await GetStandaloneTagAsync(userId);
 
             // Existing tags on this video that belong to the current user OR are global.
             // We never delete global-tag VideoTag rows here — the user can't remove a global tag.

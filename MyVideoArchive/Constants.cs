@@ -9,7 +9,7 @@ public static class Constants
 
     /// <summary>
     /// Sentinel UserId stored on <see cref="Data.Entities.Tag"/> records that are global/system-wide
-    /// and visible to all users as tag suggestions.
+    /// (i.e. admin-created tags visible to all users as suggestions).
     /// </summary>
     public const string GlobalUserId = "_global";
 
