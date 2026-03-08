@@ -41,6 +41,17 @@
     </div>
 </div>
 
+<!-- Sync status banner -->
+<!-- ko if: isSyncing -->
+<div class="alert alert-info d-flex align-items-center gap-2 mb-4">
+    <span class="spinner-border spinner-border-sm flex-shrink-0" role="status" aria-hidden="true"></span>
+    <span>
+        <strong>Syncing channel&hellip;</strong>
+        This channel is currently being synced with the platform. New videos and metadata will appear automatically when complete.
+    </span>
+</div>
+<!-- /ko -->
+
 <ul class="nav nav-tabs mb-4" id="channelTabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos" type="button" role="tab">
@@ -57,6 +68,7 @@
             Playlists
         </button>
     </li>
+
     @if (isAdminUser)
     {
         <li class="nav-item" role="presentation">
@@ -229,14 +241,26 @@
                         Show Ignored Videos
                     </label>
                 </div>
-                <button class="btn btn-primary" data-bind="click: downloadSelected">
-                    <i class="bi bi-download"></i> Download Selected
+                <button class="btn btn-primary" data-bind="click: downloadSelected, enable: !downloadingVideos()">
+                    <span data-bind="visible: !downloadingVideos()">
+                        <i class="bi bi-download"></i> Download Selected
+                    </span>
+                    <span data-bind="visible: downloadingVideos()">
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        Queueing&hellip;
+                    </span>
                 </button>
 
                 @if (isAdminUser)
                 {
-                    <button class="btn btn-success" data-bind="click: downloadAll">
-                        <i class="bi bi-cloud-download"></i> Download All
+                    <button class="btn btn-success" data-bind="click: downloadAll, enable: !downloadingVideos()">
+                        <span data-bind="visible: !downloadingVideos()">
+                            <i class="bi bi-cloud-download"></i> Download All
+                        </span>
+                        <span data-bind="visible: downloadingVideos()">
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            Queueing&hellip;
+                        </span>
                     </button>
                 }
 
@@ -437,13 +461,22 @@
                         Refreshing…
                     </span>
                 </button>
-                <button class="btn btn-primary me-2" data-bind="click: subscribeSelectedPlaylists, enable: !subscribingPlaylists()">
+                <button class="btn btn-primary me-2" data-bind="click: subscribeSelectedPlaylists, enable: !subscribingPlaylists() && !ignoringPlaylists()">
                     <i class="bi bi-plus-circle"></i> Subscribe Selected
+                </button>
+                <button class="btn btn-outline-danger me-2" data-bind="click: ignoreSelectedPlaylists, enable: !ignoringPlaylists() && !subscribingPlaylists()">
+                    <span data-bind="visible: !ignoringPlaylists()">
+                        <i class="bi bi-eye-slash"></i> Ignore Selected
+                    </span>
+                    <span data-bind="visible: ignoringPlaylists()">
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        Ignoring&hellip;
+                    </span>
                 </button>
 
                 @if (isAdminUser)
                 {
-                    <button class="btn btn-success" data-bind="click: subscribeAllPlaylists, enable: !subscribingPlaylists()">
+                    <button class="btn btn-success" data-bind="click: subscribeAllPlaylists, enable: !subscribingPlaylists() && !ignoringPlaylists()">
                         <i class="bi bi-check-circle"></i> Subscribe All
                     </button>
                 }

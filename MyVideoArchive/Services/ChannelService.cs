@@ -1,8 +1,11 @@
 using Ardalis.Result;
 using Extenso.Collections.Generic;
 using Hangfire;
+using Hangfire.Common;
+using Hangfire.Storage;
 using MyVideoArchive.Models.Requests;
 using MyVideoArchive.Models.Responses;
+using MyVideoArchive.Services.Jobs;
 
 namespace MyVideoArchive.Services;
 
@@ -452,6 +455,68 @@ public class ChannelService : IChannelService
             }
 
             return Result.Error("An error occurred while retrieving videos");
+        }
+    }
+
+    public async Task<bool?> GetSyncStatusAsync(int channelId, CancellationToken cancellationToken = default)
+    {
+        var channel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.Id == channelId
+        });
+
+        if (channel is null)
+        {
+            return null;
+        }
+
+        // Custom channels do not have sync jobs
+        if (channel.Platform is "Custom")
+        {
+            return false;
+        }
+
+        // Check Hangfire for a channel sync job currently processing or enqueued for this channel
+        try
+        {
+            var monitoring = JobStorage.Current.GetMonitoringApi();
+            const int maxJobs = 500;
+
+            bool IsChannelSyncJobForThisChannel(Job? job)
+            {
+                return job != null &&
+                    job.Type == typeof(ChannelSyncJob) &&
+                    string.Equals(job.Method.Name, nameof(ChannelSyncJob.ExecuteAsync), StringComparison.Ordinal) &&
+                    job.Args is { Count: > 0 } &&
+                    job.Args[0] is int id &&
+                    id == channelId;
+            }
+
+            // Processing jobs (currently running)
+            var processing = monitoring.ProcessingJobs(0, maxJobs);
+            if (processing.Any(entry => IsChannelSyncJobForThisChannel(entry.Value?.Job)))
+            {
+                return true;
+            }
+
+            // Enqueued jobs (channel sync uses default queue)
+            var enqueued = monitoring.EnqueuedJobs("default", 0, maxJobs);
+            if (enqueued.Any(entry => IsChannelSyncJobForThisChannel(entry.Value?.Job)))
+            {
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Failed to check Hangfire for channel sync status");
+            }
+
+            return false;
         }
     }
 

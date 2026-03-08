@@ -1,4 +1,4 @@
-﻿using Ardalis.Result;
+using Ardalis.Result;
 using Extenso.Collections.Generic;
 using MyVideoArchive.Models.Requests;
 using MyVideoArchive.Models.Responses;
@@ -47,6 +47,12 @@ public interface IChannelService
         string? search = null,
         int? playlistId = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns true if the channel has never completed a sync (initial sync still pending),
+    /// or null if the channel does not exist.
+    /// </summary>
+    Task<bool?> GetSyncStatusAsync(int channelId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Trigger sync for all channels

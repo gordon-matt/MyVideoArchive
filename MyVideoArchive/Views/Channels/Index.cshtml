@@ -101,10 +101,16 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-bind="enable: !isAddingChannel()">Cancel</button>
                     <button type="button" class="btn btn-primary"
-                            data-bind="click: addChannel, enable: canSubmit()">
-                        Add Channel
+                            data-bind="click: addChannel, enable: canSubmit() && !isAddingChannel()">
+                        <span data-bind="visible: !isAddingChannel()">
+                            <i class="bi bi-plus-circle me-1"></i>Add Channel
+                        </span>
+                        <span data-bind="visible: isAddingChannel()">
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            Adding&hellip;
+                        </span>
                     </button>
                 </div>
             </div>

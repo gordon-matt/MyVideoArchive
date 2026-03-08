@@ -12,6 +12,7 @@ class ChannelsViewModel {
         this.customChannelDescription = ko.observable('');
 
         this.isAdmin = window.isAdminUser === true;
+        this.isAddingChannel = ko.observable(false);
         this.channelToDelete = ko.observable(null);
         this.adminDeleteMetadata = ko.observable(false);
         this.adminDeleteFiles = ko.observable(false);
@@ -95,6 +96,7 @@ class ChannelsViewModel {
             SubscribedAt: new Date().toISOString()
         };
 
+        this.isAddingChannel(true);
         try {
             const response = await fetch('/odata/ChannelOData', {
                 method: 'POST',
@@ -131,6 +133,8 @@ class ChannelsViewModel {
         } catch (error) {
             console.error(`Error adding ${platform} channel:`, error);
             toast.error('Failed to add channel. Please try again.');
+        } finally {
+            this.isAddingChannel(false);
         }
     };
 
@@ -275,24 +279,24 @@ class ChannelsViewModel {
         const name = this.customChannelName().trim();
         if (!name) return;
 
-        await fetch('/api/custom/channels', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name,
-                description: this.customChannelDescription().trim() || null
-            })
-        })
-        .then(async response => {
+        this.isAddingChannel(true);
+        try {
+            const response = await fetch('/api/custom/channels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    description: this.customChannelDescription().trim() || null
+                })
+            });
             if (!response.ok) throw new Error('Failed to create custom channel');
             const data = await response.json();
-            // Redirect straight to the custom channel details page
             window.location.href = `/channels/${data.id}`;
-        })
-        .catch(error => {
+        } catch (error) {
             console.error('Error adding custom channel:', error);
             toast.error('Failed to create custom channel. Please try again.');
-        });
+            this.isAddingChannel(false);
+        }
     };
 
     extractChannelId = (url) => {

@@ -70,6 +70,22 @@ class PlaylistDetailsViewModel {
             this.playlistVideos().filter(v => !v.isHidden).length
         );
 
+        // ── Download All modal ────────────────────────────────────────────────
+        this.downloadAllModalVideos = ko.observableArray([]);
+        this.downloadingAll = ko.observable(false);
+        this.downloadAllSelectAll = ko.observable(true);
+
+        this.downloadAllSelectAll.subscribe(newValue => {
+            this.downloadAllModalVideos().forEach(v => v.selectedForDownload(newValue));
+        });
+
+        this.hasDownloadableVideos = ko.computed(() =>
+            this.playlistVideos().some(v =>
+                !v.downloadedAt && !v.isQueued && !v.downloadFailed &&
+                v.title !== PRIVATE_VIDEO_TITLE && v.title !== DELETED_VIDEO_TITLE
+            )
+        );
+
         // Toggle autoadvance on the plugin when the observable changes
         this.autoAdvance.subscribe(val => {
             localStorage.setItem(STORAGE_KEY_AUTO_ADVANCE, val);
@@ -231,6 +247,58 @@ class PlaylistDetailsViewModel {
             });
             await this.loadPlaylistVideos();
         } catch (error) { console.error('Error unhiding video:', error); }
+    };
+
+    openDownloadAllModal = () => {
+        const downloadable = this.playlistVideos()
+            .filter(v =>
+                !v.downloadedAt && !v.isQueued && !v.downloadFailed &&
+                !v.isHidden &&
+                v.title !== PRIVATE_VIDEO_TITLE && v.title !== DELETED_VIDEO_TITLE
+            )
+            .map(v => ({ ...v, selectedForDownload: ko.observable(true) }));
+
+        this.downloadAllModalVideos(downloadable);
+        this.downloadAllSelectAll(true);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('downloadAllModal')).show();
+    };
+
+    confirmDownloadAll = async () => {
+        const toDownload = this.downloadAllModalVideos().filter(v => v.selectedForDownload());
+
+        if (toDownload.length === 0) {
+            toast.warning('No videos selected for download.');
+            return;
+        }
+
+        this.downloadingAll(true);
+        try {
+            // Group by channelId and issue one request per channel
+            const byChannel = toDownload.reduce((acc, v) => {
+                if (!acc[v.channelId]) acc[v.channelId] = [];
+                acc[v.channelId].push(v.id);
+                return acc;
+            }, {});
+
+            await Promise.all(
+                Object.entries(byChannel).map(([channelId, videoIds]) =>
+                    fetch(`/api/channels/${channelId}/videos/download`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ videoIds })
+                    })
+                )
+            );
+
+            bootstrap.Modal.getInstance(document.getElementById('downloadAllModal')).hide();
+            toast.info(`${toDownload.length} video(s) queued for download.`);
+            await this.loadPlaylistVideos();
+        } catch (error) {
+            console.error('Error queueing downloads:', error);
+            toast.error('Error queueing downloads. Please try again.');
+        } finally {
+            this.downloadingAll(false);
+        }
     };
 
     toggleShowHidden = () => { this.loadPlaylistVideos(); return true; };

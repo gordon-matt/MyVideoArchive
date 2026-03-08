@@ -37,6 +37,13 @@ class ChannelDetailsViewModel {
         this.scanMessage = ko.observable(null);
         this._scanPollTimer = null;
 
+        // ── Download state ────────────────────────────────────────────────────
+        this.downloadingVideos = ko.observable(false);
+
+        // ── Sync status ───────────────────────────────────────────────────────
+        this.isSyncing = ko.observable(false);
+        this._channelSyncPollTimer = null;
+
         // ── Subscribers tab (admin only) ──────────────────────────────────────
         this.subscribers = ko.observableArray([]);
         this.subscribersLoading = ko.observable(false);
@@ -53,6 +60,7 @@ class ChannelDetailsViewModel {
         this.playlistsTotalPages = ko.observable(1);
         this.playlistsTotalCount = ko.observable(0);
         this.subscribingPlaylists = ko.observable(false);
+        this.ignoringPlaylists = ko.observable(false);
 
         // ── Checkbox sync ─────────────────────────────────────────────────────
         this.selectAll.subscribe((newValue) => {
@@ -389,6 +397,7 @@ class ChannelDetailsViewModel {
             return;
         }
 
+        this.downloadingVideos(true);
         try {
             const response = await fetch(`/api/channels/${this.channelId}/videos/download`, {
                 method: 'POST',
@@ -402,6 +411,8 @@ class ChannelDetailsViewModel {
         } catch (error) {
             console.error('Error downloading videos:', error);
             toast.error('Error queueing downloads. Please try again.');
+        } finally {
+            this.downloadingVideos(false);
         }
     };
 
@@ -410,6 +421,7 @@ class ChannelDetailsViewModel {
             return;
         }
 
+        this.downloadingVideos(true);
         try {
             const response = await fetch(`/api/channels/${this.channelId}/videos/download-all`, {
                 method: 'POST',
@@ -421,6 +433,8 @@ class ChannelDetailsViewModel {
         } catch (error) {
             console.error('Error downloading all videos:', error);
             toast.error('Error queueing downloads. Please try again.');
+        } finally {
+            this.downloadingVideos(false);
         }
     };
 
@@ -592,6 +606,69 @@ class ChannelDetailsViewModel {
         } finally {
             this.subscribingPlaylists(false);
         }
+    };
+
+    ignoreSelectedPlaylists = async () => {
+        const selected = this.playlists().filter(p => p.selected());
+
+        if (selected.length === 0) {
+            toast.warning('Please select at least one playlist to ignore.');
+            return;
+        }
+
+        this.ignoringPlaylists(true);
+        try {
+            await Promise.all(selected.map(p =>
+                fetch(`/api/channels/${this.channelId}/playlists/${p.id}/ignore`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isIgnored: true })
+                })
+            ));
+            toast.success(`${selected.length} playlist(s) ignored.`);
+            await this.loadPlaylists();
+        } catch (error) {
+            console.error('Error ignoring playlists:', error);
+            toast.error('Error ignoring playlists. Please try again.');
+        } finally {
+            this.ignoringPlaylists(false);
+        }
+    };
+
+    // ── Channel sync status ───────────────────────────────────────────────────
+
+    startSyncPolling = () => {
+        this._checkSyncStatus();
+        this._channelSyncPollTimer = setInterval(() => this._checkSyncStatus(), 5000);
+    };
+
+    _stopSyncPolling = () => {
+        if (this._channelSyncPollTimer !== null) {
+            clearInterval(this._channelSyncPollTimer);
+            this._channelSyncPollTimer = null;
+        }
+    };
+
+    _checkSyncStatus = async () => {
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/sync-status`);
+            if (!response.ok) return;
+            const data = await response.json();
+            const wasSyncing = this.isSyncing();
+            this.isSyncing(data.isSyncing);
+
+            if (wasSyncing && !data.isSyncing) {
+                this._stopSyncPolling();
+                await this.loadChannel();
+                await this.loadVideos();
+                await this.loadSubscribedPlaylists();
+                toast.success('Channel sync complete. Content has been refreshed.');
+            }
+
+            if (!data.isSyncing) {
+                this._stopSyncPolling();
+            }
+        } catch { /* non-critical */ }
     };
 
     // ── Thumbnail picker ──────────────────────────────────────────────────────
@@ -766,6 +843,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await viewModel.loadChannel();
     await viewModel.loadVideos();
     await viewModel.loadSubscribedPlaylists();
+    viewModel.startSyncPolling();
 
     // Load available videos when the tab is clicked
     $('#available-tab').on('shown.bs.tab', function () {
