@@ -37,7 +37,7 @@ public class AdminTagsApiController : ControllerBase
         }
 
         var result = await tagService.CreateGlobalTagAsync(request.Name);
-        return result.ToActionResult(this, value => Ok(value));
+        return result.ToActionResult(this, Ok);
     }
 
     /// <summary>

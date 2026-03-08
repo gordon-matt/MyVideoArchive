@@ -43,8 +43,7 @@ public class ChannelApiController : ControllerBase
     [HttpGet("{id:int}/sync-status")]
     public async Task<IActionResult> GetSyncStatus(int id, CancellationToken cancellationToken)
     {
-        var isSyncing = await channelService.GetSyncStatusAsync(id, cancellationToken);
-        if (isSyncing is null) return NotFound();
-        return Ok(new { isSyncing = isSyncing.Value });
+        bool? isSyncing = await channelService.GetSyncStatusAsync(id, cancellationToken);
+        return isSyncing is null ? NotFound() : Ok(new { isSyncing = isSyncing.Value });
     }
 }

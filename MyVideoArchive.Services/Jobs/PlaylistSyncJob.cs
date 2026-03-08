@@ -107,8 +107,10 @@ public class PlaylistSyncJob
 
             if (hasAnySubs)
             {
-                // Get all videos from the playlist
-                var videoMetadataList = await provider.GetPlaylistVideosAsync(playlist.Url, cancellationToken);
+                // Get all videos from the playlist (deduplicate by Platform+VideoId to avoid duplicate key on insert)
+                var rawList = await provider.GetPlaylistVideosAsync(playlist.Url, cancellationToken);
+                var seenKeys = new HashSet<(string Platform, string VideoId)>();
+                var videoMetadataList = rawList.Where(v => seenKeys.Add((v.Platform, v.VideoId))).ToList();
                 if (logger.IsEnabled(LogLevel.Information))
                 {
                     logger.LogInformation("Found {Count} videos for playlist {PlaylistId}", videoMetadataList.Count, playlistId);
@@ -215,25 +217,41 @@ public class PlaylistSyncJob
                     }
                 }
 
-                await videoRepository.InsertAsync(videoInserts, ContextOptions.ForCancellationToken(cancellationToken));
-                await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
-
-                // After insert, new Video entities have Id set; create PlaylistVideo for each
-                foreach (var (insertedVideo, order) in newVideoOrders)
+                try
                 {
-                    if (!await playlistVideoRepository.ExistsAsync(
-                        x =>
-                            x.PlaylistId == playlistId &&
-                            x.VideoId == insertedVideo.Id,
-                        ContextOptions.ForCancellationToken(cancellationToken)))
+                    await videoRepository.InsertAsync(videoInserts, ContextOptions.ForCancellationToken(cancellationToken));
+                    await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
+
+                    foreach (var (insertedVideo, order) in newVideoOrders)
                     {
-                        playlistVideoInserts.Add(new PlaylistVideo
+                        if (!await playlistVideoRepository.ExistsAsync(
+                            x => x.PlaylistId == playlistId && x.VideoId == insertedVideo.Id,
+                            ContextOptions.ForCancellationToken(cancellationToken)))
                         {
-                            PlaylistId = playlistId,
-                            VideoId = insertedVideo.Id,
-                            Order = order
-                        });
+                            playlistVideoInserts.Add(new PlaylistVideo
+                            {
+                                PlaylistId = playlistId,
+                                VideoId = insertedVideo.Id,
+                                Order = order
+                            });
+                        }
                     }
+                }
+                catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("23505", StringComparison.Ordinal) == true)
+                {
+                    // Duplicate key (Platform, VideoId): video was inserted by another sync or appears twice in the playlist
+                    if (logger.IsEnabled(LogLevel.Warning))
+                    {
+                        logger.LogWarning(ex, "Duplicate key during playlist sync {PlaylistId}, resolving existing videos and retrying", playlistId);
+                    }
+
+                    await ResolveDuplicateVideosAndLinkAsync(
+                        playlistId,
+                        newVideoOrders,
+                        videoUpdates,
+                        playlistVideoInserts,
+                        existingPlaylistVideoIds,
+                        cancellationToken);
                 }
 
                 await playlistVideoRepository.InsertAsync(playlistVideoInserts, ContextOptions.ForCancellationToken(cancellationToken));
@@ -260,6 +278,94 @@ public class PlaylistSyncJob
 
             throw;
         }
+    }
+
+    /// <summary>
+    /// When bulk insert fails with duplicate key (23505), resolve each video: update and link if it exists, otherwise insert once per (Platform, VideoId).
+    /// </summary>
+    private async Task ResolveDuplicateVideosAndLinkAsync(
+        int playlistId,
+        List<(Video Video, int Order)> newVideoOrders,
+        List<Video> videoUpdates,
+        List<PlaylistVideo> playlistVideoInserts,
+        HashSet<int> existingPlaylistVideoIds,
+        CancellationToken cancellationToken)
+    {
+        var existingIdsAddedToUpdates = new HashSet<int>();
+        var linkedVideoIds = new HashSet<int>(playlistVideoInserts.Select(pv => pv.VideoId));
+        var insertedByKey = new HashSet<(string Platform, string VideoId)>();
+
+        foreach (var (video, order) in newVideoOrders)
+        {
+            var key = (video.Platform, video.VideoId);
+            var existingVideo = await videoRepository.FindOneAsync(new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.Platform == video.Platform && x.VideoId == video.VideoId
+            });
+
+            if (existingVideo is not null)
+            {
+                if (video.Title is not Constants.DeletedVideoTitle and not Constants.PrivateVideoTitle)
+                {
+                    existingVideo.Title = video.Title;
+                    existingVideo.Description = video.Description;
+                    existingVideo.Duration = video.Duration;
+                    existingVideo.ViewCount = video.ViewCount;
+                    existingVideo.LikeCount = video.LikeCount;
+                    existingVideo.ThumbnailUrl = video.ThumbnailUrl;
+                    if (video.Title == Constants.PrivateVideoTitle)
+                    {
+                        existingVideo.NeedsMetadataReview = true;
+                    }
+                }
+
+                if (existingIdsAddedToUpdates.Add(existingVideo.Id))
+                {
+                    videoUpdates.Add(existingVideo);
+                }
+
+                if (!existingPlaylistVideoIds.Contains(existingVideo.Id) && !linkedVideoIds.Contains(existingVideo.Id))
+                {
+                    linkedVideoIds.Add(existingVideo.Id);
+                    playlistVideoInserts.Add(new PlaylistVideo
+                    {
+                        PlaylistId = playlistId,
+                        VideoId = existingVideo.Id,
+                        Order = order
+                    });
+                }
+            }
+            else if (insertedByKey.Add(key))
+            {
+                var freshVideo = new Video
+                {
+                    VideoId = video.VideoId,
+                    Title = video.Title,
+                    Description = video.Description,
+                    Url = video.Url,
+                    ThumbnailUrl = video.ThumbnailUrl,
+                    Platform = video.Platform,
+                    Duration = video.Duration,
+                    UploadDate = video.UploadDate,
+                    ViewCount = video.ViewCount,
+                    LikeCount = video.LikeCount,
+                    ChannelId = video.ChannelId,
+                    IsIgnored = false,
+                    IsQueued = false,
+                    NeedsMetadataReview = video.NeedsMetadataReview
+                };
+                await videoRepository.InsertAsync(freshVideo, ContextOptions.ForCancellationToken(cancellationToken));
+                playlistVideoInserts.Add(new PlaylistVideo
+                {
+                    PlaylistId = playlistId,
+                    VideoId = freshVideo.Id,
+                    Order = order
+                });
+            }
+        }
+
+        await videoRepository.UpdateAsync(videoUpdates, ContextOptions.ForCancellationToken(cancellationToken));
     }
 
     [DisableConcurrentExecution(timeoutInSeconds: 600)] // 10 minutes timeout

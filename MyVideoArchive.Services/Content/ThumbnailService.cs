@@ -105,7 +105,7 @@ public class ThumbnailService
 
         try
         {
-            IConversion conversion = await FFmpeg.Conversions.FromSnippet.Snapshot(
+            var conversion = await FFmpeg.Conversions.FromSnippet.Snapshot(
                 videoFilePath, outPath, TimeSpan.FromSeconds(3));
 
             conversion.SetOverwriteOutput(true);

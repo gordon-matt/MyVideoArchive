@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
 namespace MyVideoArchive.Services;
 
@@ -13,5 +14,5 @@ public class UserContextService : IUserContextService
 
     public string? GetCurrentUserId() => httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    public bool IsAdministrator() => httpContextAccessor.HttpContext?.User?.IsInRole("Administrator") ?? false;
+    public bool IsAdministrator() => httpContextAccessor.HttpContext?.User?.IsInRole(Constants.Roles.Administrator) ?? false;
 }

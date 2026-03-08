@@ -110,12 +110,8 @@ builder.Services.AddHangfireServer(options =>
 });
 
 builder.Services.ConfigureSejil(options =>
-{
     // Use the default Identity application cookie
-    options.AuthenticationScheme = IdentityConstants.ApplicationScheme;
-    // Optional: customize page title
-    //options.Title = "MyVideoArchive Logs";
-});
+    options.AuthenticationScheme = IdentityConstants.ApplicationScheme);
 
 // Register HTTP client (used by ThumbnailService)
 builder.Services.AddHttpClient();
@@ -278,7 +274,7 @@ try
 
     FFmpeg.SetExecutablesPath(ffmpegPath);
 
-    #endregion
+    #endregion Xabe.Ffmpeg configuration
 
     var context = services.GetRequiredService<ApplicationDbContext>();
     var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();

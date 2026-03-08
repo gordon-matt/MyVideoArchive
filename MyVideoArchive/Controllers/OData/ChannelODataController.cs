@@ -46,7 +46,7 @@ public class ChannelODataController : ODataController
             }
 
             // Find the user's subscription
-            var userChannelExists = await userChannelRepository.ExistsAsync(x => x.UserId == userId && x.ChannelId == key);
+            bool userChannelExists = await userChannelRepository.ExistsAsync(x => x.UserId == userId && x.ChannelId == key);
             if (userChannelExists)
             {
                 return NotFound();
@@ -134,7 +134,7 @@ public class ChannelODataController : ODataController
             if (!isAdmin)
             {
                 // Check if user has access to this channel
-                var userChannelExists = await userChannelRepository.ExistsAsync(x => x.UserId == userId && x.ChannelId == key);
+                bool userChannelExists = await userChannelRepository.ExistsAsync(x => x.UserId == userId && x.ChannelId == key);
                 if (!userChannelExists)
                 {
                     return Forbid();

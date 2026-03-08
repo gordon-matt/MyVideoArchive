@@ -2,10 +2,8 @@ using Ardalis.Result;
 using Extenso.Collections.Generic;
 using Hangfire;
 using Hangfire.Common;
-using Hangfire.Storage;
 using MyVideoArchive.Models.Requests;
 using MyVideoArchive.Models.Responses;
-using MyVideoArchive.Services.Jobs;
 
 namespace MyVideoArchive.Services;
 
@@ -502,12 +500,7 @@ public class ChannelService : IChannelService
 
             // Enqueued jobs (channel sync uses default queue)
             var enqueued = monitoring.EnqueuedJobs("default", 0, maxJobs);
-            if (enqueued.Any(entry => IsChannelSyncJobForThisChannel(entry.Value?.Job)))
-            {
-                return true;
-            }
-
-            return false;
+            return enqueued.Any(entry => IsChannelSyncJobForThisChannel(entry.Value?.Job));
         }
         catch (Exception ex)
         {

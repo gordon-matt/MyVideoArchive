@@ -952,7 +952,11 @@ public class VideoService : IVideoService
         if (existing is not null)
         {
             existing.Watched = watched;
-            if (isIgnored.HasValue) existing.IsIgnored = isIgnored.Value;
+            if (isIgnored.HasValue)
+            {
+                existing.IsIgnored = isIgnored.Value;
+            }
+
             await userVideoRepository.UpdateAsync(existing);
         }
         else

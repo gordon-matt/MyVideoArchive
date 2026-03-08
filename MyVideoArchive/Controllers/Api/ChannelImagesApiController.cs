@@ -1,5 +1,4 @@
 using MyVideoArchive.Models.Metadata;
-using MyVideoArchive.Services.Content.Providers;
 
 namespace MyVideoArchive.Controllers.Api;
 
@@ -91,8 +90,15 @@ public class ChannelImagesApiController : ControllerBase
     public async Task<IActionResult> GetAvailableImages(int id, CancellationToken cancellationToken = default)
     {
         var (canAccess, channel) = await CanAccessChannelAsync(id);
-        if (!canAccess) return Forbid();
-        if (channel is null) return NotFound();
+        if (!canAccess)
+        {
+            return Forbid();
+        }
+
+        if (channel is null)
+        {
+            return NotFound();
+        }
 
         if (channel.Platform == "Custom")
         {
@@ -130,8 +136,15 @@ public class ChannelImagesApiController : ControllerBase
         [FromBody] UpdateChannelImagesRequest request)
     {
         var (canAccess, channel) = await CanAccessChannelAsync(id);
-        if (!canAccess) return Forbid();
-        if (channel is null) return NotFound();
+        if (!canAccess)
+        {
+            return Forbid();
+        }
+
+        if (channel is null)
+        {
+            return NotFound();
+        }
 
         if (request.BannerUrl is not null)
         {
@@ -155,11 +168,21 @@ public class ChannelImagesApiController : ControllerBase
     public async Task<IActionResult> UploadBanner(int id, IFormFile file)
     {
         var (canAccess, channel) = await CanAccessChannelAsync(id);
-        if (!canAccess) return Forbid();
-        if (channel is null) return NotFound();
+        if (!canAccess)
+        {
+            return Forbid();
+        }
+
+        if (channel is null)
+        {
+            return NotFound();
+        }
 
         var (url, errorMessage) = await SaveChannelImageAsync(id, channel, file, "banner");
-        if (errorMessage is not null) return BadRequest(new { message = errorMessage });
+        if (errorMessage is not null)
+        {
+            return BadRequest(new { message = errorMessage });
+        }
 
         channel.BannerUrl = url;
         await channelRepository.UpdateAsync(channel);
@@ -174,11 +197,21 @@ public class ChannelImagesApiController : ControllerBase
     public async Task<IActionResult> UploadAvatar(int id, IFormFile file)
     {
         var (canAccess, channel) = await CanAccessChannelAsync(id);
-        if (!canAccess) return Forbid();
-        if (channel is null) return NotFound();
+        if (!canAccess)
+        {
+            return Forbid();
+        }
+
+        if (channel is null)
+        {
+            return NotFound();
+        }
 
         var (url, errorMessage) = await SaveChannelImageAsync(id, channel, file, "avatar");
-        if (errorMessage is not null) return BadRequest(new { message = errorMessage });
+        if (errorMessage is not null)
+        {
+            return BadRequest(new { message = errorMessage });
+        }
 
         channel.AvatarUrl = url;
         await channelRepository.UpdateAsync(channel);
@@ -192,12 +225,18 @@ public class ChannelImagesApiController : ControllerBase
     public async Task<IActionResult> GetBanner(int id)
     {
         var (canAccess, channel) = await CanAccessChannelAsync(id);
-        if (!canAccess) return Forbid();
-        if (channel is null) return NotFound();
+        if (!canAccess)
+        {
+            return Forbid();
+        }
+
+        if (channel is null)
+        {
+            return NotFound();
+        }
 
         var fileInfo = ResolveUploadedImage(id, channel, "banner");
-        if (fileInfo is null) return NotFound();
-        return PhysicalFile(fileInfo.Value.FilePath, fileInfo.Value.ContentType);
+        return fileInfo is null ? NotFound() : PhysicalFile(fileInfo.Value.FilePath, fileInfo.Value.ContentType);
     }
 
     /// <summary>
@@ -207,12 +246,18 @@ public class ChannelImagesApiController : ControllerBase
     public async Task<IActionResult> GetAvatar(int id)
     {
         var (canAccess, channel) = await CanAccessChannelAsync(id);
-        if (!canAccess) return Forbid();
-        if (channel is null) return NotFound();
+        if (!canAccess)
+        {
+            return Forbid();
+        }
+
+        if (channel is null)
+        {
+            return NotFound();
+        }
 
         var fileInfo = ResolveUploadedImage(id, channel, "avatar");
-        if (fileInfo is null) return NotFound();
-        return PhysicalFile(fileInfo.Value.FilePath, fileInfo.Value.ContentType);
+        return fileInfo is null ? NotFound() : PhysicalFile(fileInfo.Value.FilePath, fileInfo.Value.ContentType);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -220,12 +265,21 @@ public class ChannelImagesApiController : ControllerBase
     private async Task<(bool CanAccess, Channel? Channel)> CanAccessChannelAsync(int channelId)
     {
         var channel = await channelRepository.FindOneAsync(channelId);
-        if (channel is null) return (true, null); // caller should return 404
+        if (channel is null)
+        {
+            return (true, null); // caller should return 404
+        }
 
-        if (userContextService.IsAdministrator()) return (true, channel);
+        if (userContextService.IsAdministrator())
+        {
+            return (true, channel);
+        }
 
         string? userId = userContextService.GetCurrentUserId();
-        if (string.IsNullOrEmpty(userId)) return (false, channel);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return (false, channel);
+        }
 
         bool hasAccess = await userChannelRepository.ExistsAsync(
             x => x.UserId == userId && x.ChannelId == channelId);
@@ -240,11 +294,15 @@ public class ChannelImagesApiController : ControllerBase
         string role)
     {
         if (file is null || file.Length == 0)
+        {
             return (null, "No file provided.");
+        }
 
         string ext = System.IO.Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!AllowedImageExtensions.Contains(ext))
+        {
             return (null, $"Invalid file type. Allowed: {string.Join(", ", AllowedImageExtensions)}");
+        }
 
         string dir = GetChannelImageDirectory(channelDbId, channel);
         System.IO.Directory.CreateDirectory(dir);
@@ -253,7 +311,10 @@ public class ChannelImagesApiController : ControllerBase
         foreach (string otherExt in AllowedImageExtensions)
         {
             string otherPath = System.IO.Path.Combine(dir, role + otherExt);
-            if (System.IO.File.Exists(otherPath)) System.IO.File.Delete(otherPath);
+            if (System.IO.File.Exists(otherPath))
+            {
+                System.IO.File.Delete(otherPath);
+            }
         }
 
         string savePath = System.IO.Path.Combine(dir, role + ext);

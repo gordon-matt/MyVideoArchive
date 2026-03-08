@@ -1,0 +1,14 @@
+﻿global using Ardalis.Result;
+global using Extenso.Data.Entity;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.Logging;
+global using Microsoft.Extensions.Logging.Abstractions;
+global using Moq;
+global using MyVideoArchive.Data.Entities;
+global using MyVideoArchive.Models.Requests;
+global using MyVideoArchive.Services;
+global using MyVideoArchive.Services.Content;
+global using MyVideoArchive.Services.Content.Providers;
+global using MyVideoArchive.Services.Jobs;
+global using MyVideoArchive.Tests.TestHelpers;

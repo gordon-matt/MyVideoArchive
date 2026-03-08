@@ -307,14 +307,12 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         return best?.Url;
     }
 
-    private static List<ThumbnailInfo> MapThumbnails(ThumbnailData[]? thumbnails)
-    {
-        if (thumbnails.IsNullOrEmpty()) return [];
-        return thumbnails!
+    private static List<ThumbnailInfo> MapThumbnails(ThumbnailData[]? thumbnails) => thumbnails.IsNullOrEmpty()
+            ? []
+            : thumbnails!
             .Where(t => !string.IsNullOrEmpty(t.Url))
-            .Select(t => new ThumbnailInfo(t.ID, t.Url!, (int?)t.Width, (int?)t.Height, (int?)t.Preference))
+            .Select(t => new ThumbnailInfo(t.ID, t.Url!, t.Width, t.Height, t.Preference))
             .ToList();
-    }
 
     public async Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default)
     {

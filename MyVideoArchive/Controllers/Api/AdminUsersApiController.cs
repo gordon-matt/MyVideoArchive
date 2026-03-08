@@ -29,12 +29,14 @@ public class AdminUsersApiController : ControllerBase
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
+        {
             return Ok(new { success = false, message = "User not found" });
+        }
 
         return Ok(new
         {
             success = true,
-            data = new { Id = user.Id, Email = user.Email, UserName = user.UserName }
+            data = new { user.Id, user.Email, user.UserName }
         });
     }
 
@@ -45,7 +47,7 @@ public class AdminUsersApiController : ControllerBase
     public async Task<IActionResult> GetRoles()
     {
         var roles = await _roleManager.Roles
-            .Select(r => new { Id = r.Id, Name = r.Name })
+            .Select(r => new { r.Id, r.Name })
             .ToListAsync();
         return Ok(new { success = true, data = roles });
     }
@@ -64,12 +66,12 @@ public class AdminUsersApiController : ControllerBase
             var roles = await _userManager.GetRolesAsync(user);
             userList.Add(new
             {
-                Id = user.Id,
-                UserName = user.UserName,
-                Email = user.Email,
-                EmailConfirmed = user.EmailConfirmed,
-                LockoutEnabled = user.LockoutEnabled,
-                LockoutEnd = user.LockoutEnd,
+                user.Id,
+                user.UserName,
+                user.Email,
+                user.EmailConfirmed,
+                user.LockoutEnabled,
+                user.LockoutEnd,
                 IsActive = user.LockoutEnd == null || user.LockoutEnd < DateTime.UtcNow,
                 Roles = roles.ToList()
             });
@@ -90,10 +92,14 @@ public class AdminUsersApiController : ControllerBase
 
         var result = await _userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
+        {
             return Ok(new { success = false, message = string.Join(", ", result.Errors.Select(e => e.Description)) });
+        }
 
         if (!string.IsNullOrEmpty(request.Role))
+        {
             await _userManager.AddToRoleAsync(user, request.Role);
+        }
 
         return Ok(new { success = true, message = "User created successfully" });
     }
@@ -103,23 +109,31 @@ public class AdminUsersApiController : ControllerBase
     {
         var currentUser = await _userManager.GetUserAsync(User);
         if (currentUser != null && currentUser.Id == id)
+        {
             return Ok(new { success = false, message = "You cannot edit your own account from this page." });
+        }
 
         var user = await _userManager.FindByIdAsync(id);
         if (user == null)
+        {
             return Ok(new { success = false, message = "User not found" });
+        }
 
         user.Email = request.Email;
         user.UserName = request.Email;
 
         var result = await _userManager.UpdateAsync(user);
         if (!result.Succeeded)
+        {
             return Ok(new { success = false, message = string.Join(", ", result.Errors.Select(e => e.Description)) });
+        }
 
         var currentRoles = await _userManager.GetRolesAsync(user);
         await _userManager.RemoveFromRolesAsync(user, currentRoles);
         if (!string.IsNullOrEmpty(request.Role))
+        {
             await _userManager.AddToRoleAsync(user, request.Role);
+        }
 
         return Ok(new { success = true, message = "User updated successfully" });
     }
@@ -129,11 +143,15 @@ public class AdminUsersApiController : ControllerBase
     {
         var currentUser = await _userManager.GetUserAsync(User);
         if (currentUser != null && currentUser.Id == id)
+        {
             return Ok(new { success = false, message = "You cannot disable your own account." });
+        }
 
         var user = await _userManager.FindByIdAsync(id);
         if (user == null)
+        {
             return Ok(new { success = false, message = "User not found" });
+        }
 
         if (user.LockoutEnd == null || user.LockoutEnd < DateTime.UtcNow)
         {
@@ -150,15 +168,21 @@ public class AdminUsersApiController : ControllerBase
     {
         var currentUser = await _userManager.GetUserAsync(User);
         if (currentUser != null && currentUser.Id == id)
+        {
             return Ok(new { success = false, message = "You cannot delete your own account." });
+        }
 
         var user = await _userManager.FindByIdAsync(id);
         if (user == null)
+        {
             return Ok(new { success = false, message = "User not found" });
+        }
 
         var result = await _userManager.DeleteAsync(user);
         if (!result.Succeeded)
+        {
             return Ok(new { success = false, message = string.Join(", ", result.Errors.Select(e => e.Description)) });
+        }
 
         return Ok(new { success = true, message = "User deleted successfully" });
     }

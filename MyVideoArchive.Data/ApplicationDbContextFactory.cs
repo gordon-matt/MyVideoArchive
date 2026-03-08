@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+
 namespace MyVideoArchive.Data;
 
 public class ApplicationDbContextFactory(IConfiguration configuration) : IDbContextFactory
