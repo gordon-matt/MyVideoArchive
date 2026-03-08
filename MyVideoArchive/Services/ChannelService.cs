@@ -8,15 +8,15 @@ namespace MyVideoArchive.Services;
 
 public class ChannelService : IChannelService
 {
-    private readonly IBackgroundJobClient backgroundJobClient;
-    private readonly IRepository<Channel> channelRepository;
-    private readonly IConfiguration configuration;
-    private readonly IRepository<CustomPlaylistVideo> customPlaylistVideoRepository;
     private readonly ILogger<ChannelService> logger;
+    private readonly IConfiguration configuration;
+    private readonly IBackgroundJobClient backgroundJobClient;
+    private readonly IUserContextService userContextService;
+    private readonly IRepository<Channel> channelRepository;
+    private readonly IRepository<CustomPlaylistVideo> customPlaylistVideoRepository;
     private readonly IRepository<Playlist> playlistRepository;
     private readonly IRepository<PlaylistVideo> playlistVideoRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
-    private readonly IUserContextService userContextService;
     private readonly IRepository<UserPlaylist> userPlaylistRepository;
     private readonly IRepository<UserPlaylistVideo> userPlaylistVideoRepository;
     private readonly IRepository<UserVideo> userVideoRepository;
