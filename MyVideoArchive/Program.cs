@@ -4,8 +4,13 @@ using Autofac.Extensions.DependencyInjection;
 using Extenso.AspNetCore.OData;
 using Hangfire;
 using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OData;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
 using MyVideoArchive.Data;
 using MyVideoArchive.Infrastructure;
 using Sejil;
@@ -55,10 +60,82 @@ else
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddIdentity<ApplicationUser, ApplicationRole>()
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders()
-    .AddDefaultUI();
+// ── Authentication provider selection ────────────────────────────────────────
+// Set "Authentication:Provider" to "Keycloak" to use Keycloak instead of the
+// built-in ASP.NET Core Identity system. See appsettings.json for configuration
+// keys and docs/KEYCLOAK_SETUP.md for Keycloak-side setup instructions.
+string authProviderName = builder.Configuration.GetValue<string>("Authentication:Provider") ?? "Identity";
+bool useKeycloak = authProviderName.Equals("Keycloak", StringComparison.OrdinalIgnoreCase);
+
+string? keycloakAuthority = builder.Configuration["Authentication:Keycloak:Authority"];
+
+builder.Services.AddSingleton<IAuthProviderService>(new AuthProviderService(
+    useKeycloak ? AuthProvider.Keycloak : AuthProvider.Identity,
+    keycloakAuthority));
+
+if (useKeycloak)
+{
+    // ── Keycloak / OpenID Connect authentication ──────────────────────────────
+    // A cookie keeps the server-side session; OIDC handles the external login flow.
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+    })
+    .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
+    {
+        options.LoginPath = "/auth/login";
+        options.AccessDeniedPath = "/Home/AccessDenied";
+    })
+    .AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
+    {
+        options.Authority = keycloakAuthority;
+        options.ClientId = builder.Configuration["Authentication:Keycloak:ClientId"];
+        options.ClientSecret = builder.Configuration["Authentication:Keycloak:ClientSecret"];
+        options.ResponseType = OpenIdConnectResponseType.Code;
+        options.SaveTokens = true;
+        options.GetClaimsFromUserInfoEndpoint = true;
+
+        // Map the OIDC "preferred_username" claim to the standard Name claim.
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            NameClaimType = "preferred_username"
+        };
+
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+
+        // Disable HTTPS requirement for local development (Keycloak running on HTTP).
+        // In production, Keycloak should be behind HTTPS and this should be removed.
+        options.RequireHttpsMetadata = false;
+
+        // Keycloak 26+ enables Pushed Authorization Requests (PAR) by default.
+        // PAR requires exact redirect URI matches (wildcards are rejected), which
+        // conflicts with the wildcard URIs typically used during development.
+        // Disable PAR here; it can be re-enabled once exact redirect URIs are
+        // configured in Keycloak (Clients → Advanced → Pushed Authorization Requests).
+        options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.Disable;
+    });
+
+    // Transforms Keycloak's realm_access.roles JSON claim into standard ClaimTypes.Role.
+    builder.Services.AddTransient<IClaimsTransformation, KeycloakRolesClaimsTransformation>();
+
+    builder.Services.ConfigureSejil(options =>
+        options.AuthenticationScheme = CookieAuthenticationDefaults.AuthenticationScheme);
+}
+else
+{
+    // ── ASP.NET Core Identity (default) ──────────────────────────────────────
+    builder.Services.AddIdentity<ApplicationUser, ApplicationRole>()
+        .AddEntityFrameworkStores<ApplicationDbContext>()
+        .AddDefaultTokenProviders()
+        .AddDefaultUI();
+
+    builder.Services.ConfigureSejil(options =>
+        options.AuthenticationScheme = IdentityConstants.ApplicationScheme);
+}
 
 builder.Services.AddControllersWithViews()
     .AddNewtonsoftJson()
@@ -73,6 +150,7 @@ builder.Services.AddControllersWithViews()
         }
     });
 
+builder.Services.AddRazorPages();
 builder.Services.AddEntityFrameworkRepository();
 
 // Configure Hangfire (requires SQL Server)
@@ -108,10 +186,6 @@ builder.Services.AddHangfireServer(options =>
     options.Queues = ["downloads"];
     options.WorkerCount = 1;
 });
-
-builder.Services.ConfigureSejil(options =>
-    // Use the default Identity application cookie
-    options.AuthenticationScheme = IdentityConstants.ApplicationScheme);
 
 // Register HTTP client (used by ThumbnailService)
 builder.Services.AddHttpClient();
@@ -304,10 +378,19 @@ try
     #endregion Xabe.Ffmpeg configuration
 
     var context = services.GetRequiredService<ApplicationDbContext>();
-    var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-    var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
 
-    await DbInitializer.InitializeAsync(context, userManager, roleManager, configuration);
+    if (useKeycloak)
+    {
+        // When Keycloak is active, users and roles are managed externally.
+        // Still run EF migrations to keep the application schema up to date.
+        await context.Database.MigrateAsync();
+    }
+    else
+    {
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
+        await DbInitializer.InitializeAsync(context, userManager, roleManager, configuration);
+    }
 }
 catch (Exception ex)
 {

@@ -1,3 +1,5 @@
+@using MyVideoArchive.Infrastructure
+@inject IAuthProviderService AuthProvider
 @{
     ViewData["Title"] = "Admin";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -35,12 +37,15 @@
             <!-- /ko -->
         </button>
     </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab"
-                data-bind="click: loadUsersTab">
-            <i class="bi bi-people"></i> Users
-        </button>
-    </li>
+    @if (!AuthProvider.IsKeycloak)
+    {
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab"
+                    data-bind="click: loadUsersTab">
+                <i class="bi bi-people"></i> Users
+            </button>
+        </li>
+    }
 </ul>
 
 <div class="tab-content" id="adminTabsContent">
@@ -306,6 +311,8 @@
         </div>
     </div>
 
+    @if (!AuthProvider.IsKeycloak)
+    {
     <!-- ── Users tab ─────────────────────────────────────────────────────────── -->
     <div class="tab-pane fade" id="users" role="tabpanel">
         <div class="row mb-3">
@@ -451,6 +458,7 @@
             </div>
         </div>
     </div>
+    } @* end @if (!AuthProvider.IsKeycloak) *@
 
 </div>
 
