@@ -1,5 +1,6 @@
 using Hangfire;
 using MyVideoArchive.Infrastructure;
+using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services.Jobs;
 
@@ -187,15 +188,28 @@ public class VideoDownloadJob
             video.IsQueued = false;
             video.DownloadFailed = false;
 
-            // Generate a thumbnail from the downloaded file if one is not already archived
-            if (!video.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
+            // Save the thumbnail to a local file now that the video has been downloaded.
+            // If ThumbnailUrl is still a remote HTTP URL, download and save it.
+            // If that fails (or there is no URL), generate a frame from the video file.
+            if (!ThumbnailService.IsLocalUrl(video.ThumbnailUrl))
             {
-                string? generated = await thumbnailService.GenerateFromVideoAsync(
-                    filePath, channelPath, video.VideoId, cancellationToken);
+                string? localUrl = null;
 
-                if (!string.IsNullOrEmpty(generated))
+                if (ThumbnailService.IsRemoteUrl(video.ThumbnailUrl))
                 {
-                    video.ThumbnailUrl = generated;
+                    localUrl = await thumbnailService.DownloadAndSaveAsync(
+                        video.ThumbnailUrl, channelPath, video.VideoId, downloadPath, cancellationToken);
+                }
+
+                if (localUrl == null)
+                {
+                    localUrl = await thumbnailService.GenerateFromVideoAsync(
+                        filePath, channelPath, video.VideoId, downloadPath, cancellationToken);
+                }
+
+                if (!string.IsNullOrEmpty(localUrl))
+                {
+                    video.ThumbnailUrl = localUrl;
                 }
             }
 

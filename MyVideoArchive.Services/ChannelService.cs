@@ -14,8 +14,10 @@ public class ChannelService : IChannelService
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly IUserContextService userContextService;
     private readonly IRepository<Channel> channelRepository;
+    private readonly IRepository<ChannelTag> channelTagRepository;
     private readonly IRepository<CustomPlaylistVideo> customPlaylistVideoRepository;
     private readonly IRepository<Playlist> playlistRepository;
+    private readonly IRepository<PlaylistTag> playlistTagRepository;
     private readonly IRepository<PlaylistVideo> playlistVideoRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
     private readonly IRepository<UserPlaylist> userPlaylistRepository;
@@ -30,8 +32,10 @@ public class ChannelService : IChannelService
         IBackgroundJobClient backgroundJobClient,
         IUserContextService userContextService,
         IRepository<Channel> channelRepository,
+        IRepository<ChannelTag> channelTagRepository,
         IRepository<CustomPlaylistVideo> customPlaylistVideoRepository,
         IRepository<Playlist> playlistRepository,
+        IRepository<PlaylistTag> playlistTagRepository,
         IRepository<PlaylistVideo> playlistVideoRepository,
         IRepository<UserChannel> userChannelRepository,
         IRepository<UserPlaylist> userPlaylistRepository,
@@ -44,8 +48,10 @@ public class ChannelService : IChannelService
         this.configuration = configuration;
         this.backgroundJobClient = backgroundJobClient;
         this.channelRepository = channelRepository;
+        this.channelTagRepository = channelTagRepository;
         this.customPlaylistVideoRepository = customPlaylistVideoRepository;
         this.playlistRepository = playlistRepository;
+        this.playlistTagRepository = playlistTagRepository;
         this.playlistVideoRepository = playlistVideoRepository;
         this.userChannelRepository = userChannelRepository;
         this.userPlaylistRepository = userPlaylistRepository;
@@ -124,7 +130,9 @@ public class ChannelService : IChannelService
                 await videoTagRepository.DeleteAsync(x => x.Video.ChannelId == id);
                 await playlistVideoRepository.DeleteAsync(x => x.Video.ChannelId == id);
                 await videoRepository.DeleteAsync(x => x.ChannelId == id);
+                await playlistTagRepository.DeleteAsync(x => x.Playlist.ChannelId == id);
                 await playlistRepository.DeleteAsync(x => x.ChannelId == id);
+                await channelTagRepository.DeleteAsync(x => x.ChannelId == id);
                 await channelRepository.DeleteAsync(channel);
 
                 if (logger.IsEnabled(LogLevel.Information))

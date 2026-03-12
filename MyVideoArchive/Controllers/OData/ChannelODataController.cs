@@ -265,6 +265,12 @@ public class ChannelODataController : ODataController
             // Remove "standalone" tags from user's videos in this channel now that they're subscribed
             await tagService.RemoveStandaloneTagsForChannelAsync(userId, channelDbId);
 
+            // Auto-import tags from channel metadata
+            if (channelMetadata?.Tags.Count > 0)
+            {
+                await tagService.ImportChannelTagsAsync(channelDbId, channelMetadata.Tags);
+            }
+
             if (!channelAlreadyExists)
             {
                 // Queue sync job for the channel

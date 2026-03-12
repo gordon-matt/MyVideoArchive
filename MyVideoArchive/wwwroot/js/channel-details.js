@@ -62,6 +62,11 @@ class ChannelDetailsViewModel {
         this.subscribingPlaylists = ko.observable(false);
         this.ignoringPlaylists = ko.observable(false);
 
+        // ── Ignore playlist confirmation modal ────────────────────────────────
+        this._ignorePlaylistResolve = null;
+        this.ignorePlaylistModalPlaylistName = ko.observable('');
+        this.ignorePlaylistModalIgnoreVideos = ko.observable(false);
+
         // ── Checkbox sync ─────────────────────────────────────────────────────
         this.selectAll.subscribe((newValue) => {
             this.availableVideos().forEach(v => v.selected(newValue));
@@ -616,13 +621,17 @@ class ChannelDetailsViewModel {
             return;
         }
 
+        const playlistLabel = selected.length === 1 ? selected[0].name : `${selected.length} playlists`;
+        const ignoreVideos = await this._showIgnorePlaylistModal(playlistLabel);
+        if (ignoreVideos === null) return; // cancelled
+
         this.ignoringPlaylists(true);
         try {
             await Promise.all(selected.map(p =>
                 fetch(`/api/channels/${this.channelId}/playlists/${p.id}/ignore`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ isIgnored: true })
+                    body: JSON.stringify({ isIgnored: true, ignoreVideos })
                 })
             ));
             toast.success(`${selected.length} playlist(s) ignored.`);
@@ -632,6 +641,38 @@ class ChannelDetailsViewModel {
             toast.error('Error ignoring playlists. Please try again.');
         } finally {
             this.ignoringPlaylists(false);
+        }
+    };
+
+    // Shows the ignore-playlist confirmation modal and returns a Promise that resolves to:
+    //   true  — ignore playlist (and optionally videos)
+    //   false — ignore playlist only (no videos)
+    //   null  — cancelled
+    _showIgnorePlaylistModal = (playlistName) => {
+        this.ignorePlaylistModalPlaylistName(playlistName);
+        this.ignorePlaylistModalIgnoreVideos(false);
+        return new Promise(resolve => {
+            this._ignorePlaylistResolve = resolve;
+            bootstrap.Modal.getOrCreateInstance(
+                document.getElementById('ignorePlaylistModal')
+            ).show();
+        });
+    };
+
+    confirmIgnorePlaylist = () => {
+        const ignoreVideos = this.ignorePlaylistModalIgnoreVideos();
+        bootstrap.Modal.getInstance(document.getElementById('ignorePlaylistModal')).hide();
+        if (this._ignorePlaylistResolve) {
+            this._ignorePlaylistResolve(ignoreVideos);
+            this._ignorePlaylistResolve = null;
+        }
+    };
+
+    cancelIgnorePlaylist = () => {
+        bootstrap.Modal.getInstance(document.getElementById('ignorePlaylistModal')).hide();
+        if (this._ignorePlaylistResolve) {
+            this._ignorePlaylistResolve(null);
+            this._ignorePlaylistResolve = null;
         }
     };
 
@@ -796,11 +837,20 @@ class ChannelDetailsViewModel {
     };
 
     ignorePlaylist = async (playlist) => {
+        const newIgnored = !playlist.isIgnored;
+
+        let ignoreVideos = false;
+        if (newIgnored) {
+            const result = await this._showIgnorePlaylistModal(playlist.name);
+            if (result === null) return; // cancelled
+            ignoreVideos = result;
+        }
+
         try {
             await fetch(`/api/channels/${this.channelId}/playlists/${playlist.id}/ignore`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ isIgnored: !playlist.isIgnored })
+                body: JSON.stringify({ isIgnored: newIgnored, ignoreVideos })
             });
             await this.loadPlaylists();
         } catch (error) {

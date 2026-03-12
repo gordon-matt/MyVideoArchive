@@ -16,12 +16,16 @@ public class VideoServiceTests
         var user = userContext ?? CreateUserContext("user1", false);
         var channelSvc = channelService ?? Mock.Of<IChannelService>();
         var playlistSvc = customPlaylistService ?? Mock.Of<ICustomPlaylistService>();
+
         var tagSvc = tagService ?? new TagService(
             NullLogger<TagService>.Instance,
             user,
             db.TagRepository,
             db.VideoRepository,
-            db.VideoTagRepository);
+            db.VideoTagRepository,
+            db.ChannelTagRepository,
+            db.PlaylistTagRepository);
+
         var factory = metadataFactory ?? new VideoMetadataProviderFactory(
             [],
             NullLogger<VideoMetadataProviderFactory>.Instance);

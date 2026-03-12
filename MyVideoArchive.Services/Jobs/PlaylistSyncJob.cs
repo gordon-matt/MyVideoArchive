@@ -1,4 +1,5 @@
 using Hangfire;
+using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services.Jobs;
 
@@ -96,9 +97,13 @@ public class PlaylistSyncJob
                 playlist.Description = playlistMetadata.Description;
 
                 string playlistThumbnailDir = Path.Combine(downloadPath, channelDirId, "Playlists");
-                playlist.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
-                    playlistMetadata.ThumbnailUrl, playlistThumbnailDir, playlist.PlaylistId, cancellationToken)
-                    ?? playlist.ThumbnailUrl;
+                if (!ThumbnailService.IsLocalUrl(playlist.ThumbnailUrl))
+                {
+                    string? localUrl = await thumbnailService.DownloadAndSaveAsync(
+                        playlistMetadata.ThumbnailUrl, playlistThumbnailDir, playlist.PlaylistId,
+                        downloadPath, cancellationToken);
+                    playlist.ThumbnailUrl = localUrl ?? playlistMetadata.ThumbnailUrl ?? playlist.ThumbnailUrl;
+                }
             }
 
             bool hasAnySubs = await userPlaylistRepository.ExistsAsync(
@@ -158,12 +163,11 @@ public class PlaylistSyncJob
                                 existingVideo.NeedsMetadataReview = true;
                             }
 
-                            // Only download thumbnail if not already stored as a data URL
-                            if (!existingVideo.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
+                            // Keep the original remote URL until the video is downloaded.
+                            // If the thumbnail already points to a local /archive/… file, leave it as-is.
+                            if (!ThumbnailService.IsLocalUrl(existingVideo.ThumbnailUrl))
                             {
-                                existingVideo.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
-                                    videoMetadata.ThumbnailUrl, videoThumbnailDir, existingVideo.VideoId, cancellationToken)
-                                    ?? videoMetadata.ThumbnailUrl;
+                                existingVideo.ThumbnailUrl = videoMetadata.ThumbnailUrl;
                             }
 
                             videoUpdates.Add(existingVideo);
@@ -189,17 +193,16 @@ public class PlaylistSyncJob
                     }
                     else
                     {
-                        string? thumbnailDataUrl = await thumbnailService.DownloadAndSaveAsync(
-                            videoMetadata.ThumbnailUrl, videoThumbnailDir, videoMetadata.VideoId, cancellationToken);
-
-                        // Create new video entry (without auto-downloading)
+                        // Create new video entry (without auto-downloading).
+                        // Store original remote thumbnail URL — it will be replaced with a local
+                        // /archive/… URL when the video is actually downloaded.
                         var newVideo = new Video
                         {
                             VideoId = videoMetadata.VideoId,
                             Title = videoMetadata.Title,
                             Description = videoMetadata.Description,
                             Url = videoMetadata.Url,
-                            ThumbnailUrl = thumbnailDataUrl ?? videoMetadata.ThumbnailUrl,
+                            ThumbnailUrl = videoMetadata.ThumbnailUrl,
                             Platform = videoMetadata.Platform,
                             Duration = videoMetadata.Duration,
                             UploadDate = videoMetadata.UploadDate,

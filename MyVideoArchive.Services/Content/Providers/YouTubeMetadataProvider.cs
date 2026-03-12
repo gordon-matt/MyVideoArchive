@@ -59,10 +59,12 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 Name = data.Channel ?? data.Uploader ?? "Unknown Channel",
                 Url = data.WebpageUrl ?? channelUrl,
                 Description = data.Description,
-                BannerUrl = GetBestThumbnail(data.Thumbnails),
+                BannerUrl = GetBestBannerThumbnail(data.Thumbnails),
+                AvatarUrl = GetAvatarOrBestThumbnail(data.Thumbnails),
                 Thumbnails = thumbnailInfos,
                 SubscriberCount = data.ChannelFollowerCount is not null ? (int?)data.ChannelFollowerCount : null,
-                Platform = PlatformName
+                Platform = PlatformName,
+                Tags = data.Tags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? []
             };
         }
         catch (Exception ex)
@@ -112,7 +114,8 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 ChannelId = data.ChannelID,
                 ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
                 Platform = PlatformName,
-                PlaylistId = null
+                PlaylistId = null,
+                Tags = data.Tags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? []
             };
         }
         catch (Exception ex)
@@ -164,7 +167,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 ChannelId = data.Channel ?? data.Uploader ?? string.Empty,
                 ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
                 Platform = PlatformName,
-                VideoIds = []
+                Tags = data.Tags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? []
             };
         }
         catch (Exception ex)
@@ -307,9 +310,42 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         return best?.Url;
     }
 
+    /// <summary>
+    /// Returns the best banner thumbnail URL for a channel, preferring thumbnails whose ID
+    /// contains "banner". Falls back to the highest-resolution thumbnail if none found.
+    /// </summary>
+    private static string? GetBestBannerThumbnail(ThumbnailData[]? thumbnails)
+    {
+        return GetBestThumbnail(thumbnails);
+    }
+
+    /// <summary>
+    /// Returns the avatar thumbnail URL for a channel by looking for a thumbnail whose ID
+    /// contains "avatar". Returns null if no avatar thumbnail is found.
+    /// </summary>
+    private static string? GetAvatarOrBestThumbnail(ThumbnailData[]? thumbnails)
+    {
+        if (thumbnails.IsNullOrEmpty())
+        {
+            return null;
+        }
+
+        var result = thumbnails!
+            .Where(t =>
+                !string.IsNullOrEmpty(t.Url))
+            .FirstOrDefault(x => x.Resolution == "900x900");
+
+        if (result is not null)
+        {
+            return result.Url;
+        }
+
+        return GetBestThumbnail(thumbnails);
+    }
+
     private static List<ThumbnailInfo> MapThumbnails(ThumbnailData[]? thumbnails) => thumbnails.IsNullOrEmpty()
-            ? []
-            : thumbnails!
+        ? []
+        : thumbnails!
             .Where(t => !string.IsNullOrEmpty(t.Url))
             .Select(t => new ThumbnailInfo(t.ID, t.Url!, t.Width, t.Height, t.Preference))
             .ToList();
@@ -365,8 +401,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                             ChannelId = result.Data.ChannelID ?? result.Data.Channel ?? result.Data.Uploader ?? string.Empty,
                             ChannelName = result.Data.Channel ?? result.Data.Uploader ?? "Unknown Channel",
                             //VideoCount = entry.PlaylistCount, //PlaylistCount does not exist
-                            Platform = PlatformName,
-                            VideoIds = []
+                            Platform = PlatformName
                         });
                     }
                 }

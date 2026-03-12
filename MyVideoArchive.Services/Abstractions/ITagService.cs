@@ -1,4 +1,6 @@
 using Ardalis.Result;
+using MyVideoArchive.Models.Requests.Channel;
+using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
 using MyVideoArchive.Models.Video;
 
@@ -24,6 +26,11 @@ public interface ITagService
 
     Task<Tag> GetOrCreateTagAsync(string userId, string name);
 
+    /// <summary>
+    /// Gets or creates a global tag by name. Used for auto-importing platform tags.
+    /// </summary>
+    Task<Tag> GetOrCreateGlobalTagAsync(string name);
+
     Task<Tag> GetStandaloneTagAsync(string userId);
 
     Task<IEnumerable<int>> GetTagIdsByNameAsync(string userId, IEnumerable<string> tagNames);
@@ -39,6 +46,16 @@ public interface ITagService
     Task<Result<GetVideoTagsResponse>> GetVideoTagsAsync(int videoId);
 
     /// <summary>
+    /// Get all tags on a channel.
+    /// </summary>
+    Task<Result<GetChannelTagsResponse>> GetChannelTagsAsync(int channelId);
+
+    /// <summary>
+    /// Get all tags on a playlist.
+    /// </summary>
+    Task<Result<GetPlaylistTagsResponse>> GetPlaylistTagsAsync(int playlistId);
+
+    /// <summary>
     /// Asynchronously removes the "standalone" tag from all videos in a channel for a given user.
     /// </summary>
     Task<Result> RemoveStandaloneTagsForChannelAsync(string userId, int channelDbId);
@@ -52,4 +69,29 @@ public interface ITagService
     /// Set the tags for a video (replaces existing tags for this user)
     /// </summary>
     Task<Result> SetVideoTagsAsync(int videoId, SetVideoTagsRequest request);
+
+    /// <summary>
+    /// Set the tags for a channel (replaces existing tags).
+    /// </summary>
+    Task<Result> SetChannelTagsAsync(int channelId, SetChannelTagsRequest request);
+
+    /// <summary>
+    /// Set the tags for a playlist (replaces existing tags).
+    /// </summary>
+    Task<Result> SetPlaylistTagsAsync(int playlistId, SetPlaylistTagsRequest request);
+
+    /// <summary>
+    /// Import platform-provided tags for a channel as global tags. Does not remove existing tags.
+    /// </summary>
+    Task ImportChannelTagsAsync(int channelId, IEnumerable<string> tagNames);
+
+    /// <summary>
+    /// Import platform-provided tags for a playlist as global tags. Does not remove existing tags.
+    /// </summary>
+    Task ImportPlaylistTagsAsync(int playlistId, IEnumerable<string> tagNames);
+
+    /// <summary>
+    /// Import platform-provided tags for a video as global tags. Does not remove existing tags.
+    /// </summary>
+    Task ImportVideoTagsAsync(int videoId, IEnumerable<string> tagNames);
 }

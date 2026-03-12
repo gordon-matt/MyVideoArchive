@@ -19,6 +19,16 @@ public class PlaylistServiceTests
         var thumbnail = new ThumbnailService(
             NullLogger<ThumbnailService>.Instance,
             Mock.Of<IHttpClientFactory>());
+
+        var tagSvc = new TagService(
+            NullLogger<TagService>.Instance,
+            user,
+            db.TagRepository,
+            db.VideoRepository,
+            db.VideoTagRepository,
+            db.ChannelTagRepository,
+            db.PlaylistTagRepository);
+
         return new PlaylistService(
             NullLogger<PlaylistService>.Instance,
             new ConfigurationBuilder().Build(),
@@ -26,12 +36,15 @@ public class PlaylistServiceTests
             job,
             factory,
             thumbnail,
+            tagSvc,
             db.ChannelRepository,
             db.PlaylistRepository,
             db.PlaylistVideoRepository,
             db.UserChannelRepository,
             db.UserPlaylistRepository,
-            db.UserPlaylistVideoRepository);
+            db.UserPlaylistVideoRepository,
+            db.VideoRepository,
+            db.UserVideoRepository);
     }
 
     private static IUserContextService CreateUserContext(string? userId, bool isAdmin)

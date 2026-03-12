@@ -151,6 +151,12 @@ public class VideoService : IVideoService
                 });
             }
 
+            // Auto-import platform tags from video metadata
+            if (videoMeta.Tags.Count > 0)
+            {
+                await tagService.ImportVideoTagsAsync(video.Id, videoMeta.Tags);
+            }
+
             if (video.DownloadedAt is null && !video.DownloadFailed)
             {
                 video.IsQueued = true;

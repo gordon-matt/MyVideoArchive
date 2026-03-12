@@ -21,4 +21,6 @@ public class ChannelMetadata
     public int? SubscriberCount { get; set; }
 
     public required string Platform { get; set; }
+
+    public List<string> Tags { get; set; } = [];
 }

@@ -120,7 +120,11 @@ public class MetadataReviewJob
 
                 string thumbnailDir = Path.Combine(downloadPath, video.Channel.ChannelId);
                 video.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
-                    metadata.ThumbnailUrl, thumbnailDir, video.VideoId, cancellationToken)
+                    metadata.ThumbnailUrl,
+                    thumbnailDir,
+                    video.VideoId,
+                    downloadPath,
+                    cancellationToken)
                     ?? metadata.ThumbnailUrl;
 
                 await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));

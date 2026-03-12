@@ -29,6 +29,8 @@ public class Channel : BaseEntity<int>
     public ICollection<Video> Videos { get; set; } = [];
 
     public ICollection<Playlist> Playlists { get; set; } = [];
+
+    public ICollection<ChannelTag> ChannelTags { get; set; } = [];
 }
 
 public class ChannelMap : IEntityTypeConfiguration<Channel>

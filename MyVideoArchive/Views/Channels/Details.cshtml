@@ -654,6 +654,42 @@
     </div>
 </div>
 
+<!-- Ignore Playlist Confirmation Modal -->
+<div class="modal fade" id="ignorePlaylistModal" tabindex="-1" aria-labelledby="ignorePlaylistModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ignorePlaylistModalLabel">
+                    <i class="bi bi-eye-slash me-2"></i>Ignore Playlist
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
+                        data-bind="click: cancelIgnorePlaylist"></button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Are you sure you want to ignore
+                    <strong data-bind="text: ignorePlaylistModalPlaylistName()"></strong>?
+                </p>
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="ignorePlaylistVideosCheck"
+                           data-bind="checked: ignorePlaylistModalIgnoreVideos" />
+                    <label class="form-check-label" for="ignorePlaylistVideosCheck">
+                        Also ignore all not-yet-downloaded videos in this playlist
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bind="click: cancelIgnorePlaylist">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-warning" data-bind="click: confirmIgnorePlaylist">
+                    <i class="bi bi-eye-slash me-1"></i> Ignore
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script type="text/javascript">
         const channelId = @channelId;

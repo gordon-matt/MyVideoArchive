@@ -1,8 +1,10 @@
 using Ardalis.Result;
 using Extenso.Collections.Generic;
 using Hangfire;
+using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
+using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services;
 
@@ -14,12 +16,15 @@ public class PlaylistService : IPlaylistService
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly ThumbnailService thumbnailService;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
+    private readonly ITagService tagService;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<Playlist> playlistRepository;
     private readonly IRepository<PlaylistVideo> playlistVideoRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
     private readonly IRepository<UserPlaylist> userPlaylistRepository;
     private readonly IRepository<UserPlaylistVideo> userPlaylistVideoRepository;
+    private readonly IRepository<Video> videoRepository;
+    private readonly IRepository<UserVideo> userVideoRepository;
 
     public PlaylistService(
         ILogger<PlaylistService> logger,
@@ -28,12 +33,15 @@ public class PlaylistService : IPlaylistService
         IBackgroundJobClient backgroundJobClient,
         VideoMetadataProviderFactory metadataProviderFactory,
         ThumbnailService thumbnailService,
+        ITagService tagService,
         IRepository<Channel> channelRepository,
         IRepository<Playlist> playlistRepository,
         IRepository<PlaylistVideo> playlistVideoRepository,
         IRepository<UserChannel> userChannelRepository,
         IRepository<UserPlaylist> userPlaylistRepository,
-        IRepository<UserPlaylistVideo> userPlaylistVideoRepository)
+        IRepository<UserPlaylistVideo> userPlaylistVideoRepository,
+        IRepository<Video> videoRepository,
+        IRepository<UserVideo> userVideoRepository)
     {
         this.logger = logger;
         this.configuration = configuration;
@@ -41,12 +49,15 @@ public class PlaylistService : IPlaylistService
         this.backgroundJobClient = backgroundJobClient;
         this.thumbnailService = thumbnailService;
         this.metadataProviderFactory = metadataProviderFactory;
+        this.tagService = tagService;
         this.channelRepository = channelRepository;
         this.playlistRepository = playlistRepository;
         this.playlistVideoRepository = playlistVideoRepository;
         this.userChannelRepository = userChannelRepository;
         this.userPlaylistRepository = userPlaylistRepository;
         this.userPlaylistVideoRepository = userPlaylistVideoRepository;
+        this.videoRepository = videoRepository;
+        this.userVideoRepository = userVideoRepository;
     }
 
     public async Task<Result<IPagedCollection<AvailablePlaylistItem>>> GetAvailablePlaylistsAsync(
@@ -343,6 +354,8 @@ public class PlaylistService : IPlaylistService
 
             foreach (var playlistMetadata in playlistMetadataList)
             {
+                string playlistThumbnailDir = Path.Combine(downloadPath, channel.ChannelId, "Playlists");
+
                 if (existingPlaylistIds.Contains(playlistMetadata.PlaylistId))
                 {
                     var existingPlaylist = existingPlaylists.First(x => x.PlaylistId == playlistMetadata.PlaylistId);
@@ -350,25 +363,29 @@ public class PlaylistService : IPlaylistService
                     existingPlaylist.Description = playlistMetadata.Description;
                     existingPlaylist.Url = playlistMetadata.Url;
 
-                    if (!existingPlaylist.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
+                    if (!ThumbnailService.IsLocalUrl(existingPlaylist.ThumbnailUrl))
                     {
-                        string playlistThumbnailDir = Path.Combine(downloadPath, channel.ChannelId, "Playlists");
-                        existingPlaylist.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
-                            playlistMetadata.ThumbnailUrl, playlistThumbnailDir, existingPlaylist.PlaylistId)
-                            ?? playlistMetadata.ThumbnailUrl;
+                        string? localUrl = await thumbnailService.DownloadAndSaveAsync(
+                            playlistMetadata.ThumbnailUrl, playlistThumbnailDir, existingPlaylist.PlaylistId,
+                            downloadPath);
+                        existingPlaylist.ThumbnailUrl = localUrl ?? playlistMetadata.ThumbnailUrl;
                     }
 
                     playlistUpdates.Add(existingPlaylist);
                 }
                 else
                 {
+                    string? localThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
+                        playlistMetadata.ThumbnailUrl, playlistThumbnailDir, playlistMetadata.PlaylistId,
+                        downloadPath);
+
                     playlistInserts.Add(new Playlist
                     {
                         PlaylistId = playlistMetadata.PlaylistId,
                         Name = playlistMetadata.Name,
                         Description = playlistMetadata.Description,
                         Url = playlistMetadata.Url,
-                        ThumbnailUrl = playlistMetadata.ThumbnailUrl,
+                        ThumbnailUrl = localThumbnailUrl ?? playlistMetadata.ThumbnailUrl,
                         Platform = playlistMetadata.Platform,
                         SubscribedAt = DateTime.MinValue,
                         IsIgnored = false,
@@ -585,6 +602,21 @@ public class PlaylistService : IPlaylistService
                     });
                 }
 
+                // Auto-import tags from playlist metadata
+                var channel = await channelRepository.FindOneAsync(channelId);
+                if (channel is not null)
+                {
+                    var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
+                    if (provider is not null)
+                    {
+                        var playlistMeta = await provider.GetPlaylistMetadataAsync(playlist.Url);
+                        if (playlistMeta?.Tags.Count > 0)
+                        {
+                            await tagService.ImportPlaylistTagsAsync(playlist.Id, playlistMeta.Tags);
+                        }
+                    }
+                }
+
                 backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
                     job.ExecuteAsync(playlist.Id, CancellationToken.None));
             }
@@ -735,6 +767,33 @@ public class PlaylistService : IPlaylistService
                 playlist.IsIgnored = request.IsIgnored;
                 await playlistRepository.UpdateAsync(playlist);
 
+                // Optionally cascade ignore to all not-yet-downloaded videos in this playlist.
+                if (request.IsIgnored && request.IgnoreVideos)
+                {
+                    // If the playlist has never been synced, PlaylistVideo records may not exist yet.
+                    // Fetch them from the provider now so the cascade can take effect.
+                    bool hasAnyPlaylistVideos = await playlistVideoRepository.ExistsAsync(x => x.PlaylistId == playlistId);
+                    if (!hasAnyPlaylistVideos)
+                    {
+                        await EnsurePlaylistVideosPopulatedAsync(playlist, CancellationToken.None);
+                    }
+
+                    var notDownloadedVideoIds = await playlistVideoRepository.FindAsync(
+                        new SearchOptions<PlaylistVideo>
+                        {
+                            Query = x => x.PlaylistId == playlistId && x.Video.DownloadedAt == null,
+                            Include = query => query.Include(x => x.Video)
+                        },
+                        x => x.VideoId);
+
+                    if (notDownloadedVideoIds.Count > 0)
+                    {
+                        await videoRepository.UpdateAsync(
+                            x => notDownloadedVideoIds.Contains(x.Id) && x.DownloadedAt == null,
+                            setters => setters.SetProperty(x => x.IsIgnored, true));
+                    }
+                }
+
                 return Result.Success(new ToggleIgnorePlaylistResponse(
                     request.IsIgnored ? "Playlist ignored" : "Playlist unignored",
                     playlist.IsIgnored));
@@ -742,10 +801,12 @@ public class PlaylistService : IPlaylistService
             else
             {
                 // Non-admin: personal hide via UserPlaylist.IsIgnored.
-                bool playlistExists = await playlistRepository.ExistsAsync(
-                    x => x.Id == playlistId && x.ChannelId == channelId);
+                var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+                {
+                    Query = x => x.Id == playlistId && x.ChannelId == channelId
+                });
 
-                if (!playlistExists)
+                if (playlist is null)
                 {
                     return Result.NotFound("Playlist not found");
                 }
@@ -770,6 +831,48 @@ public class PlaylistService : IPlaylistService
                     });
                 }
 
+                // Optionally cascade ignore to all not-yet-downloaded videos in this playlist (per-user).
+                if (request.IsIgnored && request.IgnoreVideos)
+                {
+                    // If the playlist has never been synced, PlaylistVideo records may not exist yet.
+                    bool hasAnyPlaylistVideos = await playlistVideoRepository.ExistsAsync(x => x.PlaylistId == playlistId);
+                    if (!hasAnyPlaylistVideos)
+                    {
+                        await EnsurePlaylistVideosPopulatedAsync(playlist, CancellationToken.None);
+                    }
+
+                    var notDownloadedVideoIds = await playlistVideoRepository.FindAsync(
+                        new SearchOptions<PlaylistVideo>
+                        {
+                            Query = x => x.PlaylistId == playlistId && x.Video.DownloadedAt == null,
+                            Include = q => q.Include(x => x.Video)
+                        },
+                        x => x.VideoId);
+
+                    foreach (int videoId in notDownloadedVideoIds)
+                    {
+                        var existingUserVideo = await userVideoRepository.FindOneAsync(new SearchOptions<UserVideo>
+                        {
+                            Query = x => x.UserId == userId && x.VideoId == videoId
+                        });
+
+                        if (existingUserVideo is not null)
+                        {
+                            existingUserVideo.IsIgnored = true;
+                            await userVideoRepository.UpdateAsync(existingUserVideo);
+                        }
+                        else
+                        {
+                            await userVideoRepository.InsertAsync(new UserVideo
+                            {
+                                UserId = userId!,
+                                VideoId = videoId,
+                                IsIgnored = true
+                            });
+                        }
+                    }
+                }
+
                 return Result.Success(new ToggleIgnorePlaylistResponse(
                     request.IsIgnored ? "Playlist ignored" : "Playlist unignored",
                     request.IsIgnored));
@@ -783,6 +886,102 @@ public class PlaylistService : IPlaylistService
             }
 
             return Result.Error("An error occurred while updating playlist status");
+        }
+    }
+
+    /// <summary>
+    /// Fetches videos for a playlist from the metadata provider and creates Video + PlaylistVideo
+    /// records for any that don't already exist. Called when a playlist has never been synced and
+    /// a user requests a cascade-ignore, so there are no PlaylistVideo records to act on yet.
+    /// </summary>
+    private async Task EnsurePlaylistVideosPopulatedAsync(Playlist playlist, CancellationToken cancellationToken)
+    {
+        var provider = metadataProviderFactory.GetProviderByPlatform(playlist.Platform);
+        if (provider is null)
+        {
+            return;
+        }
+
+        List<VideoMetadata> videoMetadataList;
+        try
+        {
+            var rawList = await provider.GetPlaylistVideosAsync(playlist.Url, cancellationToken);
+            var seenKeys = new HashSet<(string Platform, string VideoId)>();
+            videoMetadataList = rawList.Where(v => seenKeys.Add((v.Platform, v.VideoId))).ToList();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Failed to fetch playlist videos for playlist {PlaylistId} during ignore cascade", playlist.Id);
+            }
+
+            return;
+        }
+
+        var playlistVideoInserts = new List<PlaylistVideo>();
+        int order = 0;
+
+        foreach (var videoMeta in videoMetadataList)
+        {
+            order++;
+
+            var existingVideo = await videoRepository.FindOneAsync(new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.Platform == videoMeta.Platform && x.VideoId == videoMeta.VideoId
+            });
+
+            if (existingVideo is not null)
+            {
+                bool alreadyLinked = await playlistVideoRepository.ExistsAsync(
+                    x => x.PlaylistId == playlist.Id && x.VideoId == existingVideo.Id,
+                    ContextOptions.ForCancellationToken(cancellationToken));
+
+                if (!alreadyLinked)
+                {
+                    playlistVideoInserts.Add(new PlaylistVideo
+                    {
+                        PlaylistId = playlist.Id,
+                        VideoId = existingVideo.Id,
+                        Order = order
+                    });
+                }
+            }
+            else
+            {
+                var newVideo = new Video
+                {
+                    VideoId = videoMeta.VideoId,
+                    Title = videoMeta.Title,
+                    Description = videoMeta.Description,
+                    Url = videoMeta.Url,
+                    ThumbnailUrl = videoMeta.ThumbnailUrl,
+                    Platform = videoMeta.Platform,
+                    Duration = videoMeta.Duration,
+                    UploadDate = videoMeta.UploadDate,
+                    ViewCount = videoMeta.ViewCount,
+                    LikeCount = videoMeta.LikeCount,
+                    ChannelId = playlist.ChannelId,
+                    IsIgnored = false,
+                    IsQueued = false,
+                    NeedsMetadataReview = videoMeta.Title == Constants.PrivateVideoTitle
+                };
+
+                await videoRepository.InsertAsync(newVideo, ContextOptions.ForCancellationToken(cancellationToken));
+
+                playlistVideoInserts.Add(new PlaylistVideo
+                {
+                    PlaylistId = playlist.Id,
+                    VideoId = newVideo.Id,
+                    Order = order
+                });
+            }
+        }
+
+        if (playlistVideoInserts.Count > 0)
+        {
+            await playlistVideoRepository.InsertAsync(playlistVideoInserts, ContextOptions.ForCancellationToken(cancellationToken));
         }
     }
 

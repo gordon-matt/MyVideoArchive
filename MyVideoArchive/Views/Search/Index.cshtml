@@ -1,0 +1,229 @@
+@{
+    ViewData["Title"] = "Search";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/video-index.css" />
+}
+
+<div class="container-fluid">
+    <div class="row mb-3 align-items-center">
+        <div class="col">
+            <h2><i class="bi bi-search me-2"></i>Search</h2>
+            <p class="text-muted mb-0">Search across channels, playlists and videos by title or tag</p>
+        </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="row g-2 mb-4">
+        <div class="col-12 col-md-5">
+            <input id="searchQueryInput" type="text" class="form-control"
+                   placeholder="Search by title or channel name..."
+                   data-bind="value: queryInput, valueUpdate: 'input'" />
+        </div>
+        <div class="col-12 col-md-4">
+            <input id="searchTagInput" class="form-control" placeholder="Filter by tag..." />
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary" data-bind="click: search">
+                <i class="bi bi-search me-1"></i> Search
+            </button>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-outline-secondary" data-bind="click: clearSearch" title="Clear">
+                <i class="bi bi-x-circle me-1"></i> Clear
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div data-bind="visible: loading" class="text-center py-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading…</span>
+        </div>
+        <p class="text-muted mt-2">Searching…</p>
+    </div>
+
+    <!-- Initial / no-results state -->
+    <div data-bind="visible: !loading() && searched() && !hasResults()" class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        No results found. Try a different search term or tag.
+    </div>
+
+    <div data-bind="visible: !loading() && (hasResults() || !searched())">
+
+        <!-- ── Channels ──────────────────────────────────────────────────────── -->
+        <div class="mb-5" data-bind="visible: searched()">
+            <div class="d-flex align-items-center mb-3">
+                <h4 class="mb-0">
+                    <i class="bi bi-broadcast me-2 text-primary"></i>Channels
+                </h4>
+                <!-- ko if: channelsTotalCount() > 0 -->
+                <span class="badge bg-secondary ms-2" data-bind="text: channelsTotalCount() + ' found'"></span>
+                <!-- /ko -->
+            </div>
+
+            <!-- ko if: channels().length === 0 -->
+            <p class="text-muted fst-italic">No matching channels.</p>
+            <!-- /ko -->
+
+            <!-- ko if: channels().length > 0 -->
+            <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
+                <!-- ko foreach: channels -->
+                <div class="col">
+                    <div class="card h-100 channel-result-card position-relative"
+                         style="cursor:pointer; transition: box-shadow 0.15s ease, transform 0.15s ease;"
+                         data-bind="click: $parent.viewChannel">
+                        <div style="aspect-ratio:1/1; overflow:hidden; background:#eee;">
+                            <!-- ko if: avatarUrl || bannerUrl -->
+                            <img class="w-100 h-100"
+                                 style="object-fit:cover;"
+                                 data-bind="attr: { src: avatarUrl || bannerUrl, alt: name }" />
+                            <!-- /ko -->
+                            <!-- ko ifnot: avatarUrl || bannerUrl -->
+                            <div class="w-100 h-100 d-flex align-items-center justify-content-center bg-secondary text-white">
+                                <i class="bi bi-broadcast fs-1"></i>
+                            </div>
+                            <!-- /ko -->
+                        </div>
+                        <div class="card-body p-2">
+                            <p class="card-text fw-semibold mb-1 text-truncate"
+                               style="font-size:.82rem; line-height:1.3;"
+                               data-bind="text: name, attr: { title: name }"></p>
+                            <!-- ko if: platform && platform !== 'Custom' -->
+                            <span class="badge bg-light text-dark border small"
+                                  data-bind="text: platform"></span>
+                            <!-- /ko -->
+                            <!-- ko if: platform === 'Custom' -->
+                            <span class="badge bg-secondary small">Custom</span>
+                            <!-- /ko -->
+                        </div>
+                    </div>
+                </div>
+                <!-- /ko -->
+            </div>
+
+            @await Html.PartialAsync("_Pager", new MyVideoArchive.Models.PagerViewModel(
+                "Channels pagination",
+                "channelsCurrentPage", "channelsTotalPages", "channelsTotalCount", "channelsPageNumbers",
+                "channelsPreviousPage", "channelsNextPage", "channelsGoToPage",
+                "channels"))
+            <!-- /ko -->
+        </div>
+
+        <!-- ── Playlists ─────────────────────────────────────────────────────── -->
+        <div class="mb-5" data-bind="visible: searched()">
+            <div class="d-flex align-items-center mb-3">
+                <h4 class="mb-0">
+                    <i class="bi bi-collection-play me-2 text-success"></i>Playlists
+                </h4>
+                <!-- ko if: playlistsTotalCount() > 0 -->
+                <span class="badge bg-secondary ms-2" data-bind="text: playlistsTotalCount() + ' found'"></span>
+                <!-- /ko -->
+            </div>
+
+            <!-- ko if: playlists().length === 0 -->
+            <p class="text-muted fst-italic">No matching playlists.</p>
+            <!-- /ko -->
+
+            <!-- ko if: playlists().length > 0 -->
+            <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
+                <!-- ko foreach: playlists -->
+                <div class="col">
+                    <div class="card h-100 video-card position-relative"
+                         data-bind="click: $parent.viewPlaylist">
+                        <div class="video-thumb-wrap">
+                            <!-- ko if: thumbnailUrl -->
+                            <img class="card-img-top video-thumb"
+                                 data-bind="attr: { src: thumbnailUrl, alt: name }" />
+                            <!-- /ko -->
+                            <!-- ko ifnot: thumbnailUrl -->
+                            <div class="video-thumb-placeholder d-flex align-items-center justify-content-center bg-secondary text-white">
+                                <i class="bi bi-collection-play fs-1"></i>
+                            </div>
+                            <!-- /ko -->
+                            <!-- ko if: videoCount -->
+                            <span class="badge bg-dark video-duration"
+                                  data-bind="text: videoCount + ' videos'"></span>
+                            <!-- /ko -->
+                        </div>
+                        <div class="card-body p-2">
+                            <p class="card-text video-title fw-semibold"
+                               data-bind="text: name, attr: { title: name }"></p>
+                            <p class="card-text text-muted small mb-0"
+                               data-bind="text: channelName"></p>
+                        </div>
+                    </div>
+                </div>
+                <!-- /ko -->
+            </div>
+
+            @await Html.PartialAsync("_Pager", new MyVideoArchive.Models.PagerViewModel(
+                "Playlists pagination",
+                "playlistsCurrentPage", "playlistsTotalPages", "playlistsTotalCount", "playlistsPageNumbers",
+                "playlistsPreviousPage", "playlistsNextPage", "playlistsGoToPage",
+                "playlists"))
+            <!-- /ko -->
+        </div>
+
+        <!-- ── Videos ────────────────────────────────────────────────────────── -->
+        <div class="mb-5" data-bind="visible: searched()">
+            <div class="d-flex align-items-center mb-3">
+                <h4 class="mb-0">
+                    <i class="bi bi-play-circle me-2 text-danger"></i>Videos
+                </h4>
+                <!-- ko if: videosTotalCount() > 0 -->
+                <span class="badge bg-secondary ms-2" data-bind="text: videosTotalCount() + ' found'"></span>
+                <!-- /ko -->
+            </div>
+
+            <!-- ko if: videos().length === 0 -->
+            <p class="text-muted fst-italic">No matching videos.</p>
+            <!-- /ko -->
+
+            <!-- ko if: videos().length > 0 -->
+            <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
+                <!-- ko foreach: videos -->
+                <div class="col">
+                    <div class="card h-100 video-card position-relative"
+                         data-bind="click: $parent.viewVideo">
+                        <div class="video-thumb-wrap">
+                            <!-- ko if: thumbnailUrl -->
+                            <img class="card-img-top video-thumb"
+                                 data-bind="attr: { src: thumbnailUrl, alt: title }" />
+                            <!-- /ko -->
+                            <!-- ko ifnot: thumbnailUrl -->
+                            <div class="video-thumb-placeholder d-flex align-items-center justify-content-center bg-secondary text-white">
+                                <i class="bi bi-play-circle fs-1"></i>
+                            </div>
+                            <!-- /ko -->
+                            <!-- ko if: duration -->
+                            <span class="badge bg-dark video-duration"
+                                  data-bind="text: $parent.formatDuration(duration)"></span>
+                            <!-- /ko -->
+                        </div>
+                        <div class="card-body p-2">
+                            <p class="card-text video-title fw-semibold"
+                               data-bind="text: title, attr: { title: title }"></p>
+                            <p class="card-text text-muted small mb-0"
+                               data-bind="text: channelName"></p>
+                        </div>
+                    </div>
+                </div>
+                <!-- /ko -->
+            </div>
+
+            @await Html.PartialAsync("_Pager", new MyVideoArchive.Models.PagerViewModel(
+                "Videos pagination",
+                "videosCurrentPage", "videosTotalPages", "videosTotalCount", "videosPageNumbers",
+                "videosPreviousPage", "videosNextPage", "videosGoToPage",
+                "videos"))
+            <!-- /ko -->
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/search.js"></script>
+}

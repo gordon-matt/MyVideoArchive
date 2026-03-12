@@ -20,9 +20,11 @@ public sealed class InMemoryDatabaseFixture : IDisposable
             .Options;
         _factory = new TestDbContextFactory(_options);
         ChannelRepository = new EntityFrameworkRepository<Channel>(_factory);
+        ChannelTagRepository = new EntityFrameworkRepository<ChannelTag>(_factory);
         CustomPlaylistRepository = new EntityFrameworkRepository<CustomPlaylist>(_factory);
         CustomPlaylistVideoRepository = new EntityFrameworkRepository<CustomPlaylistVideo>(_factory);
         PlaylistRepository = new EntityFrameworkRepository<Playlist>(_factory);
+        PlaylistTagRepository = new EntityFrameworkRepository<PlaylistTag>(_factory);
         PlaylistVideoRepository = new EntityFrameworkRepository<PlaylistVideo>(_factory);
         TagRepository = new EntityFrameworkRepository<Tag>(_factory);
         UserChannelRepository = new EntityFrameworkRepository<UserChannel>(_factory);
@@ -35,9 +37,11 @@ public sealed class InMemoryDatabaseFixture : IDisposable
     }
 
     public IRepository<Channel> ChannelRepository { get; }
+    public IRepository<ChannelTag> ChannelTagRepository { get; }
     public IRepository<CustomPlaylist> CustomPlaylistRepository { get; }
     public IRepository<CustomPlaylistVideo> CustomPlaylistVideoRepository { get; }
     public IRepository<Playlist> PlaylistRepository { get; }
+    public IRepository<PlaylistTag> PlaylistTagRepository { get; }
     public IRepository<PlaylistVideo> PlaylistVideoRepository { get; }
     public IRepository<Tag> TagRepository { get; }
     public IRepository<UserChannel> UserChannelRepository { get; }

@@ -282,8 +282,7 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
                 Description = data.Description,
                 ChannelId = data.ChannelID ?? data.UploaderID ?? string.Empty,
                 ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
-                Platform = PlatformName,
-                VideoIds = []
+                Platform = PlatformName
             };
         }
         catch (Exception ex)
@@ -565,8 +564,7 @@ public partial class BitChuteMetadataProvider : IVideoMetadataProvider
                 ThumbnailUrl = thumbnailUrl,
                 ChannelId = channelId,
                 ChannelName = channelName,
-                Platform = "BitChute",
-                VideoIds = []
+                Platform = "BitChute"
             });
         }
 

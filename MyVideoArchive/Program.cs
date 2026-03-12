@@ -192,6 +192,33 @@ else
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+// Serve archived thumbnails from the downloads folder under /archive (images only).
+// Video/audio files are excluded because only registered image content types are served.
+{
+    string archivePath = app.Configuration.GetValue<string>("VideoDownload:OutputPath")
+        ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
+
+    Directory.CreateDirectory(archivePath);
+
+    var imageContentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider(
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [".jpg"] = "image/jpeg",
+            [".jpeg"] = "image/jpeg",
+            [".png"] = "image/png",
+            [".webp"] = "image/webp",
+            [".gif"] = "image/gif",
+        });
+
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(archivePath),
+        RequestPath = "/archive",
+        ContentTypeProvider = imageContentTypeProvider,
+        ServeUnknownFileTypes = false
+    });
+}
+
 // Use odata route debug, /$odata
 app.UseODataRouteDebug();
 

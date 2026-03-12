@@ -1,4 +1,6 @@
 using Ardalis.Result;
+using MyVideoArchive.Models.Requests.Channel;
+using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
 using MyVideoArchive.Models.Video;
 
@@ -11,19 +13,25 @@ public class TagService : ITagService
     private readonly IRepository<Tag> tagRepository;
     private readonly IRepository<Video> videoRepository;
     private readonly IRepository<VideoTag> videoTagRepository;
+    private readonly IRepository<ChannelTag> channelTagRepository;
+    private readonly IRepository<PlaylistTag> playlistTagRepository;
 
     public TagService(
         ILogger<TagService> logger,
         IUserContextService userContextService,
         IRepository<Tag> tagRepository,
         IRepository<Video> videoRepository,
-        IRepository<VideoTag> videoTagRepository)
+        IRepository<VideoTag> videoTagRepository,
+        IRepository<ChannelTag> channelTagRepository,
+        IRepository<PlaylistTag> playlistTagRepository)
     {
         this.logger = logger;
         this.userContextService = userContextService;
         this.tagRepository = tagRepository;
         this.videoRepository = videoRepository;
         this.videoTagRepository = videoTagRepository;
+        this.channelTagRepository = channelTagRepository;
+        this.playlistTagRepository = playlistTagRepository;
     }
 
     public async Task<Result<GlobalTagItem>> CreateGlobalTagAsync(string name)
@@ -359,6 +367,309 @@ public class TagService : ITagService
             }
 
             return Result.Error();
+        }
+    }
+
+    public async Task<Tag> GetOrCreateGlobalTagAsync(string name)
+    {
+        name = name.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Tag name cannot be empty", nameof(name));
+        }
+
+        var existing = await tagRepository.FindOneAsync(new SearchOptions<Tag>
+        {
+            Query = x => x.UserId == Constants.GlobalUserId && x.Name.ToLower() == name
+        });
+
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        return await tagRepository.InsertAsync(new Tag { UserId = Constants.GlobalUserId, Name = name });
+    }
+
+    public async Task<Result<GetChannelTagsResponse>> GetChannelTagsAsync(int channelId)
+    {
+        try
+        {
+            var channelTags = await channelTagRepository.FindAsync(new SearchOptions<ChannelTag>
+            {
+                Query = x => x.ChannelId == channelId,
+                Include = q => q.Include(x => x.Tag)
+            });
+
+            var items = channelTags
+                .Select(ct => new ChannelTagItem(ct.Tag.Id, ct.Tag.Name))
+                .OrderBy(t => t.Name)
+                .ToList();
+
+            return Result.Success(new GetChannelTagsResponse(items));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving tags for channel {ChannelId}", channelId);
+            }
+
+            return Result.Error("An error occurred while retrieving channel tags");
+        }
+    }
+
+    public async Task<Result<GetPlaylistTagsResponse>> GetPlaylistTagsAsync(int playlistId)
+    {
+        try
+        {
+            var playlistTags = await playlistTagRepository.FindAsync(new SearchOptions<PlaylistTag>
+            {
+                Query = x => x.PlaylistId == playlistId,
+                Include = q => q.Include(x => x.Tag)
+            });
+
+            var items = playlistTags
+                .Select(pt => new PlaylistTagItem(pt.Tag.Id, pt.Tag.Name))
+                .OrderBy(t => t.Name)
+                .ToList();
+
+            return Result.Success(new GetPlaylistTagsResponse(items));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving tags for playlist {PlaylistId}", playlistId);
+            }
+
+            return Result.Error("An error occurred while retrieving playlist tags");
+        }
+    }
+
+    public async Task<Result> SetChannelTagsAsync(int channelId, SetChannelTagsRequest request)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            var selectedTagNames = request.TagNames
+                ?.Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim().ToLowerInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? [];
+
+            var existingChannelTags = await channelTagRepository.FindAsync(new SearchOptions<ChannelTag>
+            {
+                Query = x => x.ChannelId == channelId,
+                Include = q => q.Include(x => x.Tag)
+            });
+
+            var existingTagNames = existingChannelTags.Select(ct => ct.Tag.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var toAdd = selectedTagNames.Where(n => !existingTagNames.Contains(n)).ToList();
+            var toDelete = existingChannelTags
+                .Where(ct => !selectedTagNames.Contains(ct.Tag.Name, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            if (toDelete.Count > 0)
+            {
+                await channelTagRepository.DeleteAsync(toDelete);
+            }
+
+            foreach (string tagName in toAdd)
+            {
+                var tag = await GetOrCreateTagAsync(userId, tagName);
+                await channelTagRepository.InsertAsync(new ChannelTag { ChannelId = channelId, TagId = tag.Id });
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error setting tags for channel {ChannelId}", channelId);
+            }
+
+            return Result.Error("An error occurred while updating channel tags");
+        }
+    }
+
+    public async Task<Result> SetPlaylistTagsAsync(int playlistId, SetPlaylistTagsRequest request)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            var selectedTagNames = request.TagNames
+                ?.Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim().ToLowerInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? [];
+
+            var existingPlaylistTags = await playlistTagRepository.FindAsync(new SearchOptions<PlaylistTag>
+            {
+                Query = x => x.PlaylistId == playlistId,
+                Include = q => q.Include(x => x.Tag)
+            });
+
+            var existingTagNames = existingPlaylistTags.Select(pt => pt.Tag.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var toAdd = selectedTagNames.Where(n => !existingTagNames.Contains(n)).ToList();
+            var toDelete = existingPlaylistTags
+                .Where(pt => !selectedTagNames.Contains(pt.Tag.Name, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            if (toDelete.Count > 0)
+            {
+                await playlistTagRepository.DeleteAsync(toDelete);
+            }
+
+            foreach (string tagName in toAdd)
+            {
+                var tag = await GetOrCreateTagAsync(userId, tagName);
+                await playlistTagRepository.InsertAsync(new PlaylistTag { PlaylistId = playlistId, TagId = tag.Id });
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error setting tags for playlist {PlaylistId}", playlistId);
+            }
+
+            return Result.Error("An error occurred while updating playlist tags");
+        }
+    }
+
+    public async Task ImportChannelTagsAsync(int channelId, IEnumerable<string> tagNames)
+    {
+        try
+        {
+            var names = tagNames
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim().ToLowerInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (names.Count == 0)
+            {
+                return;
+            }
+
+            var existingTagIds = await channelTagRepository.FindAsync(
+                new SearchOptions<ChannelTag> { Query = x => x.ChannelId == channelId },
+                x => x.TagId);
+
+            var existingTagIdSet = existingTagIds.ToHashSet();
+
+            foreach (string name in names)
+            {
+                var tag = await GetOrCreateGlobalTagAsync(name);
+                if (!existingTagIdSet.Contains(tag.Id))
+                {
+                    await channelTagRepository.InsertAsync(new ChannelTag { ChannelId = channelId, TagId = tag.Id });
+                    existingTagIdSet.Add(tag.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Failed to import tags for channel {ChannelId}", channelId);
+            }
+        }
+    }
+
+    public async Task ImportPlaylistTagsAsync(int playlistId, IEnumerable<string> tagNames)
+    {
+        try
+        {
+            var names = tagNames
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim().ToLowerInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (names.Count == 0)
+            {
+                return;
+            }
+
+            var existingTagIds = await playlistTagRepository.FindAsync(
+                new SearchOptions<PlaylistTag> { Query = x => x.PlaylistId == playlistId },
+                x => x.TagId);
+
+            var existingTagIdSet = existingTagIds.ToHashSet();
+
+            foreach (string name in names)
+            {
+                var tag = await GetOrCreateGlobalTagAsync(name);
+                if (!existingTagIdSet.Contains(tag.Id))
+                {
+                    await playlistTagRepository.InsertAsync(new PlaylistTag { PlaylistId = playlistId, TagId = tag.Id });
+                    existingTagIdSet.Add(tag.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Failed to import tags for playlist {PlaylistId}", playlistId);
+            }
+        }
+    }
+
+    public async Task ImportVideoTagsAsync(int videoId, IEnumerable<string> tagNames)
+    {
+        try
+        {
+            var names = tagNames
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim().ToLowerInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (names.Count == 0)
+            {
+                return;
+            }
+
+            var existingTagIds = await videoTagRepository.FindAsync(
+                new SearchOptions<VideoTag> { Query = x => x.VideoId == videoId },
+                x => x.TagId);
+
+            var existingTagIdSet = existingTagIds.ToHashSet();
+
+            foreach (string name in names)
+            {
+                var tag = await GetOrCreateGlobalTagAsync(name);
+                if (!existingTagIdSet.Contains(tag.Id))
+                {
+                    await videoTagRepository.InsertAsync(new VideoTag { VideoId = videoId, TagId = tag.Id });
+                    existingTagIdSet.Add(tag.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Failed to import tags for video {VideoId}", videoId);
+            }
         }
     }
 

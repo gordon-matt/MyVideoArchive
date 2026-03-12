@@ -6,11 +6,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 {
     public DbSet<Channel> Channels { get; set; }
 
+    public DbSet<ChannelTag> ChannelTags { get; set; }
+
     public DbSet<CustomPlaylist> CustomPlaylists { get; set; }
 
     public DbSet<CustomPlaylistVideo> CustomPlaylistVideos { get; set; }
 
     public DbSet<Playlist> Playlists { get; set; }
+
+    public DbSet<PlaylistTag> PlaylistTags { get; set; }
 
     public DbSet<Tag> Tags { get; set; }
 

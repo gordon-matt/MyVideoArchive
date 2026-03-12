@@ -1,5 +1,6 @@
 using Hangfire;
 using MyVideoArchive.Infrastructure;
+using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services.Jobs;
 
@@ -87,13 +88,22 @@ public class ChannelSyncJob
 
                 string channelDir = Path.Combine(downloadPath, channel.ChannelId);
 
-                // Don't overwrite BannerUrl if the user has already uploaded a custom image
+                // Don't overwrite BannerUrl if the user has already uploaded a custom image (served via /api/)
                 bool bannerIsUserUploaded = channel.BannerUrl?.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) == true;
                 if (!bannerIsUserUploaded)
                 {
-                    channel.BannerUrl = await thumbnailService.DownloadAndSaveAsync(
-                        channelMetadata.BannerUrl, channelDir, channel.ChannelId, cancellationToken)
-                        ?? channel.BannerUrl;
+                    string? localBannerUrl = await thumbnailService.DownloadAndSaveAsync(
+                        channelMetadata.BannerUrl, channelDir, "banner", downloadPath, cancellationToken);
+                    channel.BannerUrl = localBannerUrl ?? channelMetadata.BannerUrl ?? channel.BannerUrl;
+                }
+
+                // Don't overwrite AvatarUrl if the user has already uploaded a custom image (served via /api/)
+                bool avatarIsUserUploaded = channel.AvatarUrl?.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) == true;
+                if (!avatarIsUserUploaded && channelMetadata.AvatarUrl != null)
+                {
+                    string? localAvatarUrl = await thumbnailService.DownloadAndSaveAsync(
+                        channelMetadata.AvatarUrl, channelDir, "avatar", downloadPath, cancellationToken);
+                    channel.AvatarUrl = localAvatarUrl ?? channelMetadata.AvatarUrl;
                 }
             }
 
@@ -104,22 +114,22 @@ public class ChannelSyncJob
                 logger.LogInformation("Found {Count} videos for channel {ChannelId}", videoMetadataList.Count, channelId);
             }
 
-            // Process each video
+            // Process each video — thumbnails are NOT downloaded here.
+            // Videos store the original remote URL until the video file is actually downloaded,
+            // at which point VideoDownloadJob saves the thumbnail to disk and updates the URL.
             var existingVideoIds = channel.Videos.Select(v => v.VideoId).ToHashSet();
             int newVideosCount = 0;
 
-            string videoThumbnailDir = Path.Combine(downloadPath, channel.ChannelId);
             var videoUpdates = new List<Video>();
             var videoInserts = new List<Video>();
             foreach (var videoMetadata in videoMetadataList)
             {
                 if (existingVideoIds.Contains(videoMetadata.VideoId))
                 {
-                    // We don't want to overwrite metadata for videos that have been deleted or made private....
+                    // We don't want to overwrite metadata for videos that have been deleted or made private.
                     if (videoMetadata.Title is not Constants.DeletedVideoTitle and
                         not Constants.PrivateVideoTitle)
                     {
-                        // Update existing video metadata
                         var existingVideo = channel.Videos.First(v => v.VideoId == videoMetadata.VideoId);
                         existingVideo.Title = videoMetadata.Title;
                         existingVideo.Description = videoMetadata.Description;
@@ -127,12 +137,12 @@ public class ChannelSyncJob
                         existingVideo.ViewCount = videoMetadata.ViewCount;
                         existingVideo.LikeCount = videoMetadata.LikeCount;
 
-                        // Only download thumbnail if not already stored as a data URL
-                        if (!existingVideo.ThumbnailUrl?.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ?? true)
+                        // Keep the original remote URL for videos not yet downloaded.
+                        // If the video has already been downloaded the thumbnail points to a local
+                        // /archive/… file and must not be overwritten with a remote URL.
+                        if (!ThumbnailService.IsLocalUrl(existingVideo.ThumbnailUrl))
                         {
-                            existingVideo.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
-                                videoMetadata.ThumbnailUrl, videoThumbnailDir, existingVideo.VideoId, cancellationToken)
-                                ?? videoMetadata.ThumbnailUrl;
+                            existingVideo.ThumbnailUrl = videoMetadata.ThumbnailUrl;
                         }
 
                         videoUpdates.Add(existingVideo);
@@ -140,17 +150,14 @@ public class ChannelSyncJob
                 }
                 else
                 {
-                    string? thumbnailDataUrl = await thumbnailService.DownloadAndSaveAsync(
-                        videoMetadata.ThumbnailUrl, videoThumbnailDir, videoMetadata.VideoId, cancellationToken);
-
-                    // Create new video entry (without auto-downloading)
+                    // New video — store the original remote thumbnail URL.
                     videoInserts.Add(new Video
                     {
                         VideoId = videoMetadata.VideoId,
                         Title = videoMetadata.Title,
                         Description = videoMetadata.Description,
                         Url = videoMetadata.Url,
-                        ThumbnailUrl = thumbnailDataUrl ?? videoMetadata.ThumbnailUrl,
+                        ThumbnailUrl = videoMetadata.ThumbnailUrl,
                         Platform = videoMetadata.Platform,
                         Duration = videoMetadata.Duration,
                         UploadDate = videoMetadata.UploadDate,

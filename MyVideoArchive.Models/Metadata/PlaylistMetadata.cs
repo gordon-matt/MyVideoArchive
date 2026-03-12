@@ -18,5 +18,5 @@ public class PlaylistMetadata
 
     public required string Platform { get; set; }
 
-    public List<string> VideoIds { get; set; } = [];
+    public List<string> Tags { get; set; } = [];
 }

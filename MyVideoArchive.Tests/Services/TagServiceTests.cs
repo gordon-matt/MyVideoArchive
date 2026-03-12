@@ -11,7 +11,9 @@ public class TagServiceTests
             userContext ?? Mock.Of<IUserContextService>(),
             db.TagRepository,
             db.VideoRepository,
-            db.VideoTagRepository);
+            db.VideoTagRepository,
+            db.ChannelTagRepository,
+            db.PlaylistTagRepository);
 
     [Fact]
     public async Task CreateGlobalTagAsync_WhenNameIsEmpty_ReturnsInvalid()
