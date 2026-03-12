@@ -97,6 +97,10 @@ if (useKeycloak)
         options.GetClaimsFromUserInfoEndpoint = true;
 
         // Map the OIDC "preferred_username" claim to the standard Name claim.
+        // The .NET JWT handler's default inbound claim type map already converts
+        // the "roles" JWT claim → ClaimTypes.Role automatically, so no RoleClaimType
+        // override is needed. [Authorize(Roles = "...")] and IsInRole() both check
+        // ClaimTypes.Role, which is what the handler produces.
         options.TokenValidationParameters = new TokenValidationParameters
         {
             NameClaimType = "preferred_username"
@@ -117,10 +121,19 @@ if (useKeycloak)
         // Disable PAR here; it can be re-enabled once exact redirect URIs are
         // configured in Keycloak (Clients → Advanced → Pushed Authorization Requests).
         options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.Disable;
-    });
 
-    // Transforms Keycloak's realm_access.roles JSON claim into standard ClaimTypes.Role.
-    builder.Services.AddTransient<IClaimsTransformation, KeycloakRolesClaimsTransformation>();
+        // When the OIDC callback fails (e.g. stale/expired authorization code,
+        // token endpoint error), redirect to the error page instead of re-throwing.
+        // Without this, the unhandled exception causes a redirect to /Home/Error
+        // which (before AllowAnonymous was added) would re-trigger a challenge,
+        // creating an infinite redirect loop.
+        options.Events.OnRemoteFailure = context =>
+        {
+            context.Response.Redirect("/Home/Error");
+            context.HandleResponse();
+            return Task.CompletedTask;
+        };
+    });
 
     builder.Services.ConfigureSejil(options =>
         options.AuthenticationScheme = CookieAuthenticationDefaults.AuthenticationScheme);
