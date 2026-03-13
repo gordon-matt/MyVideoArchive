@@ -350,6 +350,7 @@ class ChannelsViewModel {
             if (response.ok) {
                 this.channels.remove(channel);
                 this.channelToDelete(null);
+                toast.success('Channel deleted successfully.');
             } else {
                 toast.error('Failed to delete channel.');
             }
@@ -371,6 +372,7 @@ class ChannelsViewModel {
         .then(response => {
             if (response.ok) {
                 this.channels.remove(channel);
+                toast.success(`Unsubscribed from ${channel.Name}.`);
             } else {
                 toast.error('Failed to unsubscribe from channel.');
             }

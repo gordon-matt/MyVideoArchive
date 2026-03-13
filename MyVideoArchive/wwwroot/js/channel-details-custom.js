@@ -1,4 +1,5 @@
 import { formatDate } from './utils.js';
+import { getTagifyOptions } from './tagify-options.js';
 
 class CustomChannelViewModel {
     constructor(channelId) {
@@ -50,6 +51,9 @@ class CustomChannelViewModel {
         this.uploadingThumbnail = ko.observable(false);
         this.thumbnailCacheBust = ko.observable(Date.now());
 
+        // ── Tags ──────────────────────────────────────────────────────────────
+        this._tagifyInstance = null;
+
         // ── Computed page numbers ─────────────────────────────────────────────
         this.videosPageNumbers = ko.computed(() => this._buildPageNumbers(
             this.videosCurrentPage(), this.videosTotalPages()));
@@ -85,6 +89,50 @@ class CustomChannelViewModel {
             if (response.ok) this.channel(await response.json());
         } catch (error) {
             console.error('Error loading channel:', error);
+        }
+    };
+
+    initTags = async () => {
+        try {
+            const tagsResponse = await fetch('/api/tags');
+            const tagsData = await tagsResponse.json();
+            const allTagNames = (tagsData.tags || []).map(t => t.Name ?? t.name);
+
+            const channelTagsResponse = await fetch(`/api/channels/${this.channelId}/tags`);
+            const channelTagsData = await channelTagsResponse.json();
+            const currentTags = (channelTagsData.tags || []).map(t => t.Name ?? t.name);
+
+            const input = document.getElementById('channelTagsInput');
+            if (!input) return;
+
+            this._tagifyInstance = new Tagify(input, getTagifyOptions(allTagNames));
+
+            if (currentTags.length > 0) {
+                this._tagifyInstance.addTags(currentTags);
+            }
+
+            let saveTimeout = null;
+            this._tagifyInstance.on('change', () => {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => this.saveTags(), 600);
+            });
+        } catch (error) {
+            console.error('Error initialising channel tags:', error);
+        }
+    };
+
+    saveTags = async () => {
+        if (!this._tagifyInstance) return;
+        const tagNames = this._tagifyInstance.value.map(t => t.value);
+
+        try {
+            await fetch(`/api/channels/${this.channelId}/tags`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tagNames })
+            });
+        } catch (error) {
+            console.error('Error saving channel tags:', error);
         }
     };
 
@@ -414,6 +462,7 @@ class CustomChannelViewModel {
             const response = await fetch(`/api/custom/playlists/${playlist.id}`, { method: 'DELETE' });
             if (response.ok) {
                 await this.loadPlaylists();
+                toast.success('Playlist deleted successfully.');
             } else {
                 toast.error('Failed to delete playlist. Please try again.');
             }
@@ -503,6 +552,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ko.applyBindings(viewModel);
     await viewModel.loadUserSettings();
     await viewModel.load();
+    await viewModel.initTags();
 
     // Allow pressing Enter in the search box
     document.getElementById('videosSearchInput')?.addEventListener('keydown', (e) => {

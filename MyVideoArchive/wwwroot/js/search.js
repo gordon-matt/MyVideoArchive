@@ -1,4 +1,5 @@
 import { formatDate, formatDuration } from './utils.js';
+import { getTagifyOptions } from './tagify-options.js';
 
 class SearchViewModel {
     constructor() {
@@ -62,12 +63,7 @@ class SearchViewModel {
             .then(r => r.json())
             .then(data => {
                 const whitelist = (data.tags || []).map(t => t.name);
-                this._tagifyInstance = new Tagify(inputEl, {
-                    whitelist,
-                    dropdown: { enabled: 1, maxItems: 10 },
-                    maxTags: 1,
-                    enforceWhitelist: false
-                });
+                this._tagifyInstance = new Tagify(inputEl, getTagifyOptions(whitelist, { maxTags: 1, dropdown: { maxItems: 10 } }));
                 this._tagifyInstance.on('change', () => {
                     const tags = this._tagifyInstance.value;
                     this.tagFilter(tags.length > 0 ? tags[0].value : '');

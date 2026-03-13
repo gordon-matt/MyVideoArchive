@@ -1,4 +1,5 @@
 import { formatDate, formatDuration } from './utils.js';
+import { getTagifyOptions } from './tagify-options.js';
 
 const PAGE_SIZE = 60;
 
@@ -71,11 +72,7 @@ class VideoIndexViewModel {
             console.error('Error loading tag whitelist', e);
         }
 
-        this._tagifyInstance = new Tagify(input, {
-            whitelist,
-            enforceWhitelist: false,
-            dropdown: { enabled: 1, maxItems: 20, classname: 'tags-look' }
-        });
+        this._tagifyInstance = new Tagify(input, getTagifyOptions(whitelist));
 
         this._tagifyInstance.on('change', () => {
             const tags = this._tagifyInstance.value.map(t => t.value);

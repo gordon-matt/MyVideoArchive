@@ -1,4 +1,5 @@
 import { formatDate, formatDuration, formatFileSize } from './utils.js';
+import { getTagifyOptions } from './tagify-options.js';
 
 class CustomVideoViewModel {
     constructor(videoId) {
@@ -104,12 +105,7 @@ class CustomVideoViewModel {
             const input = document.getElementById('videoTagsInput');
             if (!input) return;
 
-            this._tagifyInstance = new Tagify(input, {
-                whitelist: allTagNames,
-                enforceWhitelist: false,
-                maxTags: 20,
-                dropdown: { maxItems: 20, classname: 'tags-look', enabled: 1, closeOnSelect: false }
-            });
+            this._tagifyInstance = new Tagify(input, getTagifyOptions(allTagNames));
 
             if (currentTags.length > 0) this._tagifyInstance.addTags(currentTags);
 

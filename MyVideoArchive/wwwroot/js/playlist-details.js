@@ -1,4 +1,5 @@
 import { formatDate, formatDuration, formatNumber } from './utils.js';
+import { getTagifyOptions } from './tagify-options.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
@@ -95,6 +96,12 @@ class PlaylistDetailsViewModel {
             }
         });
 
+        // ── Tags ──────────────────────────────────────────────────────────────
+        this.videoTags = ko.observableArray([]);
+        this._playlistTagifyInstance = null;
+        this._videoTagifyInstance = null;
+        this._videoTagsSaveTimeout = null;
+
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
         this.formatNumber = formatNumber;
@@ -144,6 +151,108 @@ class PlaylistDetailsViewModel {
         const response = await fetch(`/odata/PlaylistOData(${this.playlistId})?$expand=Channel`);
         if (!response.ok) throw new Error('Playlist not found');
         this.playlist(await response.json());
+    };
+
+    initPlaylistTags = async () => {
+        try {
+            const tagsResponse = await fetch('/api/tags');
+            const tagsData = await tagsResponse.json();
+            const allTagNames = (tagsData.tags || []).map(t => t.Name ?? t.name);
+
+            const playlistTagsResponse = await fetch(`/api/playlists/${this.playlistId}/tags`);
+            const playlistTagsData = await playlistTagsResponse.json();
+            const currentTags = (playlistTagsData.tags || []).map(t => t.Name ?? t.name);
+
+            const input = document.getElementById('playlistTagsInput');
+            if (!input) return;
+
+            this._playlistTagifyInstance = new Tagify(input, getTagifyOptions(allTagNames));
+
+            if (currentTags.length > 0) {
+                this._playlistTagifyInstance.addTags(currentTags);
+            }
+
+            let saveTimeout = null;
+            this._playlistTagifyInstance.on('change', () => {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => this.savePlaylistTags(), 600);
+            });
+        } catch (error) {
+            console.error('Error initialising playlist tags:', error);
+        }
+    };
+
+    savePlaylistTags = async () => {
+        if (!this._playlistTagifyInstance) return;
+        const tagNames = this._playlistTagifyInstance.value.map(t => t.value);
+
+        try {
+            await fetch(`/api/playlists/${this.playlistId}/tags`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tagNames })
+            });
+        } catch (error) {
+            console.error('Error saving playlist tags:', error);
+        }
+    };
+
+    loadVideoTags = async (videoId) => {
+        const input = document.getElementById('playlistPageVideoTagsInput');
+        if (!videoId) {
+            this.videoTags([]);
+            if (this._videoTagifyInstance && input) {
+                this._videoTagifyInstance.removeAllTags();
+            }
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/videos/${videoId}/tags`);
+            if (!response.ok) {
+                this.videoTags([]);
+                if (this._videoTagifyInstance && input) this._videoTagifyInstance.removeAllTags();
+                return;
+            }
+            const data = await response.json();
+            const tags = (data.tags || []).map(t => t.Name ?? t.name);
+            this.videoTags(tags);
+
+            if (!input) return;
+
+            if (!this._videoTagifyInstance) {
+                const tagsResponse = await fetch('/api/tags');
+                const tagsData = await tagsResponse.json();
+                const allTagNames = (tagsData.tags || []).map(t => t.Name ?? t.name);
+                this._videoTagifyInstance = new Tagify(input, getTagifyOptions(allTagNames));
+                this._videoTagifyInstance.on('change', () => {
+                    clearTimeout(this._videoTagsSaveTimeout);
+                    this._videoTagsSaveTimeout = setTimeout(() => this.saveVideoTags(), 600);
+                });
+            }
+            this._videoTagifyInstance.removeAllTags();
+            if (tags.length > 0) this._videoTagifyInstance.addTags(tags);
+        } catch (error) {
+            console.error('Error loading video tags:', error);
+            this.videoTags([]);
+            if (this._videoTagifyInstance && input) this._videoTagifyInstance.removeAllTags();
+        }
+    };
+
+    saveVideoTags = async () => {
+        const video = this.currentVideo();
+        if (!video?.id || !this._videoTagifyInstance) return;
+        const tagNames = this._videoTagifyInstance.value.map(t => t.value);
+        try {
+            await fetch(`/api/videos/${video.id}/tags`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tagNames })
+            });
+            this.videoTags(tagNames);
+        } catch (error) {
+            console.error('Error saving video tags:', error);
+        }
     };
 
     _loadOrderSetting = async () => {
@@ -450,6 +559,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         _currentVideoId = video.id;
         viewModel.currentVideo(video);
+        await viewModel.loadVideoTags(video.id);
 
         // Scroll active sidebar item into view
         setTimeout(() => {
@@ -493,4 +603,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     await viewModel.loadPlaylist();
+    await viewModel.initPlaylistTags();
 });

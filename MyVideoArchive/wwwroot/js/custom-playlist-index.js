@@ -129,6 +129,7 @@ class CustomPlaylistIndexViewModel {
             if (response.ok) {
                 this.playlists.remove(playlist);
                 this.totalCount(this.totalCount() - 1);
+                toast.success('Playlist deleted successfully.');
             } else {
                 toast.error('Failed to delete playlist.');
             }

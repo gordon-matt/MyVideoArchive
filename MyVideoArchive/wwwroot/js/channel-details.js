@@ -1,4 +1,5 @@
 import { formatDate, formatDuration } from './utils.js';
+import { getTagifyOptions } from './tagify-options.js';
 
 class ChannelDetailsViewModel {
     constructor(channelId) {
@@ -116,6 +117,9 @@ class ChannelDetailsViewModel {
         this.canConfirmThumbnailPicker = ko.computed(() =>
             !!this.thumbnailPickerSelectedUrl() || !!this.thumbnailPickerUploadFile()
         );
+
+        // ── Tags ──────────────────────────────────────────────────────────────
+        this._tagifyInstance = null;
     }
 
     _buildPageNumbers(current, total) {
@@ -135,6 +139,50 @@ class ChannelDetailsViewModel {
             if (response.ok) this.channel(await response.json());
         } catch (error) {
             console.error('Error loading channel:', error);
+        }
+    };
+
+    initTags = async () => {
+        try {
+            const tagsResponse = await fetch('/api/tags');
+            const tagsData = await tagsResponse.json();
+            const allTagNames = (tagsData.tags || []).map(t => t.Name ?? t.name);
+
+            const channelTagsResponse = await fetch(`/api/channels/${this.channelId}/tags`);
+            const channelTagsData = await channelTagsResponse.json();
+            const currentTags = (channelTagsData.tags || []).map(t => t.Name ?? t.name);
+
+            const input = document.getElementById('channelTagsInput');
+            if (!input) return;
+
+            this._tagifyInstance = new Tagify(input, getTagifyOptions(allTagNames));
+
+            if (currentTags.length > 0) {
+                this._tagifyInstance.addTags(currentTags);
+            }
+
+            let saveTimeout = null;
+            this._tagifyInstance.on('change', () => {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => this.saveTags(), 600);
+            });
+        } catch (error) {
+            console.error('Error initialising channel tags:', error);
+        }
+    };
+
+    saveTags = async () => {
+        if (!this._tagifyInstance) return;
+        const tagNames = this._tagifyInstance.value.map(t => t.value);
+
+        try {
+            await fetch(`/api/channels/${this.channelId}/tags`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tagNames })
+            });
+        } catch (error) {
+            console.error('Error saving channel tags:', error);
         }
     };
 
@@ -891,6 +939,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ko.applyBindings(viewModel);
     await viewModel.loadUserSettings();
     await viewModel.loadChannel();
+    await viewModel.initTags();
     await viewModel.loadVideos();
     await viewModel.loadSubscribedPlaylists();
     viewModel.startSyncPolling();

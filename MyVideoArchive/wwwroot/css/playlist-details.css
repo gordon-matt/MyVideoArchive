@@ -25,15 +25,17 @@
 }
 
 .playlist-sidebar {
-    height: calc(100vh - 100px);
-    overflow-y: auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
     padding: 15px;
     background-color: #f8f9fa;
 }
 
 .video-list {
-    max-height: calc(100vh - 400px);
+    flex: 1;
     overflow-y: auto;
+    max-height: 900px;
 }
 
 .playlist-video-item {
