@@ -59,6 +59,7 @@ class PlaylistDetailsViewModel {
         this.currentVideo = ko.observable(null);
         this.loading = ko.observable(true);
         this.loadingVideos = ko.observable(false);
+        this.refreshing = ko.observable(false);
         this.useCustomOrder = ko.observable(false);
         this.showHidden = ko.observable(false);
         this.autoAdvance = ko.observable(
@@ -107,6 +108,35 @@ class PlaylistDetailsViewModel {
         } catch (error) {
             console.error('Error loading playlist:', error);
             this.loading(false);
+        }
+    };
+
+    refreshFromSource = async () => {
+        if (this.refreshing()) {
+            return;
+        }
+
+        this.refreshing(true);
+        try {
+            const response = await fetch(`/api/playlists/${this.playlistId}/sync`, { method: 'POST' });
+            let data = {};
+            try {
+                data = await response.json();
+            } catch {
+                data = {};
+            }
+
+            if (response.ok) {
+                toast.info(data.message || 'Playlist sync queued successfully.');
+            }
+            else {
+                toast.error(data.message || 'Error queueing playlist sync.');
+            }
+        } catch (error) {
+            console.error('Error triggering playlist sync:', error);
+            toast.error('Error queueing playlist sync. Please try again.');
+        } finally {
+            this.refreshing(false);
         }
     };
 

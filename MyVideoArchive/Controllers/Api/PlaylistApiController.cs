@@ -73,6 +73,17 @@ public class PlaylistApiController : ControllerBase
     }
 
     /// <summary>
+    /// Trigger sync for a single playlist.
+    /// </summary>
+    [HttpPost("{playlistId}/sync")]
+    public async Task<IActionResult> SyncPlaylist(int playlistId)
+    {
+        var result = await playlistService.SyncPlaylistAsync(playlistId);
+
+        return result.ToActionResult(this, () => Ok(new { message = "Sync job queued successfully for playlist" }));
+    }
+
+    /// <summary>
     /// Trigger sync for all playlists
     /// </summary>
     [Authorize(Roles = Constants.Roles.Administrator)]

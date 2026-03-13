@@ -88,6 +88,16 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <span><strong><span data-bind="text: visibleVideoCount()"></span></strong> videos</span>
                             <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        data-bind="click: refreshFromSource, enable: !refreshing()">
+                                    <span data-bind="visible: !refreshing()">
+                                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                                    </span>
+                                    <span data-bind="visible: refreshing()">
+                                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                        Refreshing...
+                                    </span>
+                                </button>
                                 <button class="btn btn-sm btn-primary" data-bind="click: openDownloadAllModal, visible: hasDownloadableVideos()">
                                     <i class="bi bi-cloud-download"></i> Download All
                                 </button>

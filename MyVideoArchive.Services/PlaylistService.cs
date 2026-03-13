@@ -5,6 +5,7 @@ using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
 using MyVideoArchive.Services.Content;
+using MyVideoArchive.Services.Jobs;
 
 namespace MyVideoArchive.Services;
 
@@ -708,6 +709,42 @@ public class PlaylistService : IPlaylistService
             }
 
             return Result.Error("An error occurred while subscribing to playlists");
+        }
+    }
+
+    public async Task<Result> SyncPlaylistAsync(int playlistId)
+    {
+        try
+        {
+            var playlist = await playlistRepository.FindOneAsync(playlistId);
+            if (playlist is null)
+            {
+                return Result.NotFound("Playlist not found");
+            }
+
+            if (!await UserHasAccessToChannelAsync(playlist.ChannelId))
+            {
+                return Result.Forbidden();
+            }
+
+            backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
+                job.ExecuteAsync(playlist.Id, CancellationToken.None));
+
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Queued sync job for playlist {PlaylistId}", playlistId);
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error queueing sync job for playlist {PlaylistId}", playlistId);
+            }
+
+            return Result.Error("An error occurred while queueing the playlist sync job");
         }
     }
 

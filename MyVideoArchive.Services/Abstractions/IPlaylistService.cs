@@ -35,6 +35,11 @@ public interface IPlaylistService
     Task<Result> SetVideoHiddenAsync(int playlistId, int videoId, SetVideoHiddenRequest request);
 
     /// <summary>
+    /// Trigger sync for a single playlist.
+    /// </summary>
+    Task<Result> SyncPlaylistAsync(int playlistId);
+
+    /// <summary>
     /// Subscribe to all playlists for a channel and queue sync jobs.
     /// </summary>
     Task<Result<SubscribePlaylistsResponse>> SubscribeAllPlaylistsAsync(int channelId);
