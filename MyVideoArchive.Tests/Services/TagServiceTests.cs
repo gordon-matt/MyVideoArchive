@@ -13,7 +13,9 @@ public class TagServiceTests
             db.VideoRepository,
             db.VideoTagRepository,
             db.ChannelTagRepository,
-            db.PlaylistTagRepository);
+            db.PlaylistTagRepository,
+            db.CustomPlaylistTagRepository,
+            db.CustomPlaylistRepository);
 
     [Fact]
     public async Task CreateGlobalTagAsync_WhenNameIsEmpty_ReturnsInvalid()

@@ -24,7 +24,9 @@ public class VideoServiceTests
             db.VideoRepository,
             db.VideoTagRepository,
             db.ChannelTagRepository,
-            db.PlaylistTagRepository);
+            db.PlaylistTagRepository,
+            db.CustomPlaylistTagRepository,
+            db.CustomPlaylistRepository);
 
         var factory = metadataFactory ?? new VideoMetadataProviderFactory(
             [],

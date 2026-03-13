@@ -27,7 +27,9 @@ public class PlaylistServiceTests
             db.VideoRepository,
             db.VideoTagRepository,
             db.ChannelTagRepository,
-            db.PlaylistTagRepository);
+            db.PlaylistTagRepository,
+            db.CustomPlaylistTagRepository,
+            db.CustomPlaylistRepository);
 
         return new PlaylistService(
             NullLogger<PlaylistService>.Instance,

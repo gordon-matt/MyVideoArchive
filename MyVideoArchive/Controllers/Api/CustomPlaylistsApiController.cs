@@ -11,10 +11,12 @@ namespace MyVideoArchive.Controllers.Api;
 public class CustomPlaylistsApiController : ControllerBase
 {
     private readonly ICustomPlaylistService customPlaylistService;
+    private readonly ITagService tagService;
 
-    public CustomPlaylistsApiController(ICustomPlaylistService customPlaylistService)
+    public CustomPlaylistsApiController(ICustomPlaylistService customPlaylistService, ITagService tagService)
     {
         this.customPlaylistService = customPlaylistService;
+        this.tagService = tagService;
     }
 
     [HttpPost("{id}/videos/{videoId}")]
@@ -127,6 +129,26 @@ public class CustomPlaylistsApiController : ControllerBase
     {
         var result = await customPlaylistService.UpdatePlaylistAsync(id, request);
         return result.ToActionResult(this, value => Ok(new { id = value.Id, name = value.Name }));
+    }
+
+    /// <summary>
+    /// Get all tags on a custom playlist
+    /// </summary>
+    [HttpGet("{id}/tags")]
+    public async Task<IActionResult> GetCustomPlaylistTags(int id)
+    {
+        var result = await tagService.GetCustomPlaylistTagsAsync(id);
+        return result.ToActionResult(this, value => Ok(new { tags = value.Tags }));
+    }
+
+    /// <summary>
+    /// Set the tags for a custom playlist (replaces existing tags)
+    /// </summary>
+    [HttpPut("{id}/tags")]
+    public async Task<IActionResult> SetCustomPlaylistTags(int id, [FromBody] SetPlaylistTagsRequest request)
+    {
+        var result = await tagService.SetCustomPlaylistTagsAsync(id, request);
+        return result.ToActionResult(this, () => Ok(new { message = "Tags updated" }));
     }
 
     [HttpPost("{id}/thumbnail")]

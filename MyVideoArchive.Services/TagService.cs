@@ -1,4 +1,5 @@
 using Ardalis.Result;
+using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Models.Requests.Channel;
 using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
@@ -15,6 +16,8 @@ public class TagService : ITagService
     private readonly IRepository<VideoTag> videoTagRepository;
     private readonly IRepository<ChannelTag> channelTagRepository;
     private readonly IRepository<PlaylistTag> playlistTagRepository;
+    private readonly IRepository<CustomPlaylistTag> customPlaylistTagRepository;
+    private readonly IRepository<CustomPlaylist> customPlaylistRepository;
 
     public TagService(
         ILogger<TagService> logger,
@@ -23,7 +26,9 @@ public class TagService : ITagService
         IRepository<Video> videoRepository,
         IRepository<VideoTag> videoTagRepository,
         IRepository<ChannelTag> channelTagRepository,
-        IRepository<PlaylistTag> playlistTagRepository)
+        IRepository<PlaylistTag> playlistTagRepository,
+        IRepository<CustomPlaylistTag> customPlaylistTagRepository,
+        IRepository<CustomPlaylist> customPlaylistRepository)
     {
         this.logger = logger;
         this.userContextService = userContextService;
@@ -32,6 +37,8 @@ public class TagService : ITagService
         this.videoTagRepository = videoTagRepository;
         this.channelTagRepository = channelTagRepository;
         this.playlistTagRepository = playlistTagRepository;
+        this.customPlaylistTagRepository = customPlaylistTagRepository;
+        this.customPlaylistRepository = customPlaylistRepository;
     }
 
     public async Task<Result<GlobalTagItem>> CreateGlobalTagAsync(string name)
@@ -550,6 +557,110 @@ public class TagService : ITagService
             }
 
             return Result.Error("An error occurred while updating playlist tags");
+        }
+    }
+
+    public async Task<Result<GetPlaylistTagsResponse>> GetCustomPlaylistTagsAsync(int customPlaylistId)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            var playlist = await customPlaylistRepository.FindOneAsync(new SearchOptions<CustomPlaylist>
+            {
+                Query = x => x.Id == customPlaylistId && x.UserId == userId
+            });
+            if (playlist is null)
+            {
+                return Result.NotFound("Playlist not found");
+            }
+
+            var customPlaylistTags = await customPlaylistTagRepository.FindAsync(new SearchOptions<CustomPlaylistTag>
+            {
+                Query = x => x.CustomPlaylistId == customPlaylistId,
+                Include = q => q.Include(x => x.Tag)
+            });
+
+            var items = customPlaylistTags
+                .Select(cpt => new PlaylistTagItem(cpt.Tag.Id, cpt.Tag.Name))
+                .OrderBy(t => t.Name)
+                .ToList();
+
+            return Result.Success(new GetPlaylistTagsResponse(items));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrieving tags for custom playlist {CustomPlaylistId}", customPlaylistId);
+            }
+
+            return Result.Error("An error occurred while retrieving custom playlist tags");
+        }
+    }
+
+    public async Task<Result> SetCustomPlaylistTagsAsync(int customPlaylistId, SetPlaylistTagsRequest request)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            var playlist = await customPlaylistRepository.FindOneAsync(new SearchOptions<CustomPlaylist>
+            {
+                Query = x => x.Id == customPlaylistId && x.UserId == userId
+            });
+            if (playlist is null)
+            {
+                return Result.NotFound("Playlist not found");
+            }
+
+            var selectedTagNames = request.TagNames
+                ?.Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim().ToLowerInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? [];
+
+            var existingTags = await customPlaylistTagRepository.FindAsync(new SearchOptions<CustomPlaylistTag>
+            {
+                Query = x => x.CustomPlaylistId == customPlaylistId,
+                Include = q => q.Include(x => x.Tag)
+            });
+
+            var existingTagNames = existingTags.Select(cpt => cpt.Tag.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var toAdd = selectedTagNames.Where(n => !existingTagNames.Contains(n)).ToList();
+            var toDelete = existingTags
+                .Where(cpt => !selectedTagNames.Contains(cpt.Tag.Name, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            if (toDelete.Count > 0)
+            {
+                await customPlaylistTagRepository.DeleteAsync(toDelete);
+            }
+
+            foreach (string tagName in toAdd)
+            {
+                var tag = await GetOrCreateTagAsync(userId, tagName);
+                await customPlaylistTagRepository.InsertAsync(new CustomPlaylistTag { CustomPlaylistId = customPlaylistId, TagId = tag.Id });
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error setting tags for custom playlist {CustomPlaylistId}", customPlaylistId);
+            }
+
+            return Result.Error("An error occurred while updating custom playlist tags");
         }
     }
 

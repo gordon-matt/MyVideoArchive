@@ -81,6 +81,16 @@ public interface ITagService
     Task<Result> SetPlaylistTagsAsync(int playlistId, SetPlaylistTagsRequest request);
 
     /// <summary>
+    /// Get all tags on a custom playlist (my playlist).
+    /// </summary>
+    Task<Result<GetPlaylistTagsResponse>> GetCustomPlaylistTagsAsync(int customPlaylistId);
+
+    /// <summary>
+    /// Set the tags for a custom playlist (replaces existing tags).
+    /// </summary>
+    Task<Result> SetCustomPlaylistTagsAsync(int customPlaylistId, SetPlaylistTagsRequest request);
+
+    /// <summary>
     /// Import platform-provided tags for a channel as global tags. Does not remove existing tags.
     /// </summary>
     Task ImportChannelTagsAsync(int channelId, IEnumerable<string> tagNames);
