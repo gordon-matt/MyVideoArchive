@@ -19,17 +19,34 @@ public interface ITagService
     /// </summary>
     Task<Result> DeleteGlobalTagAsync(int tagId);
 
+    Task GarbageCollectUserTagsAsync();
+
+    /// <summary>
+    /// Get all tags on a channel.
+    /// </summary>
+    Task<Result<GetChannelTagsResponse>> GetChannelTagsAsync(int channelId);
+
+    /// <summary>
+    /// Get all tags on a custom playlist (my playlist).
+    /// </summary>
+    Task<Result<GetPlaylistTagsResponse>> GetCustomPlaylistTagsAsync(int customPlaylistId);
+
     /// <summary>
     /// Returns all global tags with their usage counts (for the admin Tags tab).
     /// </summary>
     Task<Result<GetGlobalTagsResponse>> GetGlobalTagsAsync();
 
-    Task<Tag> GetOrCreateTagAsync(string userId, string name);
-
     /// <summary>
     /// Gets or creates a global tag by name. Used for auto-importing platform tags.
     /// </summary>
     Task<Tag> GetOrCreateGlobalTagAsync(string name);
+
+    Task<Tag> GetOrCreateTagAsync(string userId, string name);
+
+    /// <summary>
+    /// Get all tags on a playlist.
+    /// </summary>
+    Task<Result<GetPlaylistTagsResponse>> GetPlaylistTagsAsync(int playlistId);
 
     Task<Tag> GetStandaloneTagAsync(string userId);
 
@@ -46,51 +63,6 @@ public interface ITagService
     Task<Result<GetVideoTagsResponse>> GetVideoTagsAsync(int videoId);
 
     /// <summary>
-    /// Get all tags on a channel.
-    /// </summary>
-    Task<Result<GetChannelTagsResponse>> GetChannelTagsAsync(int channelId);
-
-    /// <summary>
-    /// Get all tags on a playlist.
-    /// </summary>
-    Task<Result<GetPlaylistTagsResponse>> GetPlaylistTagsAsync(int playlistId);
-
-    /// <summary>
-    /// Asynchronously removes the "standalone" tag from all videos in a channel for a given user.
-    /// </summary>
-    Task<Result> RemoveStandaloneTagsForChannelAsync(string userId, int channelDbId);
-
-    /// <summary>
-    /// Asynchronously removes a specified tag from all videos in a channel for a given user.
-    /// </summary>
-    Task<Result> RemoveTagsForChannelAsync(string userId, int channelDbId, int tagId);
-
-    /// <summary>
-    /// Set the tags for a video (replaces existing tags for this user)
-    /// </summary>
-    Task<Result> SetVideoTagsAsync(int videoId, SetVideoTagsRequest request);
-
-    /// <summary>
-    /// Set the tags for a channel (replaces existing tags).
-    /// </summary>
-    Task<Result> SetChannelTagsAsync(int channelId, SetChannelTagsRequest request);
-
-    /// <summary>
-    /// Set the tags for a playlist (replaces existing tags).
-    /// </summary>
-    Task<Result> SetPlaylistTagsAsync(int playlistId, SetPlaylistTagsRequest request);
-
-    /// <summary>
-    /// Get all tags on a custom playlist (my playlist).
-    /// </summary>
-    Task<Result<GetPlaylistTagsResponse>> GetCustomPlaylistTagsAsync(int customPlaylistId);
-
-    /// <summary>
-    /// Set the tags for a custom playlist (replaces existing tags).
-    /// </summary>
-    Task<Result> SetCustomPlaylistTagsAsync(int customPlaylistId, SetPlaylistTagsRequest request);
-
-    /// <summary>
     /// Import platform-provided tags for a channel as global tags. Does not remove existing tags.
     /// </summary>
     Task ImportChannelTagsAsync(int channelId, IEnumerable<string> tagNames);
@@ -104,4 +76,34 @@ public interface ITagService
     /// Import platform-provided tags for a video as global tags. Does not remove existing tags.
     /// </summary>
     Task ImportVideoTagsAsync(int videoId, IEnumerable<string> tagNames);
+
+    /// <summary>
+    /// Asynchronously removes the "standalone" tag from all videos in a channel for a given user.
+    /// </summary>
+    Task<Result> RemoveStandaloneTagsForChannelAsync(string userId, int channelDbId);
+
+    /// <summary>
+    /// Asynchronously removes a specified tag from all videos in a channel for a given user.
+    /// </summary>
+    Task<Result> RemoveTagsForChannelAsync(string userId, int channelDbId, int tagId);
+
+    /// <summary>
+    /// Set the tags for a channel (replaces existing tags).
+    /// </summary>
+    Task<Result> SetChannelTagsAsync(int channelId, SetChannelTagsRequest request);
+
+    /// <summary>
+    /// Set the tags for a custom playlist (replaces existing tags).
+    /// </summary>
+    Task<Result> SetCustomPlaylistTagsAsync(int customPlaylistId, SetPlaylistTagsRequest request);
+
+    /// <summary>
+    /// Set the tags for a playlist (replaces existing tags).
+    /// </summary>
+    Task<Result> SetPlaylistTagsAsync(int playlistId, SetPlaylistTagsRequest request);
+
+    /// <summary>
+    /// Set the tags for a video (replaces existing tags for this user)
+    /// </summary>
+    Task<Result> SetVideoTagsAsync(int videoId, SetVideoTagsRequest request);
 }

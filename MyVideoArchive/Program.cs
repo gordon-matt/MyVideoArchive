@@ -361,6 +361,11 @@ RecurringJob.AddOrUpdate<PlaylistSyncJob>(
     job => job.SyncAllPlaylistsAsync(CancellationToken.None),
     Cron.Weekly()); // Check for new playlist videos every day
 
+RecurringJob.AddOrUpdate<TagGarbageCollectorJob>(
+    "tag-garbage-collector",
+    job => job.ExecuteAsync(CancellationToken.None),
+    Cron.Daily()); // Clean up unused per-user tags once per day
+
 RecurringJob.AddOrUpdate<MetadataReviewJob>(
     "metadata-review",
     job => job.ExecuteAsync(CancellationToken.None),

@@ -28,7 +28,8 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    padding: 15px;
+    padding-left: 15px;
+    padding-right: 15px;
     background-color: #f8f9fa;
 }
 
