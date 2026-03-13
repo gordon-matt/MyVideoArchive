@@ -35,6 +35,12 @@ MyVideoArchive supports two roles:
 - Keycloak is running and accessible (default: `http://localhost:8081`).
 - If you are using the provided `docker-compose.yml`, uncomment the `keycloak` service and
   re-run `docker compose up -d`.
+- **Keycloak database:** When Keycloak is configured to use PostgreSQL (as in the
+  commented `keycloak` service), the `keycloak` database must exist. Create the
+  database, then restart Keycloak:
+  ```bash
+  docker exec -it <postgres-container-name> psql -U postgres -c "CREATE DATABASE keycloak;"
+  ```
 
 ---
 
@@ -108,16 +114,17 @@ Click **Next**.
 | Root URL                     | `http://localhost:8080`                    |
 | Home URL                     | `http://localhost:8080`                    |
 | Valid redirect URIs          | `http://localhost:8080/signin-oidc`        |
-| Valid post logout redirect URIs | `http://localhost:8080/`               |
+| Valid post logout redirect URIs | `http://localhost:8080/signout-callback-oidc` |
 | Web origins                  | `http://localhost:8080`                    |
 
-> **Why the exact path?** Keycloak 26 enables Pushed Authorization Requests (PAR) by
-> default. PAR rejects wildcard redirect URIs (e.g. `/*`), so the exact callback path
-> `/signin-oidc` must be used. The app disables PAR by default (`PushedAuthorizationBehavior.Disable`
-> in `Program.cs`), which makes wildcards work again — but using the exact URI is better
-> practice regardless.
+> **Redirect URIs:** Use the exact values above. The login callback is
+> `http://localhost:8080/signin-oidc`. The **post-logout** redirect must be
+> `http://localhost:8080/signout-callback-oidc` — the OIDC middleware uses this
+> path to receive the redirect from Keycloak and complete sign-out (clear cookies),
+> then redirects the user to the app root. If this URI is missing in Keycloak, you
+> get "Invalid redirect uri" after clicking Logout.
 >
-> **Production note:** Replace `http://localhost:8080` with your actual public URL.
+> **Production:** Replace `http://localhost:8080` with your actual public URL.
 > Enable HTTPS and remove `RequireHttpsMetadata = false` from `Program.cs`.
 
 Click **Save**.
@@ -137,19 +144,32 @@ Click **Save**.
 
 ## Step 6 — Configure the Roles Claim Mapper
 
-By default Keycloak puts realm roles inside a nested JSON object (`realm_access.roles`).
-MyVideoArchive reads this automatically via `KeycloakRolesClaimsTransformation`, so
-**no extra mapper is required for the default setup**.
+The app expects a flat `roles` claim in the token (e.g. `roles: ["Administrator"]`).
+You must add a **User Realm Role** mapper on the client with the following settings;
+getting any of them wrong can cause Keycloak to return "unknown_error" or
+"cannot map type for token claim".
 
-However, if you prefer to expose roles as a top-level `roles` array in the token
-(which is slightly more interoperable), you can add a mapper:
+1. Go to **Clients → myvideoarchive** (click the client name).
+2. Open the **Mappers** tab.
+3. Click **Create** (or **Add mapper → By configuration**).
+4. Choose **User Realm Role**.
+5. Set these values **exactly**:
 
-1. Go to **Clients → myvideoarchive → Client scopes**.
-2. Click on the `myvideoarchive-dedicated` scope.
-3. Click **Add mapper → By configuration → User Realm Role**.
-4. Set **Token Claim Name** to `roles`.
-5. Enable **Add to ID token** and **Add to access token**.
+| Field                | Value        |
+|----------------------|--------------|
+| Name                 | `realm-roles`|
+| Token Claim Name     | `roles`      |
+| **Claim JSON Type**  | **`String`** — do **not** use `JSON` or Keycloak will throw "cannot map type for token claim". |
+| **Multivalued**      | **On**       |
+| Add to ID token      | **On**       |
+| Add to access token  | On           |
+| Add to userinfo      | On           |
+
 6. Click **Save**.
+
+If you previously created a mapper with Claim JSON Type set to `JSON`, delete it
+and recreate it with `String`; the JSON type is not supported for this mapper and
+causes a server error during the token exchange.
 
 ---
 
@@ -209,11 +229,11 @@ Uncomment and fill in the `Authentication` section in `MyVideoArchive/appsetting
 
 ### Option B — Environment variables (Docker / production)
 
-In `docker-compose.yml`, uncomment the three Keycloak lines under the `app` service:
+In `docker-compose.yml`, uncomment the Keycloak lines under the `app` service:
 
 ```yaml
 Authentication__Provider: Keycloak
-Authentication__Keycloak__Authority: http://keycloak:8080/realms/myvideoarchive
+Authentication__Keycloak__Authority: http://host.docker.internal:8081/realms/myvideoarchive
 Authentication__Keycloak__ClientId: myvideoarchive
 Authentication__Keycloak__ClientSecret: "${KEYCLOAK_CLIENT_SECRET}"
 ```
@@ -225,9 +245,10 @@ Set `KEYCLOAK_CLIENT_SECRET` in a `.env` file next to `docker-compose.yml`
 KEYCLOAK_CLIENT_SECRET=paste-your-client-secret-here
 ```
 
-> Note the authority URL uses `keycloak:8080` (the Docker service name and internal port)
-> rather than `localhost:8081`. This is because the .NET app resolves the URL from inside
-> the Docker network.
+> **Authority URL:** Use `http://host.docker.internal:8081/realms/myvideoarchive` so that
+> (1) the app container can reach Keycloak, and (2) the browser can reach Keycloak when
+> Keycloak redirects the user to the login page. Using `keycloak:8080` would make the
+> browser try to open `http://keycloak:8080`, which does not resolve on your machine.
 
 ---
 
@@ -272,8 +293,13 @@ unaffected by any Keycloak configuration.
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| Redirect loop on login | Wrong `Valid redirect URIs` in Keycloak | Add `http://localhost:8080/*` to Valid redirect URIs |
-| "Client not found" error | `ClientId` mismatch | Ensure `Authentication:Keycloak:ClientId` matches the Keycloak client ID exactly |
-| 401 after successful Keycloak login | User has no `User` or `Administrator` role | Assign a realm role to the user in Keycloak |
-| `IDX20803: Unable to obtain configuration` | App cannot reach Keycloak | Check that the `Authority` URL is reachable from the app container (use the Docker service name, not `localhost`, when running in Docker) |
-| HTTPS errors in development | `RequireHttpsMetadata` defaults | The code already sets `RequireHttpsMetadata = false` for dev. For production, put Keycloak behind a reverse proxy with TLS. |
+| **Invalid redirect uri** (after clicking Logout) | Post-logout redirect URI not allowed in Keycloak | In **Clients → myvideoarchive → Login settings**, set **Valid post logout redirect URIs** to `http://localhost:8080/signout-callback-oidc` (exact; the OIDC middleware uses this path to complete sign-out). Replace host/port if your app URL is different. Save and try again. |
+| Redirect loop on login / 431 Request Header Fields Too Large | (1) OIDC callback failed, then error page required auth and re-challenged; (2) cookies piled up from repeated failures | The app now redirects auth failures to the error page and the error page allows anonymous access. Clear all cookies for the app (e.g. `localhost:8080`), restart the app, and log in again in a clean session. |
+| `unknown_error` / "For more on this error consult the server log" | Keycloak token endpoint failed; often **cannot map type for token claim** in Keycloak logs | The roles mapper has **Claim JSON Type** set to `JSON`. It must be **`String`** with **Multivalued** On. In **Clients → myvideoarchive → Mappers**, edit or delete the realm-roles mapper and recreate it with Claim JSON Type = **String**. See [Step 6](#step-6--configure-the-roles-claim-mapper). |
+| "We can't connect to the server at keycloak" (browser) | Authority used `keycloak:8080`; that hostname only resolves inside Docker | When the app runs in Docker, set Authority to `http://host.docker.internal:8081/realms/...` so the browser can reach Keycloak. See [Step 8 Option B](#option-b--environment-variables-docker--production). |
+| Redirect loop on login (PAR / redirect_uri) | Keycloak 26 PAR rejects wildcard redirect URIs | The app sets `PushedAuthorizationBehavior.Disable`. Use exact **Valid redirect URIs**: `http://localhost:8080/signin-oidc`. |
+| "Client not found" error | `ClientId` mismatch | Ensure `Authentication:Keycloak:ClientId` matches the Keycloak client ID exactly. |
+| 401 after successful Keycloak login | User has no `User` or `Administrator` role | Assign a realm role to the user in Keycloak (**Users → &lt;user&gt; → Role mapping → Assign role**). |
+| `IDX20803: Unable to obtain configuration` | App cannot reach Keycloak | Check that the `Authority` URL is reachable from where the app runs (from the host use `localhost:8081`; from a container use `host.docker.internal:8081`). |
+| HTTPS errors in development | `RequireHttpsMetadata` defaults | The code sets `RequireHttpsMetadata = false` for dev. For production, put Keycloak behind HTTPS. |
+| Keycloak fails to start: "database keycloak does not exist" | PostgreSQL has no `keycloak` database | Create it once: `docker exec -it <postgres-container> psql -U postgres -c "CREATE DATABASE keycloak;"`. See [Prerequisites](#prerequisites). |

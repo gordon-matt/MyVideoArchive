@@ -38,7 +38,11 @@ public class AuthController : Controller
 
     /// <summary>
     /// Signs the user out of both the local cookie session and the remote Keycloak session
-    /// (single sign-out). After logout Keycloak redirects back to the application root.
+    /// (single sign-out). The OIDC middleware sends post_logout_redirect_uri to Keycloak
+    /// as the SignOutCallbackPath (e.g. /signout-callback-oidc); that exact URI must be
+    /// in the client's "Valid post logout redirect URIs" in Keycloak. After Keycloak
+    /// redirects back, the middleware clears the cookie and redirects the user to
+    /// RedirectUri below (the app root).
     /// </summary>
     [HttpPost("logout")]
     [Authorize]
@@ -48,7 +52,8 @@ public class AuthController : Controller
         if (!_authProvider.IsKeycloak)
             return NotFound();
 
-        var props = new AuthenticationProperties { RedirectUri = "/" };
+        string redirectUri = $"{Request.Scheme}://{Request.Host}/";
+        var props = new AuthenticationProperties { RedirectUri = redirectUri };
         return SignOut(
             props,
             CookieAuthenticationDefaults.AuthenticationScheme,
