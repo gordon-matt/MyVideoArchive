@@ -15,8 +15,6 @@ public class UserChannel : IEntity
 
     public DateTime SubscribedAt { get; set; }
 
-    public ApplicationUser User { get; set; } = null!;
-
     public Channel Channel { get; set; } = null!;
 
     [IgnoreDataMember]
@@ -31,12 +29,6 @@ public class UserChannelMap : IEntityTypeConfiguration<UserChannel>
 
         // Composite primary key
         builder.HasKey(uc => new { uc.UserId, uc.ChannelId });
-
-        // Relationships
-        builder.HasOne(uc => uc.User)
-            .WithMany()
-            .HasForeignKey(uc => uc.UserId)
-            .OnDelete(DeleteBehavior.ClientNoAction);
 
         builder.HasOne(uc => uc.Channel)
             .WithMany()

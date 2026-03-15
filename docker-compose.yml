@@ -5,7 +5,7 @@
 # ── Authentication ─────────────────────────────────────────────────────────────
 # By default the app uses its built-in ASP.NET Core Identity (local user/password
 # database). To switch to Keycloak for centralised, single-sign-on across multiple
-# apps, uncomment the "Keycloak" environment variables below and the "keycloak"
+# apps, set the Keycloak environment variables below and uncomment the "keycloak"
 # service at the bottom of this file.
 #
 # See docs/KEYCLOAK_SETUP.md for full Keycloak configuration instructions.
@@ -33,12 +33,26 @@ services:
       YoutubeDL__ExecutablePath: /usr/local/bin/yt-dlp
       YoutubeDL__FFmpegPath: /usr/bin/ffmpeg
       # ── Keycloak (optional) ──────────────────────────────────────────────────
-      # Uncomment these three lines to enable Keycloak authentication.
-      # Replace the Authority URL with your realm URL and paste in your client secret.
+      # Set Authentication__Provider to "Keycloak" and fill in Authority + ClientSecret
+      # to enable Keycloak authentication (comment out / remove for built-in Identity).
+      #
+      # Local dev (Keycloak in this same stack below):
+      #   Authority uses host.docker.internal so the browser AND the container can reach it.
+      #
+      # Production / NAS (Keycloak in a separate stack behind a reverse proxy):
+      #   Use the public HTTPS URL for Authority (e.g. https://keycloak.example.com/realms/myvideoarchive).
+      #   Add extra_hosts below so the container can reach the public Keycloak hostname
+      #   without going through external DNS / hairpin NAT (see extra_hosts section).
+      #   Set PublicOrigin to the app's own public URL if X-Forwarded-Proto is not forwarded.
       # Authentication__Provider: Keycloak
       # Authentication__Keycloak__Authority: http://host.docker.internal:8081/realms/myvideoarchive
       # Authentication__Keycloak__ClientId: myvideoarchive
-      # Authentication__Keycloak__ClientSecret: ${KEYCLOAK_CLIENT_SECRET}
+      # Authentication__Keycloak__ClientSecret: "${KEYCLOAK_CLIENT_SECRET}"
+      # Authentication__Keycloak__PublicOrigin: ""   # e.g. https://mva.example.com (NAS/prod only)
+      # Authentication__Keycloak__BackchannelBaseUrl: ""  # e.g. http://keycloak:8080 (NAS/prod only)
+      #   ^ Reroutes discovery + token exchange to an internal URL so the container avoids
+      #     DNS/hairpin NAT. Requires both containers to be on a shared Docker network and
+      #     "keycloak" to be the container_name of the Keycloak container.
     volumes:
       # Host path must exist; ensure D: is in Docker Desktop → Settings → Resources → File sharing
       - D:/_Docker/my-video-archive/videos:/app/data
@@ -71,26 +85,26 @@ services:
   # Uncomment this service to run Keycloak alongside the app.
   # After first start, open http://localhost:8081 and follow docs/KEYCLOAK_SETUP.md.
   #
-  # keycloak:
-  #   image: quay.io/keycloak/keycloak:26.5.5
-  #   container_name: keycloak
-  #   ports:
-  #     - "8081:8080"
-  #   environment:
-  #     KC_BOOTSTRAP_ADMIN_USERNAME: admin
-  #     KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:-admin}"
-  #     # Persist realm/user data across restarts:
-  #     KC_DB: postgres
-  #     KC_DB_URL: jdbc:postgresql://db:5432/keycloak
-  #     KC_DB_USERNAME: postgres
-  #     KC_DB_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
-  #   command: start-dev
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 10
-  #     start_period: 30s
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.5
+    container_name: keycloak
+    ports:
+      - "8081:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:-admin}"
+      # Persist realm/user data across restarts:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+    command: start-dev
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s

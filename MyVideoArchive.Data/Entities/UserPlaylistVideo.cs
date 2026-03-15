@@ -24,8 +24,6 @@ public class UserPlaylistVideo : IEntity
     /// </summary>
     public bool IsHidden { get; set; }
 
-    public ApplicationUser User { get; set; } = null!;
-
     public Playlist Playlist { get; set; } = null!;
 
     public Video Video { get; set; } = null!;
@@ -41,11 +39,6 @@ public class UserPlaylistVideoMap : IEntityTypeConfiguration<UserPlaylistVideo>
         builder.ToTable("UserPlaylistVideos", "app");
 
         builder.HasKey(x => new { x.UserId, x.PlaylistId, x.VideoId });
-
-        builder.HasOne(x => x.User)
-            .WithMany()
-            .HasForeignKey(x => x.UserId)
-            .OnDelete(DeleteBehavior.ClientNoAction);
 
         builder.HasOne(x => x.Playlist)
             .WithMany()

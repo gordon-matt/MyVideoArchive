@@ -20,8 +20,6 @@ public class UserVideo : IEntity
     /// </summary>
     public bool IsIgnored { get; set; }
 
-    public ApplicationUser User { get; set; } = null!;
-
     public Video Video { get; set; } = null!;
 
     [IgnoreDataMember]
@@ -36,12 +34,6 @@ public class UserVideoMap : IEntityTypeConfiguration<UserVideo>
 
         // Composite primary key
         builder.HasKey(uv => new { uv.UserId, uv.VideoId });
-
-        // Relationships
-        builder.HasOne(uv => uv.User)
-            .WithMany()
-            .HasForeignKey(uv => uv.UserId)
-            .OnDelete(DeleteBehavior.ClientNoAction);
 
         builder.HasOne(uv => uv.Video)
             .WithMany()

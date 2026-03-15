@@ -8,16 +8,19 @@ public class ChannelServiceTests
         InMemoryDatabaseFixture db,
         IConfiguration? configuration = null,
         IBackgroundJobClient? jobClient = null,
-        IUserContextService? userContext = null)
+        IUserContextService? userContext = null,
+        IUserInfoService? userInfoService = null)
     {
         var config = configuration ?? new ConfigurationBuilder().Build();
         var job = jobClient ?? Mock.Of<IBackgroundJobClient>();
         var user = userContext ?? CreateUserContext(null, false);
+        var userInfo = userInfoService ?? CreateUserInfoService();
         return new ChannelService(
             NullLogger<ChannelService>.Instance,
             config,
             job,
             user,
+            userInfo,
             db.ChannelRepository,
             db.ChannelTagRepository,
             db.CustomPlaylistVideoRepository,
@@ -37,6 +40,14 @@ public class ChannelServiceTests
         var mock = new Mock<IUserContextService>();
         mock.Setup(c => c.GetCurrentUserId()).Returns(userId);
         mock.Setup(c => c.IsAdministrator()).Returns(isAdmin);
+        return mock.Object;
+    }
+
+    private static IUserInfoService CreateUserInfoService(IReadOnlyDictionary<string, UserInfo>? userInfoMap = null)
+    {
+        var mock = new Mock<IUserInfoService>();
+        mock.Setup(s => s.GetUserInfoAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(userInfoMap ?? new Dictionary<string, UserInfo>());
         return mock.Object;
     }
 

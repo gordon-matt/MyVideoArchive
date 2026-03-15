@@ -124,8 +124,41 @@ Click **Next**.
 > then redirects the user to the app root. If this URI is missing in Keycloak, you
 > get "Invalid redirect uri" after clicking Logout.
 >
-> **Production:** Replace `http://localhost:8080` with your actual public URL.
-> Enable HTTPS and remove `RequireHttpsMetadata = false` from `Program.cs`.
+> **Production / NAS (behind a reverse proxy):**
+> Use your **public HTTPS URLs** everywhere:
+> - Keycloak client — Root URL, redirect URIs, post-logout URIs, Web origins: `https://mva.example.com/...`
+> - App config — `Authority`: `https://keycloak.example.com/realms/myvideoarchive`
+>
+> **Why HTTPS?** Keycloak posts back to `/signin-oidc` as a cross-site request. Browsers only
+> send the OIDC correlation cookie on cross-site POSTs when the cookie has `SameSite=None`
+> and `Secure`. So the app must be reached over HTTPS (reverse proxy terminating TLS).
+>
+> **Separate Docker stacks (app and Keycloak on the same host):** When the callback fires,
+> the app makes a server-to-server (backchannel) token exchange call to Keycloak's token
+> endpoint (`https://keycloak.example.com/...`). Docker containers cannot normally resolve
+> the host's own public hostname (DNS/hairpin NAT issue), causing a 502.
+>
+> **Fix (backchannel):** if the app and Keycloak share a Docker network (recommended), set
+> `BackchannelBaseUrl` to the internal Keycloak URL:
+> ```yaml
+> Authentication__Keycloak__BackchannelBaseUrl: http://keycloak:8080
+> ```
+> The app will call Keycloak directly over the Docker network for all server-to-server
+> calls (discovery, token exchange). `Authority` stays as the public URL so the browser
+> still sees the correct Keycloak login page. `keycloak` must be the Keycloak container
+> name (see `container_name:` in its compose file) and both containers must be on the
+> same Docker network.
+>
+> **Fix (Synology NAS 502 on callback):** the OIDC callback can take several seconds (token
+> exchange). Synology’s nginx reverse proxy may return **502 Bad Gateway** if its buffer
+> or timeout settings are too low. Edit the nginx template (e.g. `nginx.mustache` on DSM)
+> and add larger proxy buffers for the app’s server block. For example:
+> ```nginx
+> proxy_buffer_size           128k;
+> proxy_buffers 4             256k;
+> proxy_busy_buffers_size     256k;
+> ```
+> See [Synology nginx reverse proxy – fix 502 Bad Gateway](https://mariushosting.com/synology-nginx-reverse-proxy-how-to-fix-502-bad-gateway-error/) for details and DSM-specific paths.
 
 Click **Save**.
 
@@ -150,10 +183,11 @@ getting any of them wrong can cause Keycloak to return "unknown_error" or
 "cannot map type for token claim".
 
 1. Go to **Clients → myvideoarchive** (click the client name).
-2. Open the **Mappers** tab.
-3. Click **Create** (or **Add mapper → By configuration**).
-4. Choose **User Realm Role**.
-5. Set these values **exactly**:
+2. Open the **Client scopes** tab. Cclick on the **myvideoarchive-dedicated** scope.
+3. Open the **Mappers** tab.
+4. Click **Create** (or **Add mapper → By configuration**).
+5. Choose **User Realm Role**. If using predefined, then look for **realm roles**: 
+6. Set these values **exactly**:
 
 | Field                | Value        |
 |----------------------|--------------|
@@ -165,7 +199,7 @@ getting any of them wrong can cause Keycloak to return "unknown_error" or
 | Add to access token  | On           |
 | Add to userinfo      | On           |
 
-6. Click **Save**.
+7. Click **Save**.
 
 If you previously created a mapper with Claim JSON Type set to `JSON`, delete it
 and recreate it with `String`; the JSON type is not supported for this mapper and
@@ -245,10 +279,20 @@ Set `KEYCLOAK_CLIENT_SECRET` in a `.env` file next to `docker-compose.yml`
 KEYCLOAK_CLIENT_SECRET=paste-your-client-secret-here
 ```
 
-> **Authority URL:** Use `http://host.docker.internal:8081/realms/myvideoarchive` so that
-> (1) the app container can reach Keycloak, and (2) the browser can reach Keycloak when
-> Keycloak redirects the user to the login page. Using `keycloak:8080` would make the
-> browser try to open `http://keycloak:8080`, which does not resolve on your machine.
+> **Authority URL (local dev):** Use `http://host.docker.internal:8081/realms/myvideoarchive` so
+> both the app container and the browser can reach Keycloak. `keycloak:8080` only resolves
+> inside Docker and would make the browser try to open an unreachable URL.
+>
+> **Authority URL (NAS / production — separate stacks):** Use the public HTTPS URL (e.g.
+> `https://keycloak.example.com/realms/myvideoarchive`). Set `BackchannelBaseUrl` to the
+> internal Keycloak URL so the app container bypasses DNS/hairpin NAT for the token exchange:
+> ```yaml
+> Authentication__Keycloak__Authority: https://keycloak.example.com/realms/myvideoarchive
+> Authentication__Keycloak__BackchannelBaseUrl: http://keycloak:8080
+> ```
+> Requires the app and Keycloak containers to share a Docker network (use an external
+> named network in both compose files). Set `PublicOrigin` to the app's public URL (e.g.
+> `https://mva.example.com`) if login redirects are built with `http://` instead of `https://`.
 
 ---
 
@@ -294,6 +338,7 @@ unaffected by any Keycloak configuration.
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
 | **Invalid redirect uri** (after clicking Logout) | Post-logout redirect URI not allowed in Keycloak | In **Clients → myvideoarchive → Login settings**, set **Valid post logout redirect URIs** to `http://localhost:8080/signout-callback-oidc` (exact; the OIDC middleware uses this path to complete sign-out). Replace host/port if your app URL is different. Save and try again. |
+| **Invalid parameter: redirect_uri** (at Keycloak login) | App sent `http://` but Keycloak has `https://` registered (or host mismatch) | Ensure Keycloak client has the **exact** redirect URI the app sends. When behind a reverse proxy, set **Authentication:Keycloak:PublicOrigin** to the app's public HTTPS URL (e.g. `https://mva.my-domain.synology.me`) so the app sends `https://`. Set **Authority** to the public Keycloak URL the browser can reach (e.g. `https://auth.my-domain.synology.me/realms/myvideoarchive`). |
 | Redirect loop on login / 431 Request Header Fields Too Large | (1) OIDC callback failed, then error page required auth and re-challenged; (2) cookies piled up from repeated failures | The app now redirects auth failures to the error page and the error page allows anonymous access. Clear all cookies for the app (e.g. `localhost:8080`), restart the app, and log in again in a clean session. |
 | `unknown_error` / "For more on this error consult the server log" | Keycloak token endpoint failed; often **cannot map type for token claim** in Keycloak logs | The roles mapper has **Claim JSON Type** set to `JSON`. It must be **`String`** with **Multivalued** On. In **Clients → myvideoarchive → Mappers**, edit or delete the realm-roles mapper and recreate it with Claim JSON Type = **String**. See [Step 6](#step-6--configure-the-roles-claim-mapper). |
 | "We can't connect to the server at keycloak" (browser) | Authority used `keycloak:8080`; that hostname only resolves inside Docker | When the app runs in Docker, set Authority to `http://host.docker.internal:8081/realms/...` so the browser can reach Keycloak. See [Step 8 Option B](#option-b--environment-variables-docker--production). |
@@ -301,5 +346,6 @@ unaffected by any Keycloak configuration.
 | "Client not found" error | `ClientId` mismatch | Ensure `Authentication:Keycloak:ClientId` matches the Keycloak client ID exactly. |
 | 401 after successful Keycloak login | User has no `User` or `Administrator` role | Assign a realm role to the user in Keycloak (**Users → &lt;user&gt; → Role mapping → Assign role**). |
 | `IDX20803: Unable to obtain configuration` | App cannot reach Keycloak | Check that the `Authority` URL is reachable from where the app runs (from the host use `localhost:8081`; from a container use `host.docker.internal:8081`). |
+| **502 Bad Gateway** when redirected to `/signin-oidc` | (1) App container cannot reach Keycloak for the token exchange, or (2) reverse proxy buffers/timeout too low (e.g. Synology nginx) | (1) Set `BackchannelBaseUrl: http://keycloak:8080` and use a shared Docker network. (2) On Synology NAS, increase nginx proxy buffer size (e.g. `proxy_buffer_size 128k; proxy_buffers 4 256k; proxy_busy_buffers_size 256k;` in the app’s server block). See [mariushosting.com](https://mariushosting.com/synology-nginx-reverse-proxy-how-to-fix-502-bad-gateway-error/) and the “Synology NAS 502 on callback” note in Step 4. |
 | HTTPS errors in development | `RequireHttpsMetadata` defaults | The code sets `RequireHttpsMetadata = false` for dev. For production, put Keycloak behind HTTPS. |
 | Keycloak fails to start: "database keycloak does not exist" | PostgreSQL has no `keycloak` database | Create it once: `docker exec -it <postgres-container> psql -U postgres -c "CREATE DATABASE keycloak;"`. See [Prerequisites](#prerequisites). |

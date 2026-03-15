@@ -4,6 +4,7 @@ using Hangfire;
 using Hangfire.Common;
 using MyVideoArchive.Models.Requests;
 using MyVideoArchive.Models.Responses;
+using static Dapper.SqlMapper;
 
 namespace MyVideoArchive.Services;
 
@@ -13,6 +14,7 @@ public class ChannelService : IChannelService
     private readonly IConfiguration configuration;
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly IUserContextService userContextService;
+    private readonly IUserInfoService userInfoService;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<ChannelTag> channelTagRepository;
     private readonly IRepository<CustomPlaylistVideo> customPlaylistVideoRepository;
@@ -31,6 +33,7 @@ public class ChannelService : IChannelService
         IConfiguration configuration,
         IBackgroundJobClient backgroundJobClient,
         IUserContextService userContextService,
+        IUserInfoService userInfoService,
         IRepository<Channel> channelRepository,
         IRepository<ChannelTag> channelTagRepository,
         IRepository<CustomPlaylistVideo> customPlaylistVideoRepository,
@@ -47,6 +50,7 @@ public class ChannelService : IChannelService
         this.logger = logger;
         this.configuration = configuration;
         this.backgroundJobClient = backgroundJobClient;
+        this.userInfoService = userInfoService;
         this.channelRepository = channelRepository;
         this.channelTagRepository = channelTagRepository;
         this.customPlaylistVideoRepository = customPlaylistVideoRepository;
@@ -382,15 +386,35 @@ public class ChannelService : IChannelService
             return Result.NotFound("Channel not found.");
         }
 
-        var subscribers = await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
+        var userChannels = await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
         {
             CancellationToken = cancellationToken,
             Query = x => x.ChannelId == id,
-            Include = query => query.Include(x => x.User),
             OrderBy = query => query.OrderBy(x => x.SubscribedAt)
-        }, x => new ChannelSubscriberResponse(x.UserId, x.User.UserName!, x.User.Email!, x.SubscribedAt));
+        });
 
-        return Result.Success(subscribers);
+        var userInfoMap = await userInfoService.GetUserInfoAsync(
+            userChannels.Select(x => x.UserId),
+            cancellationToken);
+
+        var subscribers = userChannels
+            .Select(x =>
+            {
+                userInfoMap.TryGetValue(x.UserId, out var info);
+                return new ChannelSubscriberResponse(
+                    x.UserId,
+                    info?.Username ?? x.UserId,
+                    info?.Email ?? string.Empty,
+                    x.SubscribedAt);
+            });
+
+        IPagedCollection<ChannelSubscriberResponse> results = new PagedList<ChannelSubscriberResponse>(
+            subscribers,
+            userChannels.PageIndex,
+            userChannels.PageSize,
+            userChannels.ItemCount);
+
+        return Result.Success(results);
     }
 
     public async Task<Result<IPagedCollection<DownloadedVideo>>> GetDownloadedVideosAsync(

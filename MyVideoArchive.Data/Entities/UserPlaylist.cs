@@ -23,8 +23,6 @@ public class UserPlaylist : IEntity
     /// </summary>
     public bool IsIgnored { get; set; }
 
-    public ApplicationUser User { get; set; } = null!;
-
     public Playlist Playlist { get; set; } = null!;
 
     [IgnoreDataMember]
@@ -39,12 +37,6 @@ public class UserPlaylistMap : IEntityTypeConfiguration<UserPlaylist>
 
         // Composite primary key
         builder.HasKey(up => new { up.UserId, up.PlaylistId });
-
-        // Relationships
-        builder.HasOne(up => up.User)
-            .WithMany()
-            .HasForeignKey(up => up.UserId)
-            .OnDelete(DeleteBehavior.ClientNoAction);
 
         builder.HasOne(up => up.Playlist)
             .WithMany()

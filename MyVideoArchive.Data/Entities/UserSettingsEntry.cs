@@ -10,8 +10,6 @@ public class UserSettingsEntry : BaseEntity<int>
     public ViewMode VideosTabViewMode { get; set; }
 
     public ViewMode AvailableTabViewMode { get; set; }
-
-    public virtual ApplicationUser User { get; set; } = null!;
 }
 
 public class UserSettingsEntryMap : IEntityTypeConfiguration<UserSettingsEntry>
@@ -23,11 +21,5 @@ public class UserSettingsEntryMap : IEntityTypeConfiguration<UserSettingsEntry>
         builder.Property(m => m.UserId).IsRequired();
         builder.Property(m => m.VideosTabViewMode).IsRequired();
         builder.Property(m => m.AvailableTabViewMode).IsRequired();
-
-        // Relationships
-        builder.HasOne(m => m.User)
-            .WithMany()
-            .HasForeignKey(m => m.UserId)
-            .OnDelete(DeleteBehavior.ClientNoAction);
     }
 }
