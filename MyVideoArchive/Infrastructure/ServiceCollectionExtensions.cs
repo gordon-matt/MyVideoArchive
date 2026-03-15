@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -118,6 +118,18 @@ internal static class ServiceCollectionExtensions
                             }
                             return Task.CompletedTask;
                         };
+
+                        // Sign-out: post_logout_redirect_uri must match Keycloak's "Valid post logout redirect URIs"
+                        // (e.g. https://mva.example.com/signout-callback-oidc). When behind a proxy the app may see
+                        // HTTP, so set it explicitly from PublicOrigin.
+                        if (!string.IsNullOrWhiteSpace(publicOrigin))
+                        {
+                            options.Events.OnRedirectToIdentityProviderForSignOut = context =>
+                            {
+                                context.ProtocolMessage.PostLogoutRedirectUri = publicOrigin + "/signout-callback-oidc";
+                                return Task.CompletedTask;
+                            };
+                        }
                     }
 
                     // Redirect auth failures to the error page rather than re-throwing. Without this

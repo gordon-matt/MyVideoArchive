@@ -1,3 +1,4 @@
+@using System.Security.Claims
 @using MyVideoArchive.Infrastructure
 @inject IAuthProviderService AuthProvider
 
@@ -5,14 +6,17 @@
 @if (User.Identity?.IsAuthenticated == true)
 {
     <li class="nav-item">
+        @{
+            var displayName = User.FindFirst(ClaimTypes.GivenName)?.Value ?? User.FindFirst("given_name")?.Value ?? User.Identity?.Name ?? "";
+        }
         @if (AuthProvider.IsKeycloak)
         {
             @* Keycloak: link to Keycloak's self-service account console *@
-            <a class="nav-link text-dark" href="@AuthProvider.KeycloakAccountUrl" target="_blank" rel="noopener" title="Manage account in Keycloak">Hello @User.Identity?.Name!</a>
+            <a class="nav-link text-dark" href="@AuthProvider.KeycloakAccountUrl" target="_blank" rel="noopener" title="Manage account in Keycloak">Hello @displayName!</a>
         }
         else
         {
-            <a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Manage/Index" title="Manage">Hello @User.Identity?.Name!</a>
+            <a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Manage/Index" title="Manage">Hello @displayName!</a>
         }
     </li>
     <li class="nav-item">
