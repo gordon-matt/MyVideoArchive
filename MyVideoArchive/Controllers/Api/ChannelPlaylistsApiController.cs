@@ -1,4 +1,5 @@
 using MyVideoArchive.Models.Requests.Playlist;
+using MyVideoArchive.Models.Requests;
 
 namespace MyVideoArchive.Controllers.Api;
 
@@ -105,6 +106,25 @@ public class ChannelPlaylistsApiController : ControllerBase
             message = value.Message,
             totalCount = value.TotalCount,
             newCount = value.NewCount
+        }));
+    }
+
+    /// <summary>
+    /// Import a playlist by URL. Used for topic channels that cannot enumerate playlists automatically.
+    /// Validates that the playlist belongs to the specified channel.
+    /// </summary>
+    [HttpPost("import-by-url")]
+    public async Task<IActionResult> ImportPlaylistByUrl(int channelId, [FromBody] ImportPlaylistByUrlRequest request)
+    {
+        var result = await playlistService.ImportPlaylistByUrlAsync(
+            channelId,
+            request.PlaylistUrl,
+            HttpContext.RequestAborted);
+
+        return result.ToActionResult(this, value => Ok(new
+        {
+            message = value.Message,
+            subscribedCount = value.SubscribedCount
         }));
     }
 }

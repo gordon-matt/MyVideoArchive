@@ -1022,6 +1022,150 @@ public class PlaylistService : IPlaylistService
         }
     }
 
+    public async Task<Result<SubscribePlaylistsResponse>> ImportPlaylistByUrlAsync(
+        int channelId,
+        string playlistUrl,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (!await UserHasAccessToChannelAsync(channelId))
+            {
+                return Result.Forbidden();
+            }
+
+            if (string.IsNullOrWhiteSpace(playlistUrl))
+            {
+                return Result.Invalid([new ValidationError("playlistUrl", "Playlist URL is required")]);
+            }
+
+            var channel = await channelRepository.FindOneAsync(channelId);
+            if (channel is null)
+            {
+                return Result.NotFound("Channel not found");
+            }
+
+            var provider = metadataProviderFactory.GetProvider(playlistUrl);
+            if (provider is null)
+            {
+                return Result.Invalid([new ValidationError("playlistUrl", "No provider found for this playlist URL")]);
+            }
+
+            var playlistMeta = await provider.GetPlaylistMetadataAsync(playlistUrl, cancellationToken);
+            if (playlistMeta is null)
+            {
+                return Result.Invalid([new ValidationError("playlistUrl", "Could not retrieve playlist metadata. Please check the URL and try again.")]);
+            }
+
+            // Verify the playlist belongs to this channel
+            if (!string.Equals(playlistMeta.ChannelId, channel.ChannelId, StringComparison.OrdinalIgnoreCase))
+            {
+                return Result.Invalid([new ValidationError("playlistUrl",
+                    $"This playlist belongs to a different channel ('{playlistMeta.ChannelName}'). " +
+                    "Please add a playlist that belongs to this channel.")]);
+            }
+
+            string? userId = userContextService.GetCurrentUserId();
+            string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
+                ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
+            string playlistThumbnailDir = Path.Combine(downloadPath, channel.ChannelId, "Playlists");
+
+            // Find or create the playlist record
+            var existing = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+            {
+                Query = x => x.PlaylistId == playlistMeta.PlaylistId && x.ChannelId == channelId
+            });
+
+            Playlist playlist;
+
+            if (existing is not null)
+            {
+                existing.Name = playlistMeta.Name;
+                existing.Description = playlistMeta.Description;
+                existing.Url = playlistMeta.Url;
+
+                if (!ThumbnailService.IsLocalUrl(existing.ThumbnailUrl))
+                {
+                    string? localUrl = await thumbnailService.DownloadAndSaveAsync(
+                        playlistMeta.ThumbnailUrl, playlistThumbnailDir, existing.PlaylistId, downloadPath);
+                    existing.ThumbnailUrl = localUrl ?? playlistMeta.ThumbnailUrl;
+                }
+
+                if (existing.SubscribedAt == DateTime.MinValue)
+                {
+                    existing.SubscribedAt = DateTime.UtcNow;
+                }
+
+                await playlistRepository.UpdateAsync(existing);
+                playlist = existing;
+            }
+            else
+            {
+                string? localThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
+                    playlistMeta.ThumbnailUrl, playlistThumbnailDir, playlistMeta.PlaylistId, downloadPath);
+
+                playlist = new Playlist
+                {
+                    PlaylistId = playlistMeta.PlaylistId,
+                    Name = playlistMeta.Name,
+                    Description = playlistMeta.Description,
+                    Url = playlistMeta.Url,
+                    ThumbnailUrl = localThumbnailUrl ?? playlistMeta.ThumbnailUrl,
+                    Platform = playlistMeta.Platform,
+                    SubscribedAt = DateTime.UtcNow,
+                    IsIgnored = false,
+                    ChannelId = channelId
+                };
+                await playlistRepository.InsertAsync(playlist);
+            }
+
+            // Subscribe the current user if not already subscribed
+            var existingSubscription = await userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
+            {
+                Query = x => x.UserId == userId && x.PlaylistId == playlist.Id
+            });
+
+            if (existingSubscription is null)
+            {
+                await userPlaylistRepository.InsertAsync(new UserPlaylist
+                {
+                    UserId = userId!,
+                    PlaylistId = playlist.Id,
+                    SubscribedAt = DateTime.UtcNow
+                });
+            }
+
+            // Import tags from playlist metadata
+            if (playlistMeta.Tags.Count > 0)
+            {
+                await tagService.ImportPlaylistTagsAsync(playlist.Id, playlistMeta.Tags);
+            }
+
+            // Queue sync job to pull in all videos
+            backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
+                job.ExecuteAsync(playlist.Id, CancellationToken.None));
+
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Imported playlist {PlaylistId} ({PlaylistName}) into channel {ChannelId}",
+                    playlist.PlaylistId, playlist.Name, channelId);
+            }
+
+            return Result.Success(new SubscribePlaylistsResponse(
+                $"Playlist '{playlist.Name}' imported successfully. Syncing videos in the background.",
+                1));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error importing playlist by URL for channel {ChannelId}", channelId);
+            }
+
+            return Result.Error("An error occurred while importing the playlist");
+        }
+    }
+
     private async Task<bool> UserHasAccessToChannelAsync(int channelId)
     {
         if (userContextService.IsAdministrator())

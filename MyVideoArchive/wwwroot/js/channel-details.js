@@ -38,8 +38,9 @@ class ChannelDetailsViewModel {
         this.scanMessage = ko.observable(null);
         this._scanPollTimer = null;
 
-        // ── Download state ────────────────────────────────────────────────────
+        // ── Download / ignore state ───────────────────────────────────────────
         this.downloadingVideos = ko.observable(false);
+        this.ignoringVideos = ko.observable(false);
 
         // ── Sync status ───────────────────────────────────────────────────────
         this.isSyncing = ko.observable(false);
@@ -117,6 +118,12 @@ class ChannelDetailsViewModel {
         this.canConfirmThumbnailPicker = ko.computed(() =>
             !!this.thumbnailPickerSelectedUrl() || !!this.thumbnailPickerUploadFile()
         );
+
+        // ── Topic channel / import playlist ───────────────────────────────────
+        this.isTopicChannel = ko.computed(() => this.channel()?.Name?.endsWith(' - Topic') ?? false);
+        this.addPlaylistUrl = ko.observable('');
+        this.addPlaylistError = ko.observable('');
+        this.importingPlaylist = ko.observable(false);
 
         // ── Tags ──────────────────────────────────────────────────────────────
         this._tagifyInstance = null;
@@ -488,6 +495,33 @@ class ChannelDetailsViewModel {
             toast.error('Error queueing downloads. Please try again.');
         } finally {
             this.downloadingVideos(false);
+        }
+    };
+
+    ignoreSelected = async () => {
+        const selected = this.availableVideos().filter(v => v.selected());
+
+        if (selected.length === 0) {
+            toast.warning('Please select at least one video to ignore.');
+            return;
+        }
+
+        this.ignoringVideos(true);
+        try {
+            await Promise.all(selected.map(v =>
+                fetch(`/api/channels/${this.channelId}/videos/${v.id}/ignore`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isIgnored: true })
+                })
+            ));
+            toast.success(`${selected.length} video(s) ignored.`);
+            await this.loadAvailableVideos();
+        } catch (error) {
+            console.error('Error ignoring videos:', error);
+            toast.error('Error ignoring videos. Please try again.');
+        } finally {
+            this.ignoringVideos(false);
         }
     };
 
@@ -904,6 +938,42 @@ class ChannelDetailsViewModel {
         } catch (error) {
             console.error('Error ignoring playlist:', error);
             toast.error('Error updating playlist status. Please try again.');
+        }
+    };
+
+    openAddPlaylistModal = () => {
+        this.addPlaylistUrl('');
+        this.addPlaylistError('');
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('addPlaylistModal')).show();
+    };
+
+    confirmAddPlaylist = async () => {
+        const url = this.addPlaylistUrl().trim();
+        if (!url) return;
+
+        this.addPlaylistError('');
+        this.importingPlaylist(true);
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/playlists/import-by-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playlistUrl: url })
+            });
+            const data = await response.json();
+
+            if (!response.ok) {
+                this.addPlaylistError(data.detail || data.message || 'Failed to import playlist. Please check the URL and try again.');
+                return;
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('addPlaylistModal')).hide();
+            toast.success(data.message);
+            await this.loadPlaylists();
+        } catch (error) {
+            console.error('Error importing playlist:', error);
+            this.addPlaylistError('An unexpected error occurred. Please try again.');
+        } finally {
+            this.importingPlaylist(false);
         }
     };
 

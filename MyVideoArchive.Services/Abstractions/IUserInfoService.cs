@@ -20,4 +20,11 @@ public interface IUserInfoService
     Task<IReadOnlyDictionary<string, UserInfo>> GetUserInfoAsync(
         IEnumerable<string> userIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all users known to the auth provider. Used by admin features
+    /// (e.g. assigning channels to specific users).
+    /// </summary>
+    Task<IReadOnlyList<UserInfo>> GetAllUsersAsync(
+        CancellationToken cancellationToken = default);
 }

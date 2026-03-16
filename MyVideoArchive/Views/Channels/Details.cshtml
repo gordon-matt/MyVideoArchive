@@ -31,7 +31,13 @@
                         </button>
                     </div>
                     <div>
-                        <h2 data-bind="text: Name" class="mb-1"></h2>
+                        <div class="channel-name-wrap">
+                            <h2 data-bind="text: Name" class="mb-1"></h2>
+                            <a class="channel-original-link" title="Open original channel" target="_blank" rel="noopener noreferrer"
+                               data-bind="attr: { href: Url }, visible: Url">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
                         <p data-bind="text: Description" class="channel-header-desc"></p>
                         <small>Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span></small>
                     </div>
@@ -55,6 +61,17 @@
         </div>
     </div>
 </div>
+
+<!-- Topic channel notice -->
+<!-- ko if: isTopicChannel -->
+<div class="alert alert-warning d-flex align-items-center gap-3 mb-4">
+    <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
+    <div>
+        <strong>This is a Topic channel.</strong>
+        YouTube Topic channels do not expose a video list or playlist feed. Please add playlists manually using their direct URL.
+    </div>
+</div>
+<!-- /ko -->
 
 <!-- Sync status banner -->
 <!-- ko if: isSyncing -->
@@ -279,6 +296,16 @@
                     </button>
                 }
 
+                <button class="btn btn-outline-danger" data-bind="click: ignoreSelected, enable: !ignoringVideos() && !downloadingVideos()">
+                    <span data-bind="visible: !ignoringVideos()">
+                        <i class="bi bi-eye-slash"></i> Ignore Selected
+                    </span>
+                    <span data-bind="visible: ignoringVideos()" class="d-none">
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        Ignoring&hellip;
+                    </span>
+                </button>
+
                 <div class="btn-group ms-auto">
                     <button class="btn btn-outline-secondary" title="List view"
                             data-bind="click: function(){ setAvailableViewMode('list'); }, css: { active: availableViewMode() === 'list' }">
@@ -469,6 +496,7 @@
             </div>
             
             <div class="mb-3">
+                <!-- ko ifnot: isTopicChannel -->
                 <button class="btn btn-info me-2" data-bind="click: refreshPlaylists, enable: !refreshingPlaylists() && !subscribingPlaylists()">
                     <span data-bind="visible: !refreshingPlaylists()"><i class="bi bi-arrow-clockwise"></i> Refresh from <span data-bind="text: channel() ? channel().Platform : ''"></span></span>
                     <span data-bind="visible: refreshingPlaylists()">
@@ -476,7 +504,15 @@
                         Refreshing…
                     </span>
                 </button>
-                <button class="btn btn-primary me-2" data-bind="click: subscribeSelectedPlaylists, enable: !subscribingPlaylists() && !ignoringPlaylists()">
+                <!-- /ko -->
+
+                <!-- ko if: isTopicChannel -->
+                <button class="btn btn-primary me-2" data-bind="click: openAddPlaylistModal">
+                    <i class="bi bi-plus-circle"></i> Add Playlist
+                </button>
+                <!-- /ko -->
+
+                <button class="btn btn-primary me-2" data-bind="click: subscribeSelectedPlaylists, enable: !subscribingPlaylists() && !ignoringPlaylists(), visible: !isTopicChannel()">
                     <i class="bi bi-plus-circle"></i> Subscribe Selected
                 </button>
                 <button class="btn btn-outline-danger me-2" data-bind="click: ignoreSelectedPlaylists, enable: !ignoringPlaylists() && !subscribingPlaylists()">
@@ -491,7 +527,7 @@
 
                 @if (isAdminUser)
                 {
-                    <button class="btn btn-success" data-bind="click: subscribeAllPlaylists, enable: !subscribingPlaylists() && !ignoringPlaylists()">
+                    <button class="btn btn-success" data-bind="click: subscribeAllPlaylists, enable: !subscribingPlaylists() && !ignoringPlaylists(), visible: !isTopicChannel()">
                         <i class="bi bi-check-circle"></i> Subscribe All
                     </button>
                 }
@@ -574,6 +610,51 @@
                     NextPageFn: "playlistsNextPage",
                     GoToPageFn: "playlistsGoToPage",
                     ItemLabel: "playlists"))
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Add Playlist by URL Modal (Topic Channels) ──────────────────────────── -->
+<div class="modal fade" id="addPlaylistModal" tabindex="-1" aria-labelledby="addPlaylistModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addPlaylistModalLabel">
+                    <i class="bi bi-plus-circle me-2"></i>Add Playlist
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">
+                    Enter the direct URL of a playlist that belongs to this channel.
+                    The playlist metadata will be validated to ensure it belongs to the correct channel.
+                </p>
+                <div class="mb-3">
+                    <label for="addPlaylistUrlInput" class="form-label">Playlist URL</label>
+                    <input type="url" class="form-control" id="addPlaylistUrlInput"
+                           placeholder="https://www.youtube.com/playlist?list=..."
+                           data-bind="value: addPlaylistUrl, valueUpdate: 'input'" />
+                </div>
+                <!-- ko if: addPlaylistError -->
+                <div class="alert alert-danger py-2">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    <span data-bind="text: addPlaylistError"></span>
+                </div>
+                <!-- /ko -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        data-bind="click: confirmAddPlaylist, enable: addPlaylistUrl().trim() && !importingPlaylist()">
+                    <span data-bind="visible: !importingPlaylist()">
+                        <i class="bi bi-download me-1"></i>Import
+                    </span>
+                    <span data-bind="visible: importingPlaylist()" class="d-none">
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        Importing&hellip;
+                    </span>
+                </button>
             </div>
         </div>
     </div>

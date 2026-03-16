@@ -570,6 +570,109 @@ public class ChannelService : IChannelService
         }
     }
 
+    public async Task<Result<IReadOnlyList<ChannelUserSubscriptionStatus>>> GetUserSubscriptionsAsync(
+        int channelId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            bool channelExists = await channelRepository.ExistsAsync(
+                x => x.Id == channelId,
+                ContextOptions.ForCancellationToken(cancellationToken));
+
+            if (!channelExists)
+            {
+                return Result.NotFound("Channel not found.");
+            }
+
+            var allUsers = await userInfoService.GetAllUsersAsync(cancellationToken);
+
+            var subscribedUserIds = (await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.ChannelId == channelId
+            }, x => x.UserId)).ToHashSet();
+
+            IReadOnlyList<ChannelUserSubscriptionStatus> result = allUsers
+                .Select(u => new ChannelUserSubscriptionStatus(
+                    u.UserId,
+                    u.Username,
+                    u.Email,
+                    subscribedUserIds.Contains(u.UserId)))
+                .OrderBy(u => u.Username)
+                .ToList();
+
+            return Result.Success(result);
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+                logger.LogError(ex, "Error getting user subscriptions for channel {ChannelId}", channelId);
+
+            return Result.Error("An error occurred while retrieving user subscriptions");
+        }
+    }
+
+    public async Task<Result> UpdateUserSubscriptionsAsync(
+        int channelId,
+        IEnumerable<string> subscribedUserIds,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var channel = await channelRepository.FindOneAsync(channelId);
+            if (channel is null)
+            {
+                return Result.NotFound("Channel not found.");
+            }
+
+            var desiredIds = subscribedUserIds.ToHashSet();
+
+            var existing = await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.ChannelId == channelId
+            });
+
+            var existingIds = existing.Select(x => x.UserId).ToHashSet();
+
+            // Add new subscriptions
+            var toAdd = desiredIds.Except(existingIds).ToList();
+            foreach (string userId in toAdd)
+            {
+                await userChannelRepository.InsertAsync(new UserChannel
+                {
+                    UserId = userId,
+                    ChannelId = channelId,
+                    SubscribedAt = DateTime.UtcNow
+                });
+            }
+
+            // Remove subscriptions not in the desired set
+            var toRemove = existing.Where(x => !desiredIds.Contains(x.UserId)).ToList();
+            foreach (var record in toRemove)
+            {
+                await userChannelRepository.DeleteAsync(record);
+            }
+
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation(
+                    "Admin updated subscriptions for channel {ChannelId}: +{Added} / -{Removed}",
+                    channelId, toAdd.Count, toRemove.Count);
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+                logger.LogError(ex, "Error updating user subscriptions for channel {ChannelId}", channelId);
+
+            return Result.Error("An error occurred while updating user subscriptions");
+        }
+    }
+
     public async Task<bool> UserSubscribedToChannelAsync(int channelId)
     {
         if (userContextService.IsAdministrator())

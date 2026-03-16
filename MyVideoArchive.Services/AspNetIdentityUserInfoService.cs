@@ -26,4 +26,14 @@ public class AspNetIdentityUserInfoService(IDbContextFactory dbContextFactory) :
 
         return users.ToDictionary(u => u.UserId);
     }
+
+    public async Task<IReadOnlyList<UserInfo>> GetAllUsersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var context = (ApplicationDbContext)dbContextFactory.GetContext();
+        return await context.Users
+            .OrderBy(u => u.UserName)
+            .Select(u => new UserInfo(u.Id, u.UserName ?? u.Id, u.Email ?? string.Empty))
+            .ToListAsync(cancellationToken);
+    }
 }

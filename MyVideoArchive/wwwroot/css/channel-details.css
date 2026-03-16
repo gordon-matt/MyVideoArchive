@@ -80,6 +80,32 @@
     margin-bottom: 8px;
 }
 
+/* Original channel link (shown on hover, like edit icons) */
+.channel-name-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.channel-original-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.8rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+    text-decoration: none;
+}
+
+.channel-original-link:hover {
+    color: #fff;
+}
+
+.channel-name-wrap:hover .channel-original-link {
+    opacity: 1;
+}
+
 .channel-header-desc {
     opacity: 0.9;
     margin-bottom: 8px;

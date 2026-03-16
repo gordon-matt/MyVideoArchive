@@ -1,4 +1,5 @@
 using Ardalis.Result.AspNetCore;
+using MyVideoArchive.Models.Requests.Channel;
 
 namespace MyVideoArchive.Controllers.Api;
 
@@ -45,5 +46,27 @@ public class ChannelApiController : ControllerBase
     {
         bool? isSyncing = await channelService.GetSyncStatusAsync(id, cancellationToken);
         return isSyncing is null ? NotFound() : Ok(new { isSyncing = isSyncing.Value });
+    }
+
+    /// <summary>
+    /// Returns all users with their subscription status for a channel. Admin only.
+    /// </summary>
+    [HttpGet("{id:int}/user-subscriptions")]
+    [Authorize(Roles = Constants.Roles.Administrator)]
+    public async Task<IActionResult> GetUserSubscriptions(int id, CancellationToken cancellationToken)
+    {
+        var result = await channelService.GetUserSubscriptionsAsync(id, cancellationToken);
+        return result.ToActionResult(this, value => Ok(new { users = value }));
+    }
+
+    /// <summary>
+    /// Updates user subscriptions for a channel (admin assigns/removes users). Admin only.
+    /// </summary>
+    [HttpPut("{id:int}/user-subscriptions")]
+    [Authorize(Roles = Constants.Roles.Administrator)]
+    public async Task<IActionResult> UpdateUserSubscriptions(int id, [FromBody] UpdateChannelUserSubscriptionsRequest request)
+    {
+        var result = await channelService.UpdateUserSubscriptionsAsync(id, request.SubscribedUserIds);
+        return result.ToActionResult(this, () => Ok(new { message = "User subscriptions updated successfully." }));
     }
 }

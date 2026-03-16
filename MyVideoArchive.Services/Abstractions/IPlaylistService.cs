@@ -63,4 +63,13 @@ public interface IPlaylistService
         int channelId,
         int playlistId,
         IgnorePlaylistRequest request);
+
+    /// <summary>
+    /// Imports a playlist by URL into a channel. Used for topic channels that cannot
+    /// enumerate playlists automatically. Validates that the playlist belongs to the channel.
+    /// </summary>
+    Task<Result<SubscribePlaylistsResponse>> ImportPlaylistByUrlAsync(
+        int channelId,
+        string playlistUrl,
+        CancellationToken cancellationToken = default);
 }

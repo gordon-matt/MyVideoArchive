@@ -17,6 +17,12 @@ class ChannelsViewModel {
         this.adminDeleteMetadata = ko.observable(false);
         this.adminDeleteFiles = ko.observable(false);
 
+        // ── Assign users to channel modal ─────────────────────────────────────
+        this.assignUsersChannel = ko.observable(null);  // the channel being edited
+        this.assignUsersLoading = ko.observable(false);
+        this.assignUsersAll = ko.observableArray([]);   // { userId, username, email, isSubscribed: ko.observable }
+        this.assignUsersSaving = ko.observable(false);
+
         this.formatDate = formatDate;
 
         // Platforms that are added via a URL (not the custom manual flow)
@@ -359,6 +365,63 @@ class ChannelsViewModel {
             console.error('Error deleting channel:', error);
             toast.error('Failed to delete channel.');
         });
+    };
+
+    openAssignUsersModal = async (channel) => {
+        this.assignUsersChannel(channel);
+        this.assignUsersAll([]);
+        this.assignUsersLoading(true);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('assignUsersModal')).show();
+
+        try {
+            const response = await fetch(`/api/channels/${channel.Id}/user-subscriptions`);
+            if (response.ok) {
+                const data = await response.json();
+                const users = (data.users || []).map(u => ({
+                    ...u,
+                    isSubscribed: ko.observable(u.isSubscribed)
+                }));
+                this.assignUsersAll(users);
+            } else {
+                toast.error('Failed to load user list.');
+            }
+        } catch (error) {
+            console.error('Error loading user subscriptions:', error);
+            toast.error('Failed to load user list.');
+        } finally {
+            this.assignUsersLoading(false);
+        }
+    };
+
+    confirmAssignUsers = async () => {
+        const channel = this.assignUsersChannel();
+        if (!channel) return;
+
+        const subscribedUserIds = this.assignUsersAll()
+            .filter(u => u.isSubscribed())
+            .map(u => u.userId);
+
+        this.assignUsersSaving(true);
+        try {
+            const response = await fetch(`/api/channels/${channel.Id}/user-subscriptions`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subscribedUserIds })
+            });
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('assignUsersModal')).hide();
+                toast.success('User subscriptions updated successfully.');
+            } else {
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.detail || data.message || 'Failed to update subscriptions.');
+            }
+        } catch (error) {
+            console.error('Error updating subscriptions:', error);
+            toast.error('Failed to update subscriptions.');
+        } finally {
+            this.assignUsersSaving(false);
+        }
     };
 
     _unsubscribeChannel = async (channel) => {

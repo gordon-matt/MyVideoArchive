@@ -341,7 +341,8 @@ class PlaylistDetailsViewModel {
         const index = _availableVideos.findIndex(v => v.id === video.id);
         if (index >= 0) {
             player.playlist.currentItem(index);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Scroll the player into view without moving the page to the very top
+            document.getElementById('videoPlayer')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     };
 
@@ -561,10 +562,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         viewModel.currentVideo(video);
         await viewModel.loadVideoTags(video.id);
 
-        // Scroll active sidebar item into view
+        // Scroll active sidebar item into view within the video list container only
         setTimeout(() => {
-            const activeItem = document.querySelector('.playlist-video-item.active');
-            if (activeItem) activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            const container = document.querySelector('.video-list');
+            const activeItem = container?.querySelector('.playlist-video-item.active');
+            if (activeItem && container) {
+                const itemTop = activeItem.offsetTop;
+                const itemHeight = activeItem.offsetHeight;
+                const scrollTop = container.scrollTop;
+                const containerHeight = container.clientHeight;
+
+                // Only scroll if the item is outside the visible area of the container
+                if (itemTop < scrollTop) {
+                    container.scrollTo({ top: itemTop, behavior: 'smooth' });
+                } else if (itemTop + itemHeight > scrollTop + containerHeight) {
+                    container.scrollTo({ top: itemTop + itemHeight - containerHeight, behavior: 'smooth' });
+                }
+            }
         }, 100);
 
         // Mark watched (idempotent API)

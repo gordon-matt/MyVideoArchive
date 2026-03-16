@@ -31,3 +31,9 @@ public record ChannelSubscriberResponse(
     string Username,
     string Email,
     DateTime SubscribedAt);
+
+public record ChannelUserSubscriptionStatus(
+    string UserId,
+    string Username,
+    string Email,
+    bool IsSubscribed);
