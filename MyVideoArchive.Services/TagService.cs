@@ -435,10 +435,13 @@ public class TagService : ITagService
             }
 
             // Include both this user's own tags and any global tags on the video.
+            // Exclude the standalone tag — it is a system tag managed automatically and
+            // must not be shown or editable in the UI.
             var videoTags = await videoTagRepository.FindAsync(new SearchOptions<VideoTag>
             {
                 Query = x =>
                     x.VideoId == videoId &&
+                    x.Tag.Name != Constants.StandaloneTag &&
                     (x.Tag.UserId == userId || x.Tag.UserId == Constants.GlobalUserId),
                 Include = q => q.Include(x => x.Tag)
             });
@@ -478,20 +481,17 @@ public class TagService : ITagService
                 return;
             }
 
-            var existingTagIds = await channelTagRepository.FindAsync(
-                new SearchOptions<ChannelTag> { Query = x => x.ChannelId == channelId },
-                x => x.TagId);
-
-            var existingTagIdSet = existingTagIds.ToHashSet();
+            // Only import once — skip if any tags are already set on this channel.
+            bool hasExistingTags = await channelTagRepository.ExistsAsync(x => x.ChannelId == channelId);
+            if (hasExistingTags)
+            {
+                return;
+            }
 
             foreach (string name in names)
             {
                 var tag = await GetOrCreateGlobalTagAsync(name);
-                if (!existingTagIdSet.Contains(tag.Id))
-                {
-                    await channelTagRepository.InsertAsync(new ChannelTag { ChannelId = channelId, TagId = tag.Id });
-                    existingTagIdSet.Add(tag.Id);
-                }
+                await channelTagRepository.InsertAsync(new ChannelTag { ChannelId = channelId, TagId = tag.Id });
             }
         }
         catch (Exception ex)
@@ -518,20 +518,17 @@ public class TagService : ITagService
                 return;
             }
 
-            var existingTagIds = await playlistTagRepository.FindAsync(
-                new SearchOptions<PlaylistTag> { Query = x => x.PlaylistId == playlistId },
-                x => x.TagId);
-
-            var existingTagIdSet = existingTagIds.ToHashSet();
+            // Only import once — skip if any tags are already set on this playlist.
+            bool hasExistingTags = await playlistTagRepository.ExistsAsync(x => x.PlaylistId == playlistId);
+            if (hasExistingTags)
+            {
+                return;
+            }
 
             foreach (string name in names)
             {
                 var tag = await GetOrCreateGlobalTagAsync(name);
-                if (!existingTagIdSet.Contains(tag.Id))
-                {
-                    await playlistTagRepository.InsertAsync(new PlaylistTag { PlaylistId = playlistId, TagId = tag.Id });
-                    existingTagIdSet.Add(tag.Id);
-                }
+                await playlistTagRepository.InsertAsync(new PlaylistTag { PlaylistId = playlistId, TagId = tag.Id });
             }
         }
         catch (Exception ex)
@@ -558,20 +555,19 @@ public class TagService : ITagService
                 return;
             }
 
-            var existingTagIds = await videoTagRepository.FindAsync(
-                new SearchOptions<VideoTag> { Query = x => x.VideoId == videoId },
-                x => x.TagId);
-
-            var existingTagIdSet = existingTagIds.ToHashSet();
+            // Only import once — skip if any non-standalone tags are already set on this video.
+            bool hasExistingTags = await videoTagRepository.ExistsAsync(x =>
+                x.VideoId == videoId &&
+                x.Tag.Name != Constants.StandaloneTag);
+            if (hasExistingTags)
+            {
+                return;
+            }
 
             foreach (string name in names)
             {
                 var tag = await GetOrCreateGlobalTagAsync(name);
-                if (!existingTagIdSet.Contains(tag.Id))
-                {
-                    await videoTagRepository.InsertAsync(new VideoTag { VideoId = videoId, TagId = tag.Id });
-                    existingTagIdSet.Add(tag.Id);
-                }
+                await videoTagRepository.InsertAsync(new VideoTag { VideoId = videoId, TagId = tag.Id });
             }
         }
         catch (Exception ex)

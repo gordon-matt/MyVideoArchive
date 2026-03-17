@@ -603,17 +603,21 @@ public class PlaylistService : IPlaylistService
                     });
                 }
 
-                // Auto-import tags from playlist metadata
-                var channel = await channelRepository.FindOneAsync(channelId);
-                if (channel is not null)
+                // Auto-import tags from playlist metadata (only when enabled and only on first subscribe)
+                bool importTags = configuration.GetValue<bool>("Tags:ImportTagsFromPlatform", false);
+                if (importTags)
                 {
-                    var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
-                    if (provider is not null)
+                    var channel = await channelRepository.FindOneAsync(channelId);
+                    if (channel is not null)
                     {
-                        var playlistMeta = await provider.GetPlaylistMetadataAsync(playlist.Url);
-                        if (playlistMeta?.Tags.Count > 0)
+                        var provider = metadataProviderFactory.GetProviderByPlatform(channel.Platform);
+                        if (provider is not null)
                         {
-                            await tagService.ImportPlaylistTagsAsync(playlist.Id, playlistMeta.Tags);
+                            var playlistMeta = await provider.GetPlaylistMetadataAsync(playlist.Url);
+                            if (playlistMeta?.Tags.Count > 0)
+                            {
+                                await tagService.ImportPlaylistTagsAsync(playlist.Id, playlistMeta.Tags);
+                            }
                         }
                     }
                 }
@@ -1135,8 +1139,9 @@ public class PlaylistService : IPlaylistService
                 });
             }
 
-            // Import tags from playlist metadata
-            if (playlistMeta.Tags.Count > 0)
+            // Import tags from playlist metadata (only when enabled and only on first subscribe)
+            bool importTags = configuration.GetValue<bool>("Tags:ImportTagsFromPlatform", false);
+            if (importTags && playlistMeta.Tags.Count > 0)
             {
                 await tagService.ImportPlaylistTagsAsync(playlist.Id, playlistMeta.Tags);
             }

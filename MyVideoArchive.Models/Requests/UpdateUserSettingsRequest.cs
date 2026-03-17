@@ -11,4 +11,6 @@ public class UpdateUserSettingsRequest
     /// "list" or "grid"
     /// </summary>
     public string? AvailableTabViewMode { get; set; }
+
+    public bool? EnableChannelCategories { get; set; }
 }

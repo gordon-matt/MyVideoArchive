@@ -9,6 +9,7 @@ namespace MyVideoArchive.Services;
 public class VideoService : IVideoService
 {
     private readonly ILogger<VideoService> logger;
+    private readonly IConfiguration configuration;
     private readonly IBackgroundJobClient backgroundJobClient;
     private readonly IUserContextService userContextService;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
@@ -24,6 +25,7 @@ public class VideoService : IVideoService
 
     public VideoService(
         ILogger<VideoService> logger,
+        IConfiguration configuration,
         IUserContextService userContextService,
         IBackgroundJobClient backgroundJobClient,
         VideoMetadataProviderFactory metadataProviderFactory,
@@ -38,6 +40,7 @@ public class VideoService : IVideoService
         IRepository<VideoTag> videoTagRepository)
     {
         this.logger = logger;
+        this.configuration = configuration;
         this.userContextService = userContextService;
         this.backgroundJobClient = backgroundJobClient;
         this.metadataProviderFactory = metadataProviderFactory;
@@ -151,8 +154,9 @@ public class VideoService : IVideoService
                 });
             }
 
-            // Auto-import platform tags from video metadata
-            if (videoMeta.Tags.Count > 0)
+            // Auto-import platform tags from video metadata (only when enabled and only on first add)
+            bool importTags = configuration.GetValue<bool>("Tags:ImportTagsFromPlatform", false);
+            if (importTags && videoMeta.Tags.Count > 0)
             {
                 await tagService.ImportVideoTagsAsync(video.Id, videoMeta.Tags);
             }

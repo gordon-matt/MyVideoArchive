@@ -38,8 +38,9 @@ public class UserSettingsService : IUserSettingsService
 
             string videosTabViewMode = entry?.VideosTabViewMode.ToString().ToLowerInvariant() ?? "list";
             string availableTabViewMode = entry?.AvailableTabViewMode.ToString().ToLowerInvariant() ?? "list";
+            bool enableChannelCategories = entry?.EnableChannelCategories ?? false;
 
-            return Result.Success(new GetUserSettingsResponse(videosTabViewMode, availableTabViewMode));
+            return Result.Success(new GetUserSettingsResponse(videosTabViewMode, availableTabViewMode, enableChannelCategories));
         }
         catch (Exception ex)
         {
@@ -73,7 +74,8 @@ public class UserSettingsService : IUserSettingsService
                 {
                     UserId = userId,
                     VideosTabViewMode = ParseViewMode(request.VideosTabViewMode),
-                    AvailableTabViewMode = ParseViewMode(request.AvailableTabViewMode)
+                    AvailableTabViewMode = ParseViewMode(request.AvailableTabViewMode),
+                    EnableChannelCategories = request.EnableChannelCategories ?? false
                 };
                 await userSettingsRepository.InsertAsync(entry);
             }
@@ -87,6 +89,11 @@ public class UserSettingsService : IUserSettingsService
                 if (request.AvailableTabViewMode is not null)
                 {
                     entry.AvailableTabViewMode = ParseViewMode(request.AvailableTabViewMode);
+                }
+
+                if (request.EnableChannelCategories is not null)
+                {
+                    entry.EnableChannelCategories = request.EnableChannelCategories.Value;
                 }
 
                 await userSettingsRepository.UpdateAsync(entry);

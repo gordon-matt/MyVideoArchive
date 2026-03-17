@@ -119,6 +119,101 @@
     padding: 6px 10px 10px;
 }
 
+/* ── Category view ────────────────────────────────────────────────────────── */
+
+.category-section {
+    margin-bottom: 36px;
+}
+
+.category-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+    border: 1px solid #c7d8fc;
+    margin-bottom: 16px;
+    cursor: default;
+}
+
+.category-section-header .category-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid #c7d8fc;
+}
+
+.category-section-header .category-icon-fallback {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #4e73df 0%, #6f42c1 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+    font-size: 1.1rem;
+}
+
+.category-section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #2c3e7a;
+    flex: 1;
+}
+
+.category-section-count {
+    font-size: 0.8rem;
+    color: #6c757d;
+    font-weight: 400;
+}
+
+.category-section-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.uncategorized-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    margin-bottom: 16px;
+    color: #6c757d;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+/* Edit-category icon overlay on channel avatar card */
+.channel-avatar-card-edit-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 2;
+    background: rgba(255,255,255,0.85);
+    border-radius: 50%;
+    padding: 3px 5px;
+    line-height: 1;
+    font-size: 0.8rem;
+}
+
+.channel-avatar-card-img-wrap {
+    position: relative;
+}
+
+.channel-avatar-card:hover .channel-avatar-card-edit-btn {
+    opacity: 1;
+}
+
 /* ── Thumbnail picker modal (index page) ──────────────────────────────────── */
 
 .thumbnail-picker-grid {

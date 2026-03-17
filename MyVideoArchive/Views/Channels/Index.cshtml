@@ -30,8 +30,20 @@
                 <option value="Custom">Custom</option>
             </select>
         </div>
-        <div class="col-md-9 text-end">
-            <div class="btn-group">
+        <div class="col-md-9 d-flex justify-content-end align-items-center gap-3 flex-wrap">
+            <!-- Enable Categories toggle (non-admin only — admins have no UserChannel subscriptions) -->
+            @if (!isAdmin)
+            {
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="enableCategoriesSwitch"
+                           data-bind="checked: enableChannelCategories, click: toggleCategories" />
+                    <label class="form-check-label" for="enableCategoriesSwitch">
+                        <i class="bi bi-folder2-open me-1"></i> Enable Categories
+                    </label>
+                </div>
+            }
+            <!-- Banner/Avatar view toggle — hidden when categories are enabled -->
+            <div class="btn-group" data-bind="visible: !enableChannelCategories()">
                 <button class="btn btn-outline-secondary" title="Banner view"
                         data-bind="click: function(){ setChannelViewMode('banner'); }, css: { active: channelViewMode() === 'banner' }">
                     <i class="bi bi-layout-text-sidebar-reverse"></i> Banner
@@ -46,11 +58,198 @@
 
     <div class="row">
         <div class="col-12">
-            <div id="channels-grid"></div>
+            <div data-bind="visible: loading" class="text-center py-5">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+
+            <div data-bind="visible: !loading() && channels().length === 0" class="alert alert-info">
+                <p>@(isAdmin ? "No channels in the archive yet." : "No channels yet. Click \"Add Channel\" to subscribe to your first channel.")</p>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════
+                 CATEGORIZED VIEW  (Enable Categories ON)
+                 ════════════════════════════════════════════════════════════════ -->
+            <div data-bind="visible: !loading() && channels().length > 0 && enableChannelCategories()">
+
+                <!-- ko foreach: categorizedGroups() -->
+                <div class="category-section" data-bind="visible: channels.length > 0">
+                    <div class="category-section-header">
+                        <!-- ko if: category.thumbnailUrl -->
+                        <img data-bind="attr: { src: category.thumbnailUrl, alt: category.name }" class="category-thumb" />
+                        <!-- /ko -->
+                        <!-- ko ifnot: category.thumbnailUrl -->
+                        <div class="category-icon-fallback"><i class="bi bi-folder2-open"></i></div>
+                        <!-- /ko -->
+                        <span class="category-section-title" data-bind="text: category.name"></span>
+                        <span class="category-section-count text-muted"
+                              data-bind="text: '(' + channels.length + ' channel' + (channels.length !== 1 ? 's' : '') + ')'"></span>
+                        <div class="category-section-actions ms-auto">
+                            <button class="btn btn-outline-danger btn-sm" title="Delete category"
+                                    data-bind="click: $root.deleteCategory.bind($root, category)"
+                                    onclick="event.stopPropagation()">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <!-- ko foreach: channels -->
+                        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
+                            <div class="channel-avatar-card" data-bind="click: $root.viewChannel">
+                                <div class="channel-avatar-card-img-wrap">
+                                    <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/160x160?text=' + name.charAt(0), alt: name }"
+                                         class="channel-avatar-card-img" />
+                                    <button class="btn btn-sm channel-avatar-card-edit-btn" title="Edit category"
+                                            data-bind="click: $root.openEditCategoryModal.bind($root, $data)"
+                                            onclick="event.stopPropagation()">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </div>
+                                <div class="channel-avatar-card-body">
+                                    <div class="channel-avatar-card-name" data-bind="text: name, attr: { title: name }"></div>
+                                    <div class="channel-avatar-card-meta">
+                                        <!-- ko if: platform === 'Custom' --><span class="badge bg-secondary me-1">Custom</span><!-- /ko -->
+                                        <span data-bind="text: $root.formatDate(subscribedAt)" class="text-muted small"></span>
+                                    </div>
+                                </div>
+                                <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">
+                                    @if (isAdmin)
+                                    {
+                                        <button class="btn btn-outline-secondary btn-sm" title="Assign to users"
+                                                data-bind="click: $root.openAssignUsersModal">
+                                            <i class="bi bi-person-plus-fill"></i>
+                                        </button>
+                                    }
+                                    <button class="btn btn-danger btn-sm flex-fill"
+                                            data-bind="click: $root.deleteChannel, text: $root.isAdmin ? 'Delete' : 'Unsubscribe'"></button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- /ko -->
+                    </div>
+                </div>
+                <!-- /ko -->
+
+                <!-- Uncategorized channels -->
+                <!-- ko if: uncategorizedChannels().length > 0 -->
+                <div class="category-section">
+                    <div class="uncategorized-section-header">
+                        <i class="bi bi-question-circle"></i>
+                        Uncategorized
+                        <span class="ms-1 fw-normal text-muted small"
+                              data-bind="text: '(' + uncategorizedChannels().length + ' channel' + (uncategorizedChannels().length !== 1 ? 's' : '') + ')'"></span>
+                    </div>
+                    <div class="row">
+                        <!-- ko foreach: uncategorizedChannels() -->
+                        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
+                            <div class="channel-avatar-card" data-bind="click: $root.viewChannel">
+                                <div class="channel-avatar-card-img-wrap">
+                                    <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/160x160?text=' + name.charAt(0), alt: name }"
+                                         class="channel-avatar-card-img" />
+                                    <button class="btn btn-sm channel-avatar-card-edit-btn" title="Assign to category"
+                                            data-bind="click: $root.openEditCategoryModal.bind($root, $data)"
+                                            onclick="event.stopPropagation()">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </div>
+                                <div class="channel-avatar-card-body">
+                                    <div class="channel-avatar-card-name" data-bind="text: name, attr: { title: name }"></div>
+                                    <div class="channel-avatar-card-meta">
+                                        <!-- ko if: platform === 'Custom' --><span class="badge bg-secondary me-1">Custom</span><!-- /ko -->
+                                        <span data-bind="text: $root.formatDate(subscribedAt)" class="text-muted small"></span>
+                                    </div>
+                                </div>
+                                <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">
+                                    @if (isAdmin)
+                                    {
+                                        <button class="btn btn-outline-secondary btn-sm" title="Assign to users"
+                                                data-bind="click: $root.openAssignUsersModal">
+                                            <i class="bi bi-person-plus-fill"></i>
+                                        </button>
+                                    }
+                                    <button class="btn btn-danger btn-sm flex-fill"
+                                            data-bind="click: $root.deleteChannel, text: $root.isAdmin ? 'Delete' : 'Unsubscribe'"></button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- /ko -->
+                    </div>
+                </div>
+                <!-- /ko -->
+
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════
+                 STANDARD VIEW  (Enable Categories OFF)
+                 ════════════════════════════════════════════════════════════════ -->
+            <div data-bind="visible: !loading() && channels().length > 0 && !enableChannelCategories()">
+
+                <!-- ── Banner view ──────────────────────────────────────────── -->
+                <div data-bind="visible: channelViewMode() === 'banner'">
+                    <!-- ko foreach: channels -->
+                    <div class="channel-card">
+                        <div class="channel-banner-wrap" data-bind="click: $parent.viewChannel">
+                            <img data-bind="attr: { src: bannerUrl || avatarUrl || 'https://placehold.co/1200x200?text=' + name, alt: name }" class="channel-banner" />
+                        </div>
+                        <div class="channel-card-body">
+                            <div class="channel-info" data-bind="click: $parent.viewChannel">
+                                <div class="channel-name" data-bind="text: name"></div>
+                                <div class="channel-url" data-bind="text: url"></div>
+                                <div class="channel-meta">
+                                    <span data-bind="if: platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
+                                    Subscribed: <span data-bind="text: $parent.formatDate(subscribedAt)"></span>
+                                </div>
+                            </div>
+                            <div class="channel-actions d-flex gap-2">
+                                <!-- ko if: $parent.isAdmin -->
+                                <button class="btn btn-outline-secondary btn-sm" title="Assign to users"
+                                        data-bind="click: $parent.openAssignUsersModal" onclick="event.stopPropagation();">
+                                    <i class="bi bi-person-plus-fill"></i>
+                                </button>
+                                <!-- /ko -->
+                                <button class="btn btn-danger btn-sm" data-bind="click: $parent.deleteChannel, text: $parent.isAdmin ? 'Delete' : 'Unsubscribe'" onclick="event.stopPropagation();"></button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- /ko -->
+                </div>
+
+                <!-- ── Avatar grid view ─────────────────────────────────────── -->
+                <div data-bind="visible: channelViewMode() === 'avatar'" class="row">
+                    <!-- ko foreach: channels -->
+                    <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
+                        <div class="channel-avatar-card" data-bind="click: $parent.viewChannel">
+                            <div class="channel-avatar-card-img-wrap">
+                                <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/160x160?text=' + name.charAt(0), alt: name }"
+                                     class="channel-avatar-card-img" />
+                            </div>
+                            <div class="channel-avatar-card-body">
+                                <div class="channel-avatar-card-name" data-bind="text: name, attr: { title: name }"></div>
+                                <div class="channel-avatar-card-meta">
+                                    <span data-bind="if: platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
+                                    <span data-bind="text: $parent.formatDate(subscribedAt)" class="text-muted small"></span>
+                                </div>
+                            </div>
+                            <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">
+                                <!-- ko if: $parent.isAdmin -->
+                                <button class="btn btn-outline-secondary btn-sm" title="Assign to users"
+                                        data-bind="click: $parent.openAssignUsersModal">
+                                    <i class="bi bi-person-plus-fill"></i>
+                                </button>
+                                <!-- /ko -->
+                                <button class="btn btn-danger btn-sm flex-fill" data-bind="click: $parent.deleteChannel, text: $parent.isAdmin ? 'Delete' : 'Unsubscribe'"></button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- /ko -->
+                </div>
+
+            </div>
         </div>
     </div>
 
-    <!-- Add Channel Modal -->
+    <!-- ── Add Channel Modal ─────────────────────────────────────────────────── -->
     <div class="modal fade" id="addChannelModal" tabindex="-1" aria-labelledby="addChannelModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -69,7 +268,6 @@
                             </select>
                         </div>
 
-                        <!-- URL-based platform fields (YouTube, BitChute, etc.) -->
                         <div data-bind="visible: isUrlBasedPlatform()">
                             <div class="mb-3">
                                 <label for="channelUrl" class="form-label">Channel URL</label>
@@ -79,7 +277,6 @@
                             </div>
                         </div>
 
-                        <!-- Custom channel fields -->
                         <div data-bind="visible: selectedPlatform() === 'Custom'">
                             <div class="mb-3">
                                 <label for="customChannelName" class="form-label">Channel Name <span class="text-danger">*</span></label>
@@ -117,81 +314,57 @@
         </div>
     </div>
 
-    <div data-bind="visible: loading" class="text-center">
-        <div class="spinner-border" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
-    </div>
-
-    <div data-bind="visible: !loading() && channels().length === 0" class="alert alert-info">
-        <p>@(isAdmin ? "No channels in the archive yet." : "No channels yet. Click \"Add Channel\" to subscribe to your first channel.")</p>
-    </div>
-
-    <div data-bind="visible: !loading() && channels().length > 0">
-
-        <!-- ── Banner view (list) ──────────────────────────────────────────── -->
-        <div data-bind="visible: channelViewMode() === 'banner'">
-            <!-- ko foreach: channels -->
-            <div class="channel-card">
-                <div class="channel-banner-wrap" data-bind="click: $parent.viewChannel">
-                    <img data-bind="attr: { src: BannerUrl || AvatarUrl || 'https://placehold.co/1200x200?text=' + Name, alt: Name }" class="channel-banner" />
+    <!-- ── Edit Channel Category Modal ──────────────────────────────────────── -->
+    <div class="modal fade" id="editChannelCategoryModal" tabindex="-1" aria-labelledby="editChannelCategoryModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editChannelCategoryModalLabel">
+                        <i class="bi bi-folder2-open me-2"></i>Assign Category
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="channel-card-body">
-                    <div class="channel-info" data-bind="click: $parent.viewChannel">
-                        <div class="channel-name" data-bind="text: Name"></div>
-                        <div class="channel-url" data-bind="text: Url"></div>
-                        <div class="channel-meta">
-                            <span data-bind="if: Platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
-                            Subscribed: <span data-bind="text: $parent.formatDate(SubscribedAt)"></span>
-                        </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Channel: <strong data-bind="text: editCategoryChannel() ? editCategoryChannel().name : ''"></strong>
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-select" data-bind="value: editCategoryDropdownValue">
+                            <option value="">— No category —</option>
+                            <!-- ko foreach: categories() -->
+                            <option data-bind="value: String(id), text: name"></option>
+                            <!-- /ko -->
+                            <option value="__create_new__">+ Create new category…</option>
+                        </select>
                     </div>
-                    <div class="channel-actions d-flex gap-2">
-                        <!-- ko if: $parent.isAdmin -->
-                        <button class="btn btn-outline-secondary btn-sm" title="Assign to users"
-                                data-bind="click: $parent.openAssignUsersModal" onclick="event.stopPropagation();">
-                            <i class="bi bi-person-plus-fill"></i>
-                        </button>
-                        <!-- /ko -->
-                        <button class="btn btn-danger btn-sm" data-bind="click: $parent.deleteChannel, text: $parent.isAdmin ? 'Delete' : 'Unsubscribe'" onclick="event.stopPropagation();"></button>
+
+                    <div data-bind="visible: editCategoryCreatingNew()" class="mb-3">
+                        <label class="form-label">New category name</label>
+                        <input type="text" class="form-control" placeholder="e.g. Tech, Gaming, News…"
+                               data-bind="value: editCategoryNewName, valueUpdate: 'input'" />
                     </div>
                 </div>
-            </div>
-            <!-- /ko -->
-        </div>
-
-        <!-- ── Avatar grid view ───────────────────────────────────────────── -->
-        <div data-bind="visible: channelViewMode() === 'avatar'" class="row">
-            <!-- ko foreach: channels -->
-            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
-                <div class="channel-avatar-card" data-bind="click: $parent.viewChannel">
-                    <div class="channel-avatar-card-img-wrap">
-                        <img data-bind="attr: { src: AvatarUrl || BannerUrl || 'https://placehold.co/160x160?text=' + Name.charAt(0), alt: Name }"
-                             class="channel-avatar-card-img" />
-                    </div>
-                    <div class="channel-avatar-card-body">
-                        <div class="channel-avatar-card-name" data-bind="text: Name, attr: { title: Name }"></div>
-                        <div class="channel-avatar-card-meta">
-                            <span data-bind="if: Platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
-                            <span data-bind="text: $parent.formatDate(SubscribedAt)" class="text-muted small"></span>
-                        </div>
-                    </div>
-                    <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">
-                        <!-- ko if: $parent.isAdmin -->
-                        <button class="btn btn-outline-secondary btn-sm" title="Assign to users"
-                                data-bind="click: $parent.openAssignUsersModal">
-                            <i class="bi bi-person-plus-fill"></i>
-                        </button>
-                        <!-- /ko -->
-                        <button class="btn btn-danger btn-sm flex-fill" data-bind="click: $parent.deleteChannel, text: $parent.isAdmin ? 'Delete' : 'Unsubscribe'"></button>
-                    </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                            data-bind="enable: !editCategorySaving()">Cancel</button>
+                    <button type="button" class="btn btn-primary"
+                            data-bind="click: confirmEditCategory, enable: !editCategorySaving()">
+                        <span data-bind="visible: !editCategorySaving()">
+                            <i class="bi bi-check-circle me-1"></i>Save
+                        </span>
+                        <span data-bind="visible: editCategorySaving()">
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            Saving&hellip;
+                        </span>
+                    </button>
                 </div>
             </div>
-            <!-- /ko -->
         </div>
-
     </div>
 
-    <!-- Admin Delete Channel Modal -->
+    <!-- ── Admin Delete Channel Modal ────────────────────────────────────────── -->
     <div class="modal fade" id="adminDeleteChannelModal" tabindex="-1" aria-labelledby="adminDeleteChannelModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -200,34 +373,26 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Are you sure you want to unsubscribe all users from <strong data-bind="text: channelToDelete() ? channelToDelete().Name : ''"></strong>?</p>
+                    <p>Are you sure you want to unsubscribe all users from <strong data-bind="text: channelToDelete() ? channelToDelete().name : ''"></strong>?</p>
                     <p class="fw-semibold">Actions:</p>
                     <div class="mb-2">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="adminDeleteUnsubscribeAll" checked disabled>
-                            <label class="form-check-label" for="adminDeleteUnsubscribeAll">
-                                Unsubscribe all users
-                            </label>
+                            <label class="form-check-label" for="adminDeleteUnsubscribeAll">Unsubscribe all users</label>
                         </div>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="adminDeleteMetadata" data-bind="checked: adminDeleteMetadata">
-                            <label class="form-check-label" for="adminDeleteMetadata">
-                                Delete all metadata
-                            </label>
+                            <label class="form-check-label" for="adminDeleteMetadata">Delete all metadata</label>
                         </div>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="adminDeleteFiles" data-bind="checked: adminDeleteFiles">
-                            <label class="form-check-label" for="adminDeleteFiles">
-                                Delete video files
-                            </label>
+                            <label class="form-check-label" for="adminDeleteFiles">Delete video files</label>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" data-bind="click: confirmAdminDelete">
-                        Confirm Delete
-                    </button>
+                    <button type="button" class="btn btn-danger" data-bind="click: confirmAdminDelete">Confirm Delete</button>
                 </div>
             </div>
         </div>
@@ -245,7 +410,6 @@
             <div class="modal-body">
                 <p class="text-muted">Choose which images to use as the <strong>banner</strong> and <strong>avatar</strong> for this channel. You can also upload your own.</p>
 
-                <!-- Tabs -->
                 <ul class="nav nav-tabs mb-3" role="tablist">
                     <li class="nav-item">
                         <button class="nav-link active" id="thumbPicker-platform-tab" data-bs-toggle="tab" data-bs-target="#thumbPicker-platform" type="button">
@@ -260,7 +424,6 @@
                 </ul>
 
                 <div class="tab-content">
-                    <!-- Platform Images Tab -->
                     <div class="tab-pane fade show active" id="thumbPicker-platform" role="tabpanel">
                         <div data-bind="visible: thumbnailPickerLoading()" class="text-center py-4">
                             <div class="spinner-border" role="status"></div>
@@ -322,7 +485,6 @@
                         </div>
                     </div>
 
-                    <!-- Upload Custom Tab -->
                     <div class="tab-pane fade" id="thumbPicker-upload" role="tabpanel">
                         <div class="row g-3">
                             <div class="col-md-6">
@@ -387,7 +549,7 @@
                 <h5 class="modal-title" id="assignUsersModalLabel">
                     <i class="bi bi-person-plus-fill me-2"></i>
                     Assign Channel to Users
-                    <small class="text-muted fw-normal ms-2" data-bind="text: assignUsersChannel() ? '— ' + assignUsersChannel().Name : ''"></small>
+                    <small class="text-muted fw-normal ms-2" data-bind="text: assignUsersChannel() ? '— ' + assignUsersChannel().name : ''"></small>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>

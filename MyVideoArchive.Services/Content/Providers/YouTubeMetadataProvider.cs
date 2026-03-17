@@ -350,6 +350,52 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
             .Select(t => new ThumbnailInfo(t.ID, t.Url!, t.Width, t.Height, t.Preference))
             .ToList();
 
+    public async Task<List<PlaylistMetadata>> GetChannelPlaylistsInternalAsync(string channelUrl, string playlistsUrl, CancellationToken cancellationToken = default)
+    {
+        var result = await ytdl.RunVideoDataFetch(playlistsUrl, overrideOptions: new OptionSet
+        {
+            FlatPlaylist = true,
+            DumpSingleJson = true
+        });
+
+        if (!result.Success || result.Data is null)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning("Failed to fetch playlists for {Url}: {Error}", channelUrl, string.Join(", ", result.ErrorOutput));
+            }
+
+            return [];
+        }
+
+        var playlists = new List<PlaylistMetadata>();
+
+        // The result should contain entries that are playlists
+        if (!result.Data.Entries.IsNullOrEmpty())
+        {
+            foreach (var entry in result.Data.Entries)
+            {
+                // Each entry represents a playlist
+                if (!string.IsNullOrEmpty(entry.ID))
+                {
+                    playlists.Add(new PlaylistMetadata
+                    {
+                        PlaylistId = entry.ID,
+                        Name = entry.Title ?? "Unknown Playlist",
+                        Url = entry.Url ?? entry.WebpageUrl ?? $"https://www.youtube.com/playlist?list={entry.ID}",
+                        Description = entry.Description,
+                        ThumbnailUrl = GetBestThumbnail(entry.Thumbnails),
+                        ChannelId = result.Data.ChannelID ?? result.Data.Channel ?? result.Data.Uploader ?? string.Empty,
+                        ChannelName = result.Data.Channel ?? result.Data.Uploader ?? "Unknown Channel",
+                        //VideoCount = entry.PlaylistCount, //PlaylistCount does not exist
+                        Platform = PlatformName
+                    });
+                }
+            }
+        }
+        return playlists;
+    }
+
     public async Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default)
     {
         try
@@ -362,50 +408,12 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
             // Use yt-dlp to get channel playlists
             // The trick is to use the channel's playlists URL
             string playlistsUrl = channelUrl.TrimEnd('/') + "/playlists";
+            string releasesUrl = channelUrl.TrimEnd('/') + "/releases";
 
-            var options = new OptionSet
-            {
-                FlatPlaylist = true,
-                DumpSingleJson = true
-            };
+            var regularPlaylists = await GetChannelPlaylistsInternalAsync(channelUrl, playlistsUrl, cancellationToken);
+            var releasePlaylists = await GetChannelPlaylistsInternalAsync(channelUrl, releasesUrl, cancellationToken);
 
-            var result = await ytdl.RunVideoDataFetch(playlistsUrl, overrideOptions: options);
-
-            if (!result.Success || result.Data is null)
-            {
-                if (logger.IsEnabled(LogLevel.Warning))
-                {
-                    logger.LogWarning("Failed to fetch playlists for {Url}: {Error}", channelUrl, string.Join(", ", result.ErrorOutput));
-                }
-
-                return [];
-            }
-
-            var playlists = new List<PlaylistMetadata>();
-
-            // The result should contain entries that are playlists
-            if (!result.Data.Entries.IsNullOrEmpty())
-            {
-                foreach (var entry in result.Data.Entries)
-                {
-                    // Each entry represents a playlist
-                    if (!string.IsNullOrEmpty(entry.ID))
-                    {
-                        playlists.Add(new PlaylistMetadata
-                        {
-                            PlaylistId = entry.ID,
-                            Name = entry.Title ?? "Unknown Playlist",
-                            Url = entry.Url ?? entry.WebpageUrl ?? $"https://www.youtube.com/playlist?list={entry.ID}",
-                            Description = entry.Description,
-                            ThumbnailUrl = GetBestThumbnail(entry.Thumbnails),
-                            ChannelId = result.Data.ChannelID ?? result.Data.Channel ?? result.Data.Uploader ?? string.Empty,
-                            ChannelName = result.Data.Channel ?? result.Data.Uploader ?? "Unknown Channel",
-                            //VideoCount = entry.PlaylistCount, //PlaylistCount does not exist
-                            Platform = PlatformName
-                        });
-                    }
-                }
-            }
+            var playlists = regularPlaylists.Concat(releasePlaylists).ToList();
 
             if (logger.IsEnabled(LogLevel.Information))
             {

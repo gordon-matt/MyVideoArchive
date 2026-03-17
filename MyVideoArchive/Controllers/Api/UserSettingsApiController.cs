@@ -28,7 +28,8 @@ public class UserSettingsApiController : ControllerBase
         return result.ToActionResult(this, value => Ok(new
         {
             videosTabViewMode = value.VideosTabViewMode,
-            availableTabViewMode = value.AvailableTabViewMode
+            availableTabViewMode = value.AvailableTabViewMode,
+            enableChannelCategories = value.EnableChannelCategories
         }));
     }
 

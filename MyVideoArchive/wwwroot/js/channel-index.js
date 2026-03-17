@@ -3,6 +3,7 @@ import { formatDate } from './utils.js';
 class ChannelsViewModel {
     constructor() {
         this.channels = ko.observableArray([]);
+        this.categories = ko.observableArray([]);
         this.loading = ko.observable(true);
         this.platformFilter = ko.observable('');
         this.platformFilter.subscribe(() => this.loadChannels());
@@ -18,34 +19,82 @@ class ChannelsViewModel {
         this.adminDeleteFiles = ko.observable(false);
 
         // ── Assign users to channel modal ─────────────────────────────────────
-        this.assignUsersChannel = ko.observable(null);  // the channel being edited
+        this.assignUsersChannel = ko.observable(null);
         this.assignUsersLoading = ko.observable(false);
-        this.assignUsersAll = ko.observableArray([]);   // { userId, username, email, isSubscribed: ko.observable }
+        this.assignUsersAll = ko.observableArray([]);
         this.assignUsersSaving = ko.observable(false);
 
         this.formatDate = formatDate;
 
-        // Platforms that are added via a URL (not the custom manual flow)
         this.urlBasedPlatforms = ['YouTube', 'BitChute'];
-
         this.isUrlBasedPlatform = ko.computed(() => this.urlBasedPlatforms.includes(this.selectedPlatform()));
-
         this.canSubmit = ko.computed(() => {
-            if (this.isUrlBasedPlatform()) {
-                return this.newChannelUrl().length > 0;
-            }
+            if (this.isUrlBasedPlatform()) return this.newChannelUrl().length > 0;
             return this.customChannelName().length > 0;
         });
 
-        // ── Channel view mode (banner list vs avatar grid) ────────────────────
+        // ── Channel view mode ─────────────────────────────────────────────────
         const savedViewMode = localStorage.getItem('channelIndexViewMode') || 'banner';
         this.channelViewMode = ko.observable(savedViewMode);
 
+        // ── Category feature ──────────────────────────────────────────────────
+        this.enableChannelCategories = ko.observable(false);
+
+        // Derived list: categories with their channels
+        this.categorizedGroups = ko.computed(() => {
+            if (!this.enableChannelCategories()) return [];
+            const cats = this.categories();
+            const channels = this.channels();
+            return cats.map(cat => ({
+                category: cat,
+                channels: channels.filter(c => c.categoryId === cat.id)
+            }));
+        });
+
+        this.uncategorizedChannels = ko.computed(() => {
+            if (!this.enableChannelCategories()) return this.channels();
+            return this.channels().filter(c => !c.categoryId);
+        });
+
+        // When categories are enabled, force avatar view
+        this.enableChannelCategories.subscribe(enabled => {
+            if (enabled) {
+                this.channelViewMode('avatar');
+            }
+        });
+
+        // ── Edit category modal state ─────────────────────────────────────────
+        this.editCategoryChannel = ko.observable(null);   // channel being edited
+        this.editCategorySelectedId = ko.observable(null); // selected category id (null = uncategorized)
+        this.editCategoryNewName = ko.observable('');      // name for a brand new category
+        this.editCategoryCreatingNew = ko.observable(false);
+        this.editCategorySaving = ko.observable(false);
+
+        // Sentinel value for "create new"
+        this.CREATE_NEW_SENTINEL = '__create_new__';
+
+        this.editCategoryDropdownValue = ko.computed({
+            read: () => {
+                if (this.editCategoryCreatingNew()) return this.CREATE_NEW_SENTINEL;
+                const id = this.editCategorySelectedId();
+                return id === null ? '' : String(id);
+            },
+            write: (val) => {
+                if (val === this.CREATE_NEW_SENTINEL) {
+                    this.editCategoryCreatingNew(true);
+                    this.editCategorySelectedId(null);
+                } else {
+                    this.editCategoryCreatingNew(false);
+                    this.editCategorySelectedId(val === '' ? null : parseInt(val, 10));
+                }
+            }
+        });
+
         // ── Thumbnail picker state ─────────────────────────────────────────────
-        this.thumbnailPickerChannelId = ko.observable(null); // id of the newly added channel
+        this.thumbnailPickerChannelId = ko.observable(null);
         this.thumbnailPickerItems = ko.observableArray([]);
         this.thumbnailPickerLoading = ko.observable(false);
-        this.thumbnailPickerAssignTo = ko.observable('banner'); // 'banner' | 'avatar' — which slot the next thumbnail click will fill
+        this.thumbnailPickerAssignTo = ko.observable('banner');
         this.selectedBannerUrl = ko.observable(null);
         this.selectedAvatarUrl = ko.observable(null);
         this.bannerUploadFile = ko.observable(null);
@@ -54,30 +103,117 @@ class ChannelsViewModel {
         this.avatarUploadPreview = ko.observable(null);
     }
 
+    // ── View mode ─────────────────────────────────────────────────────────────
+
     setChannelViewMode = (mode) => {
         this.channelViewMode(mode);
         localStorage.setItem('channelIndexViewMode', mode);
     };
 
+    // ── Data loading ──────────────────────────────────────────────────────────
+
+    loadSettings = async () => {
+        try {
+            const response = await fetch('/api/user/settings');
+            if (response.ok) {
+                const data = await response.json();
+                this.enableChannelCategories(data.enableChannelCategories === true);
+                if (!data.enableChannelCategories) {
+                    const saved = localStorage.getItem('channelIndexViewMode') || 'banner';
+                    this.channelViewMode(saved);
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load user settings:', e);
+        }
+    };
+
+    saveEnableCategories = async (enabled) => {
+        try {
+            await fetch('/api/user/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enableChannelCategories: enabled })
+            });
+        } catch (e) {
+            console.warn('Failed to save category setting:', e);
+        }
+    };
+
+    loadCategories = async () => {
+        try {
+            const response = await fetch('/api/channel-categories');
+            if (response.ok) {
+                const data = await response.json();
+                this.categories(data);
+            }
+        } catch (e) {
+            console.warn('Failed to load categories:', e);
+        }
+    };
+
     loadChannels = async () => {
         this.loading(true);
 
-        var url = '/odata/ChannelOData?$orderby=Name';
-        if (this.platformFilter()) {
-            url += `&$filter=Platform eq '${this.platformFilter()}'`;
+        if (this.enableChannelCategories()) {
+            // Use the richer endpoint that includes categoryId
+            let url = '/api/channels/my-channels';
+            if (this.platformFilter()) {
+                url += `?platform=${encodeURIComponent(this.platformFilter())}`;
+            }
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.channels(data);
+                }
+            } catch (e) {
+                console.error('Error loading channels:', e);
+            } finally {
+                this.loading(false);
+            }
+        } else {
+            // Original OData path
+            let url = '/odata/ChannelOData?$orderby=Name';
+            if (this.platformFilter()) {
+                url += `&$filter=Platform eq '${this.platformFilter()}'`;
+            }
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                // Map OData shape to camelCase so views work uniformly
+                this.channels((data.value || []).map(c => ({
+                    id: c.Id,
+                    channelId: c.ChannelId,
+                    name: c.Name,
+                    url: c.Url,
+                    avatarUrl: c.AvatarUrl,
+                    bannerUrl: c.BannerUrl,
+                    platform: c.Platform,
+                    subscribedAt: c.SubscribedAt,
+                    categoryId: null
+                })));
+            } catch (e) {
+                console.error('Error loading channels:', e);
+            } finally {
+                this.loading(false);
+            }
         }
-
-        await fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                this.channels(data.value || []);
-                this.loading(false);
-            })
-            .catch(error => {
-                console.error('Error loading channels:', error);
-                this.loading(false);
-            });
     };
+
+    // ── Toggle categories ─────────────────────────────────────────────────────
+
+    toggleCategories = async () => {
+        const newVal = !this.enableChannelCategories();
+        this.enableChannelCategories(newVal);
+        await this.saveEnableCategories(newVal);
+        if (newVal) {
+            await this.loadCategories();
+        }
+        await this.loadChannels();
+    };
+
+    // ── Add channel ───────────────────────────────────────────────────────────
 
     addChannel = async () => {
         if (this.isUrlBasedPlatform()) {
@@ -116,12 +252,24 @@ class ChannelsViewModel {
             }
 
             const data = await response.json();
-            this.channels.push(data);
+            // Normalise to camelCase
+            const channel = {
+                id: data.Id,
+                channelId: data.ChannelId,
+                name: data.Name,
+                url: data.Url,
+                avatarUrl: data.AvatarUrl,
+                bannerUrl: data.BannerUrl,
+                platform: data.Platform,
+                subscribedAt: data.SubscribedAt,
+                categoryId: null
+            };
+            this.channels.push(channel);
             this.newChannelUrl('');
             bootstrap.Modal.getInstance(document.getElementById('addChannelModal')).hide();
 
-            // Show thumbnail picker for the newly added channel
-            this.thumbnailPickerChannelId(data.Id);
+            // Show thumbnail picker
+            this.thumbnailPickerChannelId(channel.id);
             this.thumbnailPickerAssignTo('banner');
             this.selectedBannerUrl(null);
             this.selectedAvatarUrl(null);
@@ -134,7 +282,7 @@ class ChannelsViewModel {
             const pickerModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('thumbnailPickerModal'));
             pickerModal.show();
 
-            await this.loadThumbnailPickerItems(data.Id);
+            await this.loadThumbnailPickerItems(channel.id);
 
         } catch (error) {
             console.error(`Error adding ${platform} channel:`, error);
@@ -151,7 +299,6 @@ class ChannelsViewModel {
             if (response.ok) {
                 const data = await response.json();
                 this.thumbnailPickerItems(data.thumbnails || []);
-                // Pre-select the default banner if available
                 if (!this.selectedBannerUrl() && data.defaultBannerUrl) {
                     this.selectedBannerUrl(data.defaultBannerUrl);
                 }
@@ -183,7 +330,6 @@ class ChannelsViewModel {
         if (!channelId) return;
 
         try {
-            // Handle file uploads first
             let bannerUrl = this.selectedBannerUrl();
             let avatarUrl = this.selectedAvatarUrl();
 
@@ -209,7 +355,6 @@ class ChannelsViewModel {
                 }
             }
 
-            // Update URLs
             if (bannerUrl !== null || avatarUrl !== null) {
                 await fetch(`/api/channels/${channelId}/images`, {
                     method: 'PUT',
@@ -218,11 +363,10 @@ class ChannelsViewModel {
                 });
             }
 
-            // Refresh the channel in the list
-            const updated = this.channels().find(c => c.Id === channelId);
+            const updated = this.channels().find(c => c.id === channelId);
             if (updated) {
-                updated.BannerUrl = bannerUrl;
-                updated.AvatarUrl = avatarUrl;
+                updated.bannerUrl = bannerUrl;
+                updated.avatarUrl = avatarUrl;
                 this.channels.valueHasMutated();
             }
 
@@ -237,7 +381,7 @@ class ChannelsViewModel {
         bootstrap.Modal.getInstance(document.getElementById('thumbnailPickerModal')).hide();
     };
 
-    // ── Drag & drop / file input for banner ──────────────────────────────────
+    // ── Drag & drop / file input ──────────────────────────────────────────────
 
     onBannerDragOver = (data, event) => { event.preventDefault(); return true; };
     onBannerDrop = (data, event) => {
@@ -259,8 +403,6 @@ class ChannelsViewModel {
     };
     clearBannerUpload = () => { this.bannerUploadFile(null); this.bannerUploadPreview(null); };
 
-    // ── Drag & drop / file input for avatar ──────────────────────────────────
-
     onAvatarDragOver = (data, event) => { event.preventDefault(); return true; };
     onAvatarDrop = (data, event) => {
         event.preventDefault();
@@ -280,6 +422,8 @@ class ChannelsViewModel {
         reader.readAsDataURL(file);
     };
     clearAvatarUpload = () => { this.avatarUploadFile(null); this.avatarUploadPreview(null); };
+
+    // ── Custom channel ────────────────────────────────────────────────────────
 
     addCustomChannel = async () => {
         const name = this.customChannelName().trim();
@@ -308,21 +452,19 @@ class ChannelsViewModel {
     extractChannelId = (url) => {
         var match = url.match(/channel\/([^\/\?]+)/);
         if (match) return match[1];
-
         match = url.match(/c\/([^\/\?]+)/);
         if (match) return match[1];
-
         match = url.match(/user\/([^\/\?]+)/);
         if (match) return match[1];
-
         match = url.match(/\/@@([^\/\?]+)/);
         if (match) return match[1];
-
         return url;
     };
 
+    // ── Navigation / delete ───────────────────────────────────────────────────
+
     viewChannel = (channel) => {
-        window.location.href = `/channels/${channel.Id}`;
+        window.location.href = `/channels/${channel.id}`;
     };
 
     deleteChannel = (channel) => {
@@ -330,8 +472,7 @@ class ChannelsViewModel {
             this.channelToDelete(channel);
             this.adminDeleteMetadata(false);
             this.adminDeleteFiles(false);
-            const modalEl = document.getElementById('adminDeleteChannelModal');
-            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('adminDeleteChannelModal')).show();
         } else {
             this._unsubscribeChannel(channel);
         }
@@ -341,30 +482,27 @@ class ChannelsViewModel {
         const channel = this.channelToDelete();
         if (!channel) return;
 
-        const deleteMetadata = this.adminDeleteMetadata();
-        const deleteFiles = this.adminDeleteFiles();
-
-        const params = new URLSearchParams({ deleteMetadata, deleteFiles });
-
-        const modalEl = document.getElementById('adminDeleteChannelModal');
-        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-
-        await fetch(`/api/channels/${channel.Id}?${params}`, {
-            method: 'DELETE'
-        })
-        .then(response => {
-            if (response.ok) {
-                this.channels.remove(channel);
-                this.channelToDelete(null);
-                toast.success('Channel deleted successfully.');
-            } else {
-                toast.error('Failed to delete channel.');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting channel:', error);
-            toast.error('Failed to delete channel.');
+        const params = new URLSearchParams({
+            deleteMetadata: this.adminDeleteMetadata(),
+            deleteFiles: this.adminDeleteFiles()
         });
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('adminDeleteChannelModal')).hide();
+
+        await fetch(`/api/channels/${channel.id}?${params}`, { method: 'DELETE' })
+            .then(response => {
+                if (response.ok) {
+                    this.channels.remove(channel);
+                    this.channelToDelete(null);
+                    toast.success('Channel deleted successfully.');
+                } else {
+                    toast.error('Failed to delete channel.');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting channel:', error);
+                toast.error('Failed to delete channel.');
+            });
     };
 
     openAssignUsersModal = async (channel) => {
@@ -374,7 +512,7 @@ class ChannelsViewModel {
         bootstrap.Modal.getOrCreateInstance(document.getElementById('assignUsersModal')).show();
 
         try {
-            const response = await fetch(`/api/channels/${channel.Id}/user-subscriptions`);
+            const response = await fetch(`/api/channels/${channel.id}/user-subscriptions`);
             if (response.ok) {
                 const data = await response.json();
                 const users = (data.users || []).map(u => ({
@@ -403,7 +541,7 @@ class ChannelsViewModel {
 
         this.assignUsersSaving(true);
         try {
-            const response = await fetch(`/api/channels/${channel.Id}/user-subscriptions`, {
+            const response = await fetch(`/api/channels/${channel.id}/user-subscriptions`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ subscribedUserIds })
@@ -425,25 +563,107 @@ class ChannelsViewModel {
     };
 
     _unsubscribeChannel = async (channel) => {
-        if (!confirm(`Are you sure you want to unsubscribe from ${channel.Name}?`)) {
-            return;
-        }
+        if (!confirm(`Are you sure you want to unsubscribe from ${channel.name}?`)) return;
 
-        await fetch(`/odata/ChannelOData(${channel.Id})`, {
-            method: 'DELETE'
-        })
-        .then(response => {
-            if (response.ok) {
-                this.channels.remove(channel);
-                toast.success(`Unsubscribed from ${channel.Name}.`);
-            } else {
+        await fetch(`/odata/ChannelOData(${channel.id})`, { method: 'DELETE' })
+            .then(response => {
+                if (response.ok) {
+                    this.channels.remove(channel);
+                    toast.success(`Unsubscribed from ${channel.name}.`);
+                } else {
+                    toast.error('Failed to unsubscribe from channel.');
+                }
+            })
+            .catch(error => {
+                console.error('Error unsubscribing from channel:', error);
                 toast.error('Failed to unsubscribe from channel.');
+            });
+    };
+
+    // ── Edit channel category modal ───────────────────────────────────────────
+
+    openEditCategoryModal = (channel) => {
+        this.editCategoryChannel(channel);
+        this.editCategoryCreatingNew(false);
+        this.editCategoryNewName('');
+        this.editCategorySelectedId(channel.categoryId || null);
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('editChannelCategoryModal')).show();
+    };
+
+    confirmEditCategory = async () => {
+        const channel = this.editCategoryChannel();
+        if (!channel) return;
+
+        this.editCategorySaving(true);
+        try {
+            let categoryId = this.editCategorySelectedId();
+
+            if (this.editCategoryCreatingNew()) {
+                const newName = this.editCategoryNewName().trim();
+                if (!newName) {
+                    toast.error('Please enter a category name.');
+                    return;
+                }
+                const res = await fetch('/api/channel-categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                });
+                if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    toast.error(d.message || 'Failed to create category.');
+                    return;
+                }
+                const newCat = await res.json();
+                this.categories.push(newCat);
+                categoryId = newCat.id;
             }
-        })
-        .catch(error => {
-            console.error('Error unsubscribing from channel:', error);
-            toast.error('Failed to unsubscribe from channel.');
-        });
+
+            const res = await fetch(`/api/channels/${channel.id}/category`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ categoryId })
+            });
+
+            if (!res.ok) {
+                toast.error('Failed to assign category.');
+                return;
+            }
+
+            // Update in-memory
+            channel.categoryId = categoryId;
+            this.channels.valueHasMutated();
+
+            bootstrap.Modal.getInstance(document.getElementById('editChannelCategoryModal')).hide();
+            toast.success('Category updated.');
+        } catch (error) {
+            console.error('Error assigning category:', error);
+            toast.error('Failed to assign category.');
+        } finally {
+            this.editCategorySaving(false);
+        }
+    };
+
+    deleteCategory = async (category) => {
+        if (!confirm(`Delete category "${category.name}"? Channels in this category will become uncategorized.`)) return;
+
+        try {
+            const res = await fetch(`/api/channel-categories/${category.id}`, { method: 'DELETE' });
+            if (res.ok) {
+                // Clear categoryId on all channels that were in this category
+                this.channels().forEach(c => {
+                    if (c.categoryId === category.id) c.categoryId = null;
+                });
+                this.channels.valueHasMutated();
+                this.categories.remove(category);
+                toast.success(`Category "${category.name}" deleted.`);
+            } else {
+                toast.error('Failed to delete category.');
+            }
+        } catch (e) {
+            console.error('Error deleting category:', e);
+            toast.error('Failed to delete category.');
+        }
     };
 }
 
@@ -452,5 +672,9 @@ var viewModel;
 document.addEventListener("DOMContentLoaded", async () => {
     viewModel = new ChannelsViewModel();
     ko.applyBindings(viewModel);
+    await viewModel.loadSettings();
+    if (viewModel.enableChannelCategories()) {
+        await viewModel.loadCategories();
+    }
     await viewModel.loadChannels();
 });

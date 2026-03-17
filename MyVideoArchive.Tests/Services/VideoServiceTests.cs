@@ -1,4 +1,5 @@
 using Hangfire;
+using Microsoft.Extensions.Configuration;
 using MyVideoArchive.Models.Video;
 
 namespace MyVideoArchive.Tests.Services;
@@ -33,6 +34,7 @@ public class VideoServiceTests
             NullLogger<VideoMetadataProviderFactory>.Instance);
         return new VideoService(
             NullLogger<VideoService>.Instance,
+            new ConfigurationBuilder().Build(),
             user,
             Mock.Of<IBackgroundJobClient>(),
             factory,

@@ -6,6 +6,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 {
     public DbSet<Channel> Channels { get; set; }
 
+    public DbSet<ChannelCategory> ChannelCategories { get; set; }
+
     public DbSet<ChannelTag> ChannelTags { get; set; }
 
     public DbSet<CustomPlaylist> CustomPlaylists { get; set; }

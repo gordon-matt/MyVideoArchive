@@ -15,7 +15,11 @@ public class UserChannel : IEntity
 
     public DateTime SubscribedAt { get; set; }
 
+    public int? CategoryId { get; set; }
+
     public Channel Channel { get; set; } = null!;
+
+    public ChannelCategory? Category { get; set; }
 
     [IgnoreDataMember]
     public object[] KeyValues => [UserId, ChannelId];
@@ -30,13 +34,18 @@ public class UserChannelMap : IEntityTypeConfiguration<UserChannel>
         // Composite primary key
         builder.HasKey(uc => new { uc.UserId, uc.ChannelId });
 
+        // Default value for SubscribedAt
+        builder.Property(uc => uc.SubscribedAt)
+            .HasDefaultValueSql("NOW()");
+
         builder.HasOne(uc => uc.Channel)
             .WithMany()
             .HasForeignKey(uc => uc.ChannelId)
             .OnDelete(DeleteBehavior.ClientNoAction);
 
-        // Default value for SubscribedAt
-        builder.Property(uc => uc.SubscribedAt)
-            .HasDefaultValueSql("NOW()");
+        builder.HasOne(uc => uc.Category)
+            .WithMany()
+            .HasForeignKey(uc => uc.CategoryId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

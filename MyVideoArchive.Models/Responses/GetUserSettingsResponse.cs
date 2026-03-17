@@ -1,3 +1,6 @@
 namespace MyVideoArchive.Models.Responses;
 
-public record GetUserSettingsResponse(string VideosTabViewMode, string AvailableTabViewMode);
+public record GetUserSettingsResponse(
+    string VideosTabViewMode,
+    string AvailableTabViewMode,
+    bool EnableChannelCategories);

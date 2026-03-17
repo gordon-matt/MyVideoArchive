@@ -10,6 +10,8 @@ public class UserSettingsEntry : BaseEntity<int>
     public ViewMode VideosTabViewMode { get; set; }
 
     public ViewMode AvailableTabViewMode { get; set; }
+
+    public bool EnableChannelCategories { get; set; }
 }
 
 public class UserSettingsEntryMap : IEntityTypeConfiguration<UserSettingsEntry>
@@ -21,5 +23,6 @@ public class UserSettingsEntryMap : IEntityTypeConfiguration<UserSettingsEntry>
         builder.Property(m => m.UserId).IsRequired();
         builder.Property(m => m.VideosTabViewMode).IsRequired();
         builder.Property(m => m.AvailableTabViewMode).IsRequired();
+        builder.Property(m => m.EnableChannelCategories).IsRequired();
     }
 }

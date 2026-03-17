@@ -9,6 +9,7 @@ namespace MyVideoArchive.Controllers.OData;
 public class ChannelODataController : ODataController
 {
     private readonly ILogger<ChannelODataController> logger;
+    private readonly IConfiguration configuration;
     private readonly IUserContextService userContextService;
     private readonly VideoMetadataProviderFactory metadataProviderFactory;
     private readonly IBackgroundJobClient backgroundJobClient;
@@ -18,6 +19,7 @@ public class ChannelODataController : ODataController
 
     public ChannelODataController(
         ILogger<ChannelODataController> logger,
+        IConfiguration configuration,
         IUserContextService userContextService,
         VideoMetadataProviderFactory metadataProviderFactory,
         IBackgroundJobClient backgroundJobClient,
@@ -26,6 +28,7 @@ public class ChannelODataController : ODataController
         IRepository<UserChannel> userChannelRepository)
     {
         this.logger = logger;
+        this.configuration = configuration;
         this.userContextService = userContextService;
         this.backgroundJobClient = backgroundJobClient;
         this.metadataProviderFactory = metadataProviderFactory;
@@ -265,8 +268,9 @@ public class ChannelODataController : ODataController
             // Remove "standalone" tags from user's videos in this channel now that they're subscribed
             await tagService.RemoveStandaloneTagsForChannelAsync(userId, channelDbId);
 
-            // Auto-import tags from channel metadata
-            if (channelMetadata?.Tags.Count > 0)
+            // Auto-import tags from channel metadata (only when enabled and only on first subscribe)
+            bool importTags = configuration.GetValue<bool>("Tags:ImportTagsFromPlatform", false);
+            if (importTags && channelMetadata?.Tags.Count > 0)
             {
                 await tagService.ImportChannelTagsAsync(channelDbId, channelMetadata.Tags);
             }
