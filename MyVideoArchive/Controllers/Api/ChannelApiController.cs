@@ -41,31 +41,6 @@ public class ChannelApiController : ControllerBase
         {
             return Unauthorized();
         }
-
-        bool isAdmin = userContextService.IsAdministrator();
-
-        if (isAdmin)
-        {
-            var allChannels = await channelRepository.FindAsync(new SearchOptions<Channel>
-            {
-                Query = x => platform == null || x.Platform == platform,
-                OrderBy = q => q.OrderBy(x => x.Name)
-            });
-
-            return Ok(allChannels.Select(c => new
-            {
-                id = c.Id,
-                channelId = c.ChannelId,
-                name = c.Name,
-                url = c.Url,
-                avatarUrl = c.AvatarUrl,
-                bannerUrl = c.BannerUrl,
-                platform = c.Platform,
-                subscribedAt = c.SubscribedAt,
-                categoryId = (int?)null
-            }));
-        }
-
         var userChannels = await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
         {
             Query = x =>
@@ -113,7 +88,6 @@ public class ChannelApiController : ControllerBase
         {
             return NotFound();
         }
-
         if (request.CategoryId is not null)
         {
             bool categoryExists = await categoryRepository.ExistsAsync(x =>

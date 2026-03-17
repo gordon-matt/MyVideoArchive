@@ -1062,7 +1062,8 @@ public class PlaylistService : IPlaylistService
             }
 
             // Verify the playlist belongs to this channel
-            if (!string.Equals(playlistMeta.ChannelId, channel.ChannelId, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(playlistMeta.ChannelId) &&
+                !string.Equals(playlistMeta.ChannelId, channel.ChannelId, StringComparison.OrdinalIgnoreCase))
             {
                 return Result.Invalid([new ValidationError("playlistUrl",
                     $"This playlist belongs to a different channel ('{playlistMeta.ChannelName}'). " +

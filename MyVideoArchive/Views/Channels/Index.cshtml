@@ -31,17 +31,14 @@
             </select>
         </div>
         <div class="col-md-9 d-flex justify-content-end align-items-center gap-3 flex-wrap">
-            <!-- Enable Categories toggle (non-admin only — admins have no UserChannel subscriptions) -->
-            @if (!isAdmin)
-            {
-                <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="enableCategoriesSwitch"
-                           data-bind="checked: enableChannelCategories, click: toggleCategories" />
-                    <label class="form-check-label" for="enableCategoriesSwitch">
-                        <i class="bi bi-folder2-open me-1"></i> Enable Categories
-                    </label>
-                </div>
-            }
+            <!-- Enable Categories toggle -->
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="enableCategoriesSwitch"
+                       data-bind="checked: enableChannelCategories" />
+                <label class="form-check-label" for="enableCategoriesSwitch">
+                    <i class="bi bi-folder2-open me-1"></i> Enable Categories
+                </label>
+            </div>
             <!-- Banner/Avatar view toggle — hidden when categories are enabled -->
             <div class="btn-group" data-bind="visible: !enableChannelCategories()">
                 <button class="btn btn-outline-secondary" title="Banner view"

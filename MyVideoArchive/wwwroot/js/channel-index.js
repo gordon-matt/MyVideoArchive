@@ -56,11 +56,16 @@ class ChannelsViewModel {
             return this.channels().filter(c => !c.categoryId);
         });
 
-        // When categories are enabled, force avatar view
-        this.enableChannelCategories.subscribe(enabled => {
+        // When categories are enabled, force avatar view and persist + reload data
+        this.enableChannelCategories.subscribe(async enabled => {
             if (enabled) {
                 this.channelViewMode('avatar');
             }
+            await this.saveEnableCategories(enabled);
+            if (enabled) {
+                await this.loadCategories();
+            }
+            await this.loadChannels();
         });
 
         // ── Edit category modal state ─────────────────────────────────────────
