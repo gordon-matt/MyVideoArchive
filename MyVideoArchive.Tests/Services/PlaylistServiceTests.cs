@@ -41,6 +41,7 @@ public class PlaylistServiceTests
             tagSvc,
             db.ChannelRepository,
             db.PlaylistRepository,
+            db.PlaylistTagRepository,
             db.PlaylistVideoRepository,
             db.UserChannelRepository,
             db.UserPlaylistRepository,

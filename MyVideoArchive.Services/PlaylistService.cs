@@ -1,11 +1,10 @@
 using Ardalis.Result;
 using Extenso.Collections.Generic;
 using Hangfire;
+using Microsoft.AspNetCore.Http;
 using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
-using MyVideoArchive.Services.Content;
-using MyVideoArchive.Services.Jobs;
 
 namespace MyVideoArchive.Services;
 
@@ -20,6 +19,7 @@ public class PlaylistService : IPlaylistService
     private readonly ITagService tagService;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<Playlist> playlistRepository;
+    private readonly IRepository<PlaylistTag> playlistTagRepository;
     private readonly IRepository<PlaylistVideo> playlistVideoRepository;
     private readonly IRepository<UserChannel> userChannelRepository;
     private readonly IRepository<UserPlaylist> userPlaylistRepository;
@@ -37,6 +37,7 @@ public class PlaylistService : IPlaylistService
         ITagService tagService,
         IRepository<Channel> channelRepository,
         IRepository<Playlist> playlistRepository,
+        IRepository<PlaylistTag> playlistTagRepository,
         IRepository<PlaylistVideo> playlistVideoRepository,
         IRepository<UserChannel> userChannelRepository,
         IRepository<UserPlaylist> userPlaylistRepository,
@@ -53,6 +54,7 @@ public class PlaylistService : IPlaylistService
         this.tagService = tagService;
         this.channelRepository = channelRepository;
         this.playlistRepository = playlistRepository;
+        this.playlistTagRepository = playlistTagRepository;
         this.playlistVideoRepository = playlistVideoRepository;
         this.userChannelRepository = userChannelRepository;
         this.userPlaylistRepository = userPlaylistRepository;
@@ -466,6 +468,8 @@ public class PlaylistService : IPlaylistService
                     await userPlaylistVideoRepository.DeleteAsync(record);
                 }
 
+                var videoOrderIds = request.VideoOrders.Select(x => x.VideoId).ToHashSet();
+
                 foreach (var videoOrder in request.VideoOrders)
                 {
                     await userPlaylistVideoRepository.InsertAsync(new UserPlaylistVideo
@@ -474,11 +478,13 @@ public class PlaylistService : IPlaylistService
                         PlaylistId = playlistId,
                         VideoId = videoOrder.VideoId,
                         CustomOrder = videoOrder.Order,
-                        IsHidden = false
+                        IsHidden = hiddenVideoIds.Contains(videoOrder.VideoId)
                     });
                 }
 
-                foreach (int hiddenVideoId in hiddenVideoIds)
+                // Preserve hidden records even for videos not present in the custom-order payload.
+                // (Avoid duplicate-key inserts for videos that were already included above.)
+                foreach (int hiddenVideoId in hiddenVideoIds.Where(id => !videoOrderIds.Contains(id)))
                 {
                     await userPlaylistVideoRepository.InsertAsync(new UserPlaylistVideo
                     {
@@ -549,6 +555,131 @@ public class PlaylistService : IPlaylistService
             }
 
             return Result.Error("An error occurred while updating video visibility");
+        }
+    }
+
+    public async Task<Result> DeleteChannelPlaylistAsync(int channelId, int playlistId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (!await UserHasAccessToChannelAsync(channelId))
+            {
+                return Result.Forbidden();
+            }
+
+            var channel = await channelRepository.FindOneAsync(channelId);
+            if (channel is null)
+            {
+                return Result.NotFound("Channel not found");
+            }
+
+            bool isTopicChannel = channel.Name?.EndsWith(" - Topic", StringComparison.OrdinalIgnoreCase) == true;
+            if (!isTopicChannel)
+            {
+                return Result.Forbidden();
+            }
+
+            bool playlistExists = await playlistRepository.ExistsAsync(
+                x => x.Id == playlistId && x.ChannelId == channelId,
+                ContextOptions.ForCancellationToken(cancellationToken));
+
+            if (!playlistExists)
+            {
+                return Result.NotFound("Playlist not found");
+            }
+
+            // Remove associations and per-user settings, but do not delete videos themselves.
+            await playlistVideoRepository.DeleteAsync(x => x.PlaylistId == playlistId);
+            await userPlaylistRepository.DeleteAsync(x => x.PlaylistId == playlistId);
+            await userPlaylistVideoRepository.DeleteAsync(x => x.PlaylistId == playlistId);
+            await playlistTagRepository.DeleteAsync(x => x.PlaylistId == playlistId);
+            await playlistRepository.DeleteAsync(x => x.Id == playlistId, ContextOptions.ForCancellationToken(cancellationToken));
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error deleting topic channel playlist {PlaylistId} for channel {ChannelId}", playlistId, channelId);
+            }
+
+            return Result.Error("An error occurred while deleting the playlist");
+        }
+    }
+
+    public async Task<Result<string>> SetPlaylistThumbnailAsync(int playlistId, IFormFile file, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (file is null || file.Length == 0)
+            {
+                return Result.Invalid([new ValidationError(nameof(file), "No file uploaded")]);
+            }
+
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.Id == playlistId,
+                Include = query => query.Include(x => x.Channel)
+            });
+
+            if (playlist is null)
+            {
+                return Result.NotFound("Playlist not found");
+            }
+
+            if (!await UserHasAccessToChannelAsync(playlist.ChannelId))
+            {
+                return Result.Forbidden();
+            }
+
+            string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
+                ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
+
+            string channelDirId = playlist.Channel?.ChannelId ?? playlist.ChannelId.ToString();
+            string playlistThumbnailDir = Path.Combine(downloadPath, channelDirId, "Playlists");
+            Directory.CreateDirectory(playlistThumbnailDir);
+
+            string ext = Path.GetExtension(file.FileName);
+            if (string.IsNullOrWhiteSpace(ext))
+            {
+                ext = ".jpg";
+            }
+
+            string safeExt = ext.ToLowerInvariant();
+            var allowedExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+            if (!allowedExts.Contains(safeExt))
+            {
+                return Result.Invalid([new ValidationError(nameof(file), "Unsupported image type")]);
+            }
+
+            string filePath = Path.Combine(playlistThumbnailDir, playlist.PlaylistId + safeExt);
+            await using (var stream = File.Create(filePath))
+            {
+                await file.CopyToAsync(stream, cancellationToken);
+            }
+
+            string relativeUrl = ThumbnailService.BuildRelativeUrl(downloadPath, filePath);
+            playlist.ThumbnailUrl = relativeUrl;
+            await playlistRepository.UpdateAsync(playlist, ContextOptions.ForCancellationToken(cancellationToken));
+
+            return Result.Success(relativeUrl);
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error setting playlist thumbnail for playlist {PlaylistId}", playlistId);
+            }
+
+            return Result.Error("An error occurred while setting the playlist thumbnail");
         }
     }
 

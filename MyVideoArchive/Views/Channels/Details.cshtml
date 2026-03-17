@@ -586,14 +586,31 @@
                                     <span data-bind="if: isIgnored" class="badge bg-secondary">Ignored</span>
                                 </div>
                             </div>
-                            <div class="card-footer bg-transparent border-0 p-2 pt-0 d-flex flex-column gap-1">
-                                <a data-bind="attr: { href: url }, visible: url" target="_blank" class="btn btn-sm btn-outline-secondary w-100">
-                                    <i class="bi bi-box-arrow-up-right"></i>
-                                    View on <span data-bind="text: platform"></span>
-                                </a>
-                                <button class="btn btn-sm btn-outline-danger w-100" data-bind="click: $parent.ignorePlaylist">
-                                    <span data-bind="text: isIgnored ? 'Unignore' : 'Ignore'"></span>
-                                </button>
+                            <div class="card-footer bg-transparent border-0 p-2 pt-0">
+                                <div class="d-flex align-items-center justify-content-start gap-2">
+                                    <a class="btn btn-sm btn-outline-primary"
+                                       data-bind="attr: { href: url, title: 'View on ' + platform, 'aria-label': 'View on ' + platform }, visible: url"
+                                       target="_blank">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
+
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            data-bind="click: function(p, e) { $parent.editPlaylistThumbnail(p, e); }, attr: { title: thumbnailUrl ? 'Edit thumbnail' : 'Set thumbnail', 'aria-label': thumbnailUrl ? 'Edit thumbnail' : 'Set thumbnail' }">
+                                        <i class="bi bi-image"></i>
+                                    </button>
+
+                                    <button class="btn btn-sm"
+                                            data-bind="click: $parent.ignorePlaylist, css: { 'btn-outline-primary': !isIgnored, 'btn-outline-warning': isIgnored }, attr: { title: isIgnored ? 'Unignore' : 'Ignore', 'aria-label': isIgnored ? 'Unignore' : 'Ignore' }">
+                                        <i class="bi bi-eye-slash"></i>
+                                    </button>
+
+                                    <!-- ko if: $parent.isTopicChannel -->
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            data-bind="click: $parent.deletePlaylist, attr: { title: 'Delete playlist', 'aria-label': 'Delete playlist' }">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    <!-- /ko -->
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -614,6 +631,13 @@
         </div>
     </div>
 </div>
+
+<!-- Hidden file input used for playlist thumbnail upload (only for missing thumbnails) -->
+<input type="file"
+       id="playlistThumbnailFile"
+       class="d-none"
+       accept="image/*"
+       data-bind="event: { change: onPlaylistThumbnailSelected }" />
 
 <!-- ── Add Playlist by URL Modal (Topic Channels) ──────────────────────────── -->
 <div class="modal fade" id="addPlaylistModal" tabindex="-1" aria-labelledby="addPlaylistModalLabel" aria-hidden="true">

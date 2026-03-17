@@ -127,4 +127,15 @@ public class ChannelPlaylistsApiController : ControllerBase
             subscribedCount = value.SubscribedCount
         }));
     }
+
+    /// <summary>
+    /// Delete a playlist from a channel. Currently only allowed for topic channels.
+    /// </summary>
+    [HttpDelete("{playlistId}")]
+    public async Task<IActionResult> DeleteChannelPlaylist(int channelId, int playlistId)
+    {
+        var result = await playlistService.DeleteChannelPlaylistAsync(channelId, playlistId, HttpContext.RequestAborted);
+
+        return result.ToActionResult(this, () => Ok(new { message = "Playlist deleted" }));
+    }
 }

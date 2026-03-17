@@ -34,7 +34,7 @@ class ChannelsViewModel {
         });
 
         // ── Channel view mode ─────────────────────────────────────────────────
-        const savedViewMode = localStorage.getItem('channelIndexViewMode') || 'banner';
+        const savedViewMode = localStorage.getItem('channelIndexViewMode') || 'avatar';
         this.channelViewMode = ko.observable(savedViewMode);
 
         // ── Category feature ──────────────────────────────────────────────────

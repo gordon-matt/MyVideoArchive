@@ -292,3 +292,4 @@ MyVideoArchive/yt-dlp.exe
 
 Sejil-*.sqlite
 MyVideoArchive/Sejil-*.sqlite
+/MyVideoArchive/MyVideoArchive/*.sqlite-journal

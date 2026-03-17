@@ -2,6 +2,7 @@ using Ardalis.Result;
 using Extenso.Collections.Generic;
 using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
+using Microsoft.AspNetCore.Http;
 
 namespace MyVideoArchive.Services;
 
@@ -72,4 +73,14 @@ public interface IPlaylistService
         int channelId,
         string playlistUrl,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a playlist from a topic channel. Only allowed when the channel is a topic channel.
+    /// </summary>
+    Task<Result> DeleteChannelPlaylistAsync(int channelId, int playlistId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Set a playlist thumbnail (only when none exists).
+    /// </summary>
+    Task<Result<string>> SetPlaylistThumbnailAsync(int playlistId, IFormFile file, CancellationToken cancellationToken = default);
 }

@@ -84,6 +84,18 @@ public class PlaylistApiController : ControllerBase
     }
 
     /// <summary>
+    /// Upload a thumbnail for a playlist (only if it doesn't already have one).
+    /// </summary>
+    [HttpPost("{playlistId}/thumbnail")]
+    [RequestSizeLimit(10_000_000)]
+    public async Task<IActionResult> UploadPlaylistThumbnail(int playlistId, [FromForm] IFormFile file)
+    {
+        var result = await playlistService.SetPlaylistThumbnailAsync(playlistId, file, HttpContext.RequestAborted);
+
+        return result.ToActionResult(this, value => Ok(new { thumbnailUrl = value }));
+    }
+
+    /// <summary>
     /// Trigger sync for all playlists
     /// </summary>
     [Authorize(Roles = Constants.Roles.Administrator)]

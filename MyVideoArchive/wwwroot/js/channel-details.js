@@ -127,6 +127,10 @@ class ChannelDetailsViewModel {
 
         // ── Tags ──────────────────────────────────────────────────────────────
         this._tagifyInstance = null;
+
+        // ── Playlist thumbnail upload (missing thumbnails only) ───────────────
+        this._playlistThumbnailTarget = ko.observable(null);
+        this.uploadingPlaylistThumbnail = ko.observable(false);
     }
 
     _buildPageNumbers(current, total) {
@@ -938,6 +942,81 @@ class ChannelDetailsViewModel {
         } catch (error) {
             console.error('Error ignoring playlist:', error);
             toast.error('Error updating playlist status. Please try again.');
+        }
+    };
+
+    deletePlaylist = async (playlist) => {
+        if (!this.isTopicChannel()) return;
+        if (!confirm(`Delete playlist "${playlist.name}" from this topic channel? This cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/playlists/${playlist.id}`, {
+                method: 'DELETE'
+            });
+
+            let data = {};
+            try { data = await response.json(); } catch { data = {}; }
+
+            if (!response.ok) {
+                toast.error(data.detail || data.message || 'Failed to delete playlist.');
+                return;
+            }
+
+            toast.success(data.message || 'Playlist deleted.');
+            await this.loadPlaylists();
+        } catch (error) {
+            console.error('Error deleting playlist:', error);
+            toast.error('Failed to delete playlist. Please try again.');
+        }
+    };
+
+    editPlaylistThumbnail = (playlist, event) => {
+        event?.stopPropagation?.();
+        if (!playlist) return;
+        if (this.uploadingPlaylistThumbnail()) return;
+
+        this._playlistThumbnailTarget(playlist);
+        document.getElementById('playlistThumbnailFile')?.click();
+    };
+
+    onPlaylistThumbnailSelected = async (data, event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+
+        const playlist = this._playlistThumbnailTarget();
+        this._playlistThumbnailTarget(null);
+
+        if (!playlist) return;
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        this.uploadingPlaylistThumbnail(true);
+        try {
+            const response = await fetch(`/api/playlists/${playlist.id}/thumbnail`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                toast.error(payload.detail || payload.message || 'Failed to upload thumbnail.');
+                return;
+            }
+
+            // Items in playlists() are plain objects; KO won't react to nested prop changes reliably.
+            // Reload to reflect the updated thumbnail immediately.
+            playlist.thumbnailUrl = payload.thumbnailUrl;
+            await this.loadPlaylists();
+            toast.success('Thumbnail updated.');
+        } catch (error) {
+            console.error('Error uploading playlist thumbnail:', error);
+            toast.error('Failed to upload thumbnail. Please try again.');
+        } finally {
+            this.uploadingPlaylistThumbnail(false);
         }
     };
 

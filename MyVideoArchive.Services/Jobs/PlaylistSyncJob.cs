@@ -96,12 +96,20 @@ public class PlaylistSyncJob
                 playlist.Description = playlistMetadata.Description;
 
                 string playlistThumbnailDir = Path.Combine(downloadPath, channelDirId, "Playlists");
-                if (!ThumbnailService.IsLocalUrl(playlist.ThumbnailUrl))
+                if (!ThumbnailService.IsLocalUrl(playlist.ThumbnailUrl) && !string.IsNullOrWhiteSpace(playlistMetadata.ThumbnailUrl))
                 {
                     string? localUrl = await thumbnailService.DownloadAndSaveAsync(
                         playlistMetadata.ThumbnailUrl, playlistThumbnailDir, playlist.PlaylistId,
                         downloadPath, cancellationToken);
-                    playlist.ThumbnailUrl = localUrl ?? playlistMetadata.ThumbnailUrl ?? playlist.ThumbnailUrl;
+                    // Do not overwrite an existing DB thumbnail with null when the provider can't supply one.
+                    if (!string.IsNullOrWhiteSpace(localUrl))
+                    {
+                        playlist.ThumbnailUrl = localUrl;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(playlistMetadata.ThumbnailUrl))
+                    {
+                        playlist.ThumbnailUrl = playlistMetadata.ThumbnailUrl;
+                    }
                 }
             }
 
