@@ -5,14 +5,23 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/channel-details.css" />
+    <link rel="stylesheet" href="~/css/channel-details.css" asp-append-version="true" />
 }
 
 <div class="row mb-4">
     <div class="col-12">
-        <a href="/channels" class="btn btn-outline-secondary btn-sm mb-3">
-            &larr; Back to Channels
-        </a>
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <a href="/channels" class="btn btn-outline-secondary btn-sm">
+                &larr; Back to Channels
+            </a>
+
+            <form method="post" asp-controller="Channels" asp-action="Sync" asp-route-id="@channelId" class="m-0">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-primary btn-sm" title="Sync this channel">
+                    <i class="bi bi-arrow-repeat"></i> Sync
+                </button>
+            </form>
+        </div>
         <div data-bind="with: channel">
             <div class="channel-header-card">
                 <div class="channel-details-banner-wrap position-relative">

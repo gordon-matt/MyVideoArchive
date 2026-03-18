@@ -104,6 +104,7 @@ Click **Next**.
 | Authorization           | Off        |
 | Standard flow           | **On**     |
 | Direct access grants    | Off        |
+| Service account roles    | **On**    |
 
 Click **Next**.
 
@@ -161,6 +162,16 @@ Click **Next**.
 > See [Synology nginx reverse proxy – fix 502 Bad Gateway](https://mariushosting.com/synology-nginx-reverse-proxy-how-to-fix-502-bad-gateway-error/) for details and DSM-specific paths.
 
 Click **Save**.
+
+---
+
+### Allowing Administrators to view users details from the app
+
+- Go back to the Client details page and you should see a **Service account roles** tab — if you don't see it, the client may not have been created with "Service account roles" option enabled.
+- From the `Assign role` dropdown, select `Realm roles` and assign the `Administrator` role.
+- Go to the `Realm roles` menu -> `Administrator` -> `Associated roles` tab.
+- Select `Client roles` from the `Assign role` dropdown.
+- Add the `view-users` and`query-users` roles.
 
 ---
 

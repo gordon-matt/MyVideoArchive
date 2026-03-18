@@ -55,19 +55,19 @@ public interface IChannelService
     Task<bool?> GetSyncStatusAsync(int channelId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Trigger sync for all channels
-    /// </summary>
-    Result SyncAllChannels();
-
-    Task<bool> UserSubscribedToChannelAsync(int channelId);
-
-    /// <summary>
     /// Returns all users with a flag indicating whether they are subscribed to the channel.
     /// Admin only.
     /// </summary>
     Task<Result<IReadOnlyList<ChannelUserSubscriptionStatus>>> GetUserSubscriptionsAsync(
         int channelId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Trigger sync for all channels
+    /// </summary>
+    Result SyncAllChannels();
+
+    Result SyncChannel(int channelId);
 
     /// <summary>
     /// Updates user subscriptions for a channel. Adds and removes UserChannel records
@@ -77,4 +77,6 @@ public interface IChannelService
         int channelId,
         IEnumerable<string> subscribedUserIds,
         CancellationToken cancellationToken = default);
+
+    Task<bool> UserSubscribedToChannelAsync(int channelId);
 }

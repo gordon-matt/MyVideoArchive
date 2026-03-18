@@ -570,6 +570,31 @@ public class ChannelService : IChannelService
         }
     }
 
+    public Result SyncChannel(int channelId)
+    {
+        try
+        {
+            backgroundJobClient.Enqueue<ChannelSyncJob>(job =>
+                job.SyncChannelAsync(channelId, CancellationToken.None));
+
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Queued sync job for channel: {ChannelId}", channelId);
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error queueing sync job for channel: {ChannelId}", channelId);
+            }
+
+            return Result.Error($"An error occurred while queueing sync job for channel: {channelId}");
+        }
+    }
+
     public async Task<Result<IReadOnlyList<ChannelUserSubscriptionStatus>>> GetUserSubscriptionsAsync(
         int channelId,
         CancellationToken cancellationToken = default)

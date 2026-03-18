@@ -4,16 +4,18 @@
     <File Path=".editorconfig" />
     <File Path=".env.example" />
     <File Path=".gitignore" />
-    <File Path="DEPLOYMENT.md" />
     <File Path="README.md" />
   </Folder>
+  <Folder Name="/Solution Items/docs/">
+    <File Path="docs/KEYCLOAK_SETUP.md" />
+  </Folder>
+  <Project Path="docker-compose.dcproj">
+    <Build />
+  </Project>
   <Project Path="MyVideoArchive.Core/MyVideoArchive.Core.csproj" Id="b8775589-ba30-4c43-af59-087ba61e0c01" />
   <Project Path="MyVideoArchive.Data/MyVideoArchive.Data.csproj" Id="4e3feb3d-bc2b-4222-a8ea-62caa09c154a" />
   <Project Path="MyVideoArchive.Models/MyVideoArchive.Models.csproj" Id="2fe4b92f-2853-4725-b7a2-b7c5f1447066" />
   <Project Path="MyVideoArchive.Services/MyVideoArchive.Services.csproj" Id="0d9c493b-c2b9-425d-8c43-c631933bbbd3" />
-  <Project Path="docker-compose.dcproj">
-    <Build />
-  </Project>
   <Project Path="MyVideoArchive.Tests/MyVideoArchive.Tests.csproj" Id="535c7760-bb8c-4374-b91a-497bf0dcf10e" />
   <Project Path="MyVideoArchive/MyVideoArchive.csproj" />
 </Solution>

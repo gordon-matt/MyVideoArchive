@@ -1,6 +1,5 @@
 using Hangfire;
 using MyVideoArchive.Infrastructure;
-using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services.Jobs;
 
@@ -239,6 +238,36 @@ public class ChannelSyncJob
             if (logger.IsEnabled(LogLevel.Error))
             {
                 logger.LogError(ex, "Error queuing channel sync jobs");
+            }
+
+            throw;
+        }
+    }
+
+    [HangfireSkipWhenPreviousInstanceIsRunningFilter]
+    public async Task SyncChannelAsync(int channelId, CancellationToken cancellationToken = default)
+    {
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Starting sync for channel: {ChannelId}", channelId);
+        }
+
+        try
+        {
+            // Queue individual channel sync jobs
+            backgroundJobClient.Enqueue<ChannelSyncJob>(job =>
+                job.ExecuteAsync(channelId, CancellationToken.None));
+
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Queued sync jobs for channel: {ChannelId}", channelId);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error queuing channel sync job");
             }
 
             throw;
