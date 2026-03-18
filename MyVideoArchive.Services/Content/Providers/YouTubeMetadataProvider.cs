@@ -14,20 +14,17 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
     private readonly ILogger<YouTubeMetadataProvider> logger;
     private readonly YoutubeDL ytdl;
 
-    public string PlatformName => "YouTube";
-
-    [GeneratedRegex(@"(youtube\.com|youtu\.be)", RegexOptions.IgnoreCase)]
-    private static partial Regex YouTubeUrlRegex();
-
     public YouTubeMetadataProvider(ILogger<YouTubeMetadataProvider> logger, YoutubeDL ytdl)
     {
         this.logger = logger;
         this.ytdl = ytdl;
     }
 
-    public bool CanHandle(string url) => YouTubeUrlRegex().IsMatch(url);
+    public string PlatformName => "YouTube";
 
     public string BuildChannelUrl(string channelId) => $"https://www.youtube.com/channel/{channelId}";
+
+    public bool CanHandle(string url) => YouTubeUrlRegex().IsMatch(url);
 
     public async Task<ChannelMetadata?> GetChannelMetadataAsync(string channelUrl, CancellationToken cancellationToken = default)
     {
@@ -77,107 +74,40 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         }
     }
 
-    public async Task<VideoMetadata?> GetVideoMetadataAsync(string videoUrl, CancellationToken cancellationToken = default)
+    public async Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default)
     {
         try
         {
             if (logger.IsEnabled(LogLevel.Information))
             {
-                logger.LogInformation("Fetching video metadata for: {Url}", videoUrl);
+                logger.LogInformation("Fetching playlists for channel: {Url}", channelUrl);
             }
 
-            var result = await ytdl.RunVideoDataFetch(videoUrl);
+            // Use yt-dlp to get channel playlists
+            // The trick is to use the channel's playlists URL
+            string playlistsUrl = channelUrl.TrimEnd('/') + "/playlists";
+            string releasesUrl = channelUrl.TrimEnd('/') + "/releases";
 
-            if (!result.Success || result.Data is null)
-            {
-                if (logger.IsEnabled(LogLevel.Warning))
-                {
-                    logger.LogWarning("Failed to fetch video metadata for {Url}: {Error}", videoUrl, string.Join(", ", result.ErrorOutput));
-                }
+            var regularPlaylists = await GetChannelPlaylistsInternalAsync(channelUrl, playlistsUrl, cancellationToken);
+            var releasePlaylists = await GetChannelPlaylistsInternalAsync(channelUrl, releasesUrl, cancellationToken);
 
-                return null;
-            }
+            var playlists = regularPlaylists.Concat(releasePlaylists).ToList();
 
-            var data = result.Data;
-
-            return new VideoMetadata
-            {
-                VideoId = data.ID ?? string.Empty,
-                Title = data.Title ?? "Unknown Title",
-                Description = data.Description,
-                Url = data.WebpageUrl ?? videoUrl,
-                ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
-                Duration = data.Duration.HasValue ? TimeSpan.FromSeconds(data.Duration.Value) : null,
-                UploadDate = data.UploadDate.AsUtc(),
-                ViewCount = data.ViewCount.HasValue ? (int?)data.ViewCount : null,
-                LikeCount = data.LikeCount.HasValue ? (int?)data.LikeCount : null,
-                ChannelId = data.ChannelID,
-                ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
-                Platform = PlatformName,
-                PlaylistId = null,
-                Tags = data.Tags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? []
-            };
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error fetching video metadata for {Url}", videoUrl);
-            }
-            return null;
-        }
-    }
-
-    public async Task<PlaylistMetadata?> GetPlaylistMetadataAsync(string playlistUrl, CancellationToken cancellationToken = default)
-    {
-        try
-        {
             if (logger.IsEnabled(LogLevel.Information))
             {
-                logger.LogInformation("Fetching playlist metadata for: {Url}", playlistUrl);
+                logger.LogInformation("Found {Count} playlists for channel {Url}", playlists.Count, channelUrl);
             }
 
-            var options = new OptionSet
-            {
-                FlatPlaylist = true,
-                DumpSingleJson = true
-            };
-
-            var result = await ytdl.RunVideoDataFetch(playlistUrl, overrideOptions: options);
-
-            if (!result.Success || result.Data is null)
-            {
-                if (logger.IsEnabled(LogLevel.Warning))
-                {
-                    logger.LogWarning("Failed to fetch playlist metadata for {Url}: {Error}", playlistUrl, string.Join(", ", result.ErrorOutput));
-                }
-
-                return null;
-            }
-
-            var data = result.Data;
-
-            return new PlaylistMetadata
-            {
-                PlaylistId = data.ID ?? string.Empty,
-                Name = data.Title ?? "Unknown Playlist",
-                Url = data.WebpageUrl ?? playlistUrl,
-                ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
-                Description = data.Description,
-                ChannelId = data.ChannelID,
-                ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
-                Platform = PlatformName,
-                Tags = data.Tags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? []
-            };
+            return playlists;
         }
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
             {
-                logger.LogError(ex, "Error fetching playlist metadata for {Url}", playlistUrl);
+                logger.LogError(ex, "Error fetching playlists for channel {Url}", channelUrl);
             }
 
-            return null;
+            return [];
         }
     }
 
@@ -241,6 +171,59 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         }
     }
 
+    public async Task<PlaylistMetadata?> GetPlaylistMetadataAsync(string playlistUrl, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Fetching playlist metadata for: {Url}", playlistUrl);
+            }
+
+            var options = new OptionSet
+            {
+                FlatPlaylist = true,
+                DumpSingleJson = true
+            };
+
+            var result = await ytdl.RunVideoDataFetch(playlistUrl, overrideOptions: options);
+
+            if (!result.Success || result.Data is null)
+            {
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Failed to fetch playlist metadata for {Url}: {Error}", playlistUrl, string.Join(", ", result.ErrorOutput));
+                }
+
+                return null;
+            }
+
+            var data = result.Data;
+
+            return new PlaylistMetadata
+            {
+                PlaylistId = data.ID ?? string.Empty,
+                Name = data.Title ?? "Unknown Playlist",
+                Url = data.WebpageUrl ?? playlistUrl,
+                ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
+                Description = data.Description,
+                ChannelId = data.ChannelID,
+                ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
+                Platform = PlatformName,
+                Tags = data.Tags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? []
+            };
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error fetching playlist metadata for {Url}", playlistUrl);
+            }
+
+            return null;
+        }
+    }
+
     public async Task<List<VideoMetadata>> GetPlaylistVideosAsync(string playlistUrl, CancellationToken cancellationToken = default)
     {
         try
@@ -294,29 +277,55 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         }
     }
 
-    private static string? GetBestThumbnail(ThumbnailData[]? thumbnails)
+    public async Task<VideoMetadata?> GetVideoMetadataAsync(string videoUrl, CancellationToken cancellationToken = default)
     {
-        if (thumbnails.IsNullOrEmpty())
+        try
         {
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Fetching video metadata for: {Url}", videoUrl);
+            }
+
+            var result = await ytdl.RunVideoDataFetch(videoUrl);
+
+            if (!result.Success || result.Data is null)
+            {
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Failed to fetch video metadata for {Url}: {Error}", videoUrl, string.Join(", ", result.ErrorOutput));
+                }
+
+                return null;
+            }
+
+            var data = result.Data;
+
+            return new VideoMetadata
+            {
+                VideoId = data.ID ?? string.Empty,
+                Title = data.Title ?? "Unknown Title",
+                Description = data.Description,
+                Url = data.WebpageUrl ?? videoUrl,
+                ThumbnailUrl = GetBestThumbnail(data.Thumbnails),
+                Duration = data.Duration.HasValue ? TimeSpan.FromSeconds(data.Duration.Value) : null,
+                UploadDate = data.UploadDate.AsUtc(),
+                ViewCount = data.ViewCount.HasValue ? (int?)data.ViewCount : null,
+                LikeCount = data.LikeCount.HasValue ? (int?)data.LikeCount : null,
+                ChannelId = data.ChannelID,
+                ChannelName = data.Channel ?? data.Uploader ?? "Unknown Channel",
+                Platform = PlatformName,
+                PlaylistId = null,
+                Tags = data.Tags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? []
+            };
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error fetching video metadata for {Url}", videoUrl);
+            }
             return null;
         }
-
-        // Prefer higher resolution thumbnails
-        var best = thumbnails!
-            .Where(t => !string.IsNullOrEmpty(t.Url))
-            .OrderByDescending(t => (t.Width ?? 0) * (t.Height ?? 0))
-            .FirstOrDefault();
-
-        return best?.Url;
-    }
-
-    /// <summary>
-    /// Returns the best banner thumbnail URL for a channel, preferring thumbnails whose ID
-    /// contains "banner". Falls back to the highest-resolution thumbnail if none found.
-    /// </summary>
-    private static string? GetBestBannerThumbnail(ThumbnailData[]? thumbnails)
-    {
-        return GetBestThumbnail(thumbnails);
     }
 
     /// <summary>
@@ -343,6 +352,31 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
         return GetBestThumbnail(thumbnails);
     }
 
+    /// <summary>
+    /// Returns the best banner thumbnail URL for a channel, preferring thumbnails whose ID
+    /// contains "banner". Falls back to the highest-resolution thumbnail if none found.
+    /// </summary>
+    private static string? GetBestBannerThumbnail(ThumbnailData[]? thumbnails)
+    {
+        return GetBestThumbnail(thumbnails);
+    }
+
+    private static string? GetBestThumbnail(ThumbnailData[]? thumbnails)
+    {
+        if (thumbnails.IsNullOrEmpty())
+        {
+            return null;
+        }
+
+        // Prefer higher resolution thumbnails
+        var best = thumbnails!
+            .Where(t => !string.IsNullOrEmpty(t.Url))
+            .OrderByDescending(t => (t.Width ?? 0) * (t.Height ?? 0))
+            .FirstOrDefault();
+
+        return best?.Url;
+    }
+
     private static List<ThumbnailInfo> MapThumbnails(ThumbnailData[]? thumbnails) => thumbnails.IsNullOrEmpty()
         ? []
         : thumbnails!
@@ -350,7 +384,10 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
             .Select(t => new ThumbnailInfo(t.ID, t.Url!, t.Width, t.Height, t.Preference))
             .ToList();
 
-    public async Task<List<PlaylistMetadata>> GetChannelPlaylistsInternalAsync(string channelUrl, string playlistsUrl, CancellationToken cancellationToken = default)
+    [GeneratedRegex(@"(youtube\.com|youtu\.be)", RegexOptions.IgnoreCase)]
+    private static partial Regex YouTubeUrlRegex();
+
+    private async Task<List<PlaylistMetadata>> GetChannelPlaylistsInternalAsync(string channelUrl, string playlistsUrl, CancellationToken cancellationToken = default)
     {
         var result = await ytdl.RunVideoDataFetch(playlistsUrl, overrideOptions: new OptionSet
         {
@@ -394,42 +431,5 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
             }
         }
         return playlists;
-    }
-
-    public async Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("Fetching playlists for channel: {Url}", channelUrl);
-            }
-
-            // Use yt-dlp to get channel playlists
-            // The trick is to use the channel's playlists URL
-            string playlistsUrl = channelUrl.TrimEnd('/') + "/playlists";
-            string releasesUrl = channelUrl.TrimEnd('/') + "/releases";
-
-            var regularPlaylists = await GetChannelPlaylistsInternalAsync(channelUrl, playlistsUrl, cancellationToken);
-            var releasePlaylists = await GetChannelPlaylistsInternalAsync(channelUrl, releasesUrl, cancellationToken);
-
-            var playlists = regularPlaylists.Concat(releasePlaylists).ToList();
-
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                logger.LogInformation("Found {Count} playlists for channel {Url}", playlists.Count, channelUrl);
-            }
-
-            return playlists;
-        }
-        catch (Exception ex)
-        {
-            if (logger.IsEnabled(LogLevel.Error))
-            {
-                logger.LogError(ex, "Error fetching playlists for channel {Url}", channelUrl);
-            }
-
-            return [];
-        }
     }
 }
