@@ -266,7 +266,7 @@ public class PlaylistSyncJob
 
                 await playlistVideoRepository.InsertAsync(playlistVideoInserts, ContextOptions.ForCancellationToken(cancellationToken));
 
-                playlist.VideoCount = playlistVideoRepository.Count(
+                playlist.VideoCount = await playlistVideoRepository.CountAsync(
                     x => x.PlaylistId == playlistId,
                     ContextOptions.ForCancellationToken(cancellationToken));
             }
@@ -316,6 +316,7 @@ public class PlaylistSyncJob
 
             if (existingVideo is not null)
             {
+                // We don't want to overwrite metadata for videos that have been deleted or made private.
                 if (video.Title is not Constants.DeletedVideoTitle and not Constants.PrivateVideoTitle)
                 {
                     existingVideo.Title = video.Title;
@@ -323,10 +324,15 @@ public class PlaylistSyncJob
                     existingVideo.Duration = video.Duration;
                     existingVideo.ViewCount = video.ViewCount;
                     existingVideo.LikeCount = video.LikeCount;
-                    existingVideo.ThumbnailUrl = video.ThumbnailUrl;
+
                     if (video.Title == Constants.PrivateVideoTitle)
                     {
                         existingVideo.NeedsMetadataReview = true;
+                    }
+
+                    if (!ThumbnailService.IsLocalUrl(existingVideo.ThumbnailUrl))
+                    {
+                        existingVideo.ThumbnailUrl = video.ThumbnailUrl;
                     }
                 }
 

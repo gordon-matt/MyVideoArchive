@@ -239,14 +239,9 @@ try
     #endregion Xabe.Ffmpeg configuration
 
     var context = services.GetRequiredService<ApplicationDbContext>();
+    await context.Database.MigrateAsync();
 
-    if (useKeycloak)
-    {
-        // When Keycloak is active, users and roles are managed externally.
-        // Still run EF migrations to keep the application schema up to date.
-        await context.Database.MigrateAsync();
-    }
-    else
+    if (!useKeycloak)
     {
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
         var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();

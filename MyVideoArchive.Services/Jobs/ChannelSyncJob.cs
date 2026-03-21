@@ -126,8 +126,7 @@ public class ChannelSyncJob
                 if (existingVideoIds.Contains(videoMetadata.VideoId))
                 {
                     // We don't want to overwrite metadata for videos that have been deleted or made private.
-                    if (videoMetadata.Title is not Constants.DeletedVideoTitle and
-                        not Constants.PrivateVideoTitle)
+                    if (videoMetadata.Title is not Constants.DeletedVideoTitle and not Constants.PrivateVideoTitle)
                     {
                         var existingVideo = channel.Videos.First(v => v.VideoId == videoMetadata.VideoId);
                         existingVideo.Title = videoMetadata.Title;
