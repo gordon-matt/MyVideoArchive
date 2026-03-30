@@ -216,6 +216,27 @@
     position: relative;
 }
 
+/* ── Unsubscribed channels (admin "Include Unsubbed" mode) ───────────────── */
+
+.channel-card--unsubbed {
+    opacity: 0.6;
+    border-style: dashed;
+}
+
+.channel-card--unsubbed:hover {
+    opacity: 0.85;
+}
+
+.channel-avatar-card--unsubbed {
+    opacity: 0.6;
+    border-style: dashed;
+}
+
+.channel-avatar-card--unsubbed:hover {
+    opacity: 0.85;
+    transform: translateY(-2px);
+}
+
 /* ── Thumbnail picker modal (index page) ──────────────────────────────────── */
 
 .thumbnail-picker-grid {

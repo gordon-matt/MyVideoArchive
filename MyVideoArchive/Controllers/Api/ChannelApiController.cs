@@ -30,41 +30,112 @@ public class ChannelApiController : ControllerBase
     }
 
     /// <summary>
-    /// Returns the current user's subscribed channels with category info.
-    /// Admins see all channels (without category info, since categories are per-user).
+    /// Returns channels with category info.
+    /// For non-admins: only their own subscribed channels.
+    /// For admins: all channels that have at least one subscriber (or all channels if includeUnsubbed=true),
+    /// with subscriber counts and the admin's own category assignment per channel.
     /// </summary>
     [HttpGet("my-channels")]
-    public async Task<IActionResult> GetMyChannels([FromQuery] string? platform = null)
+    public async Task<IActionResult> GetMyChannels(
+        [FromQuery] string? platform = null,
+        [FromQuery] bool includeUnsubbed = false)
     {
         string? userId = userContextService.GetCurrentUserId();
         if (string.IsNullOrEmpty(userId))
         {
             return Unauthorized();
         }
-        var userChannels = await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
-        {
-            Query = x =>
-                x.UserId == userId &&
-                (platform == null || x.Channel.Platform == platform),
-            Include = q => q.Include(x => x.Channel)
-        });
 
-        var result = userChannels
-            .OrderBy(uc => uc.Channel.Name)
-            .Select(uc => new
+        bool isAdmin = userContextService.IsAdministrator();
+
+        if (isAdmin)
+        {
+            // Get all UserChannel rows across all users (filtered by platform if specified)
+            var allUserChannels = await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
             {
-                id = uc.Channel.Id,
-                channelId = uc.Channel.ChannelId,
-                name = uc.Channel.Name,
-                url = uc.Channel.Url,
-                avatarUrl = uc.Channel.AvatarUrl,
-                bannerUrl = uc.Channel.BannerUrl,
-                platform = uc.Channel.Platform,
-                subscribedAt = uc.SubscribedAt,
-                categoryId = uc.CategoryId
+                Query = x => platform == null || x.Channel.Platform == platform,
+                Include = q => q.Include(x => x.Channel)
             });
 
-        return Ok(result);
+            // Group by channel to compute subscriber count and find the admin's own category
+            var subscribedChannels = allUserChannels
+                .GroupBy(uc => uc.ChannelId)
+                .Select(g =>
+                {
+                    var channel = g.First().Channel;
+                    var adminUc = g.FirstOrDefault(uc => uc.UserId == userId);
+                    return new
+                    {
+                        id = channel.Id,
+                        channelId = channel.ChannelId,
+                        name = channel.Name,
+                        url = channel.Url,
+                        avatarUrl = channel.AvatarUrl,
+                        bannerUrl = channel.BannerUrl,
+                        platform = channel.Platform,
+                        subscribedAt = channel.SubscribedAt,
+                        categoryId = adminUc?.CategoryId,
+                        subscriberCount = g.Count()
+                    };
+                })
+                .OrderBy(c => c.name)
+                .ToList();
+
+            if (!includeUnsubbed)
+                return Ok(subscribedChannels);
+
+            // Append channels that have no subscribers at all (sorted last, alphabetically)
+            var subscribedIds = subscribedChannels.Select(c => c.id).ToHashSet();
+            var unsubscribedChannels = await channelRepository.FindAsync(new SearchOptions<Channel>
+            {
+                Query = x => !subscribedIds.Contains(x.Id) && (platform == null || x.Platform == platform),
+                OrderBy = q => q.OrderBy(x => x.Name)
+            });
+
+            var unsubscribedData = unsubscribedChannels.Select(c => new
+            {
+                id = c.Id,
+                channelId = c.ChannelId,
+                name = c.Name,
+                url = c.Url,
+                avatarUrl = c.AvatarUrl,
+                bannerUrl = c.BannerUrl,
+                platform = c.Platform,
+                subscribedAt = c.SubscribedAt,
+                categoryId = (int?)null,
+                subscriberCount = 0
+            });
+
+            return Ok(subscribedChannels.Concat(unsubscribedData));
+        }
+        else
+        {
+            var userChannels = await userChannelRepository.FindAsync(new SearchOptions<UserChannel>
+            {
+                Query = x =>
+                    x.UserId == userId &&
+                    (platform == null || x.Channel.Platform == platform),
+                Include = q => q.Include(x => x.Channel)
+            });
+
+            var result = userChannels
+                .OrderBy(uc => uc.Channel.Name)
+                .Select(uc => new
+                {
+                    id = uc.Channel.Id,
+                    channelId = uc.Channel.ChannelId,
+                    name = uc.Channel.Name,
+                    url = uc.Channel.Url,
+                    avatarUrl = uc.Channel.AvatarUrl,
+                    bannerUrl = uc.Channel.BannerUrl,
+                    platform = uc.Channel.Platform,
+                    subscribedAt = uc.SubscribedAt,
+                    categoryId = uc.CategoryId,
+                    subscriberCount = (int?)null
+                });
+
+            return Ok(result);
+        }
     }
 
     /// <summary>

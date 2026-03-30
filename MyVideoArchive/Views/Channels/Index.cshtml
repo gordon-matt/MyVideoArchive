@@ -31,6 +31,17 @@
             </select>
         </div>
         <div class="col-md-9 d-flex justify-content-end align-items-center gap-3 flex-wrap">
+            @if (isAdmin)
+            {
+                <!-- Include Unsubbed toggle (admin only) -->
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="includeUnsubbedSwitch"
+                           data-bind="checked: includeUnsubbed" />
+                    <label class="form-check-label" for="includeUnsubbedSwitch">
+                        <i class="bi bi-eye me-1"></i> Include Unsubbed
+                    </label>
+                </div>
+            }
             <!-- Enable Categories toggle -->
             <div class="form-check form-switch mb-0">
                 <input class="form-check-input" type="checkbox" id="enableCategoriesSwitch"
@@ -93,7 +104,7 @@
                     <div class="row">
                         <!-- ko foreach: channels -->
                         <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
-                            <div class="channel-avatar-card" data-bind="click: $root.viewChannel">
+                            <div class="channel-avatar-card" data-bind="click: $root.viewChannel, css: { 'channel-avatar-card--unsubbed': subscriberCount === 0 }">
                                 <div class="channel-avatar-card-img-wrap">
                                     <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/160x160?text=' + name.charAt(0), alt: name }"
                                          class="channel-avatar-card-img" />
@@ -107,7 +118,12 @@
                                     <div class="channel-avatar-card-name" data-bind="text: name, attr: { title: name }"></div>
                                     <div class="channel-avatar-card-meta">
                                         <!-- ko if: platform === 'Custom' --><span class="badge bg-secondary me-1">Custom</span><!-- /ko -->
+                                        <!-- ko if: subscriberCount === 0 -->
+                                        <span class="badge bg-secondary"><i class="bi bi-person-x me-1"></i>No subscribers</span>
+                                        <!-- /ko -->
+                                        <!-- ko ifnot: subscriberCount === 0 -->
                                         <span data-bind="text: $root.formatDate(subscribedAt)" class="text-muted small"></span>
+                                        <!-- /ko -->
                                     </div>
                                 </div>
                                 <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">
@@ -140,7 +156,7 @@
                     <div class="row">
                         <!-- ko foreach: uncategorizedChannels() -->
                         <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
-                            <div class="channel-avatar-card" data-bind="click: $root.viewChannel">
+                            <div class="channel-avatar-card" data-bind="click: $root.viewChannel, css: { 'channel-avatar-card--unsubbed': subscriberCount === 0 }">
                                 <div class="channel-avatar-card-img-wrap">
                                     <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/160x160?text=' + name.charAt(0), alt: name }"
                                          class="channel-avatar-card-img" />
@@ -154,7 +170,12 @@
                                     <div class="channel-avatar-card-name" data-bind="text: name, attr: { title: name }"></div>
                                     <div class="channel-avatar-card-meta">
                                         <!-- ko if: platform === 'Custom' --><span class="badge bg-secondary me-1">Custom</span><!-- /ko -->
+                                        <!-- ko if: subscriberCount === 0 -->
+                                        <span class="badge bg-secondary"><i class="bi bi-person-x me-1"></i>No subscribers</span>
+                                        <!-- /ko -->
+                                        <!-- ko ifnot: subscriberCount === 0 -->
                                         <span data-bind="text: $root.formatDate(subscribedAt)" class="text-muted small"></span>
+                                        <!-- /ko -->
                                     </div>
                                 </div>
                                 <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">
@@ -185,7 +206,7 @@
                 <!-- ── Banner view ──────────────────────────────────────────── -->
                 <div data-bind="visible: channelViewMode() === 'banner'">
                     <!-- ko foreach: channels -->
-                    <div class="channel-card">
+                    <div class="channel-card" data-bind="css: { 'channel-card--unsubbed': subscriberCount === 0 }">
                         <div class="channel-banner-wrap" data-bind="click: $parent.viewChannel">
                             <img data-bind="attr: { src: bannerUrl || avatarUrl || 'https://placehold.co/1200x200?text=' + name, alt: name }" class="channel-banner" />
                         </div>
@@ -195,7 +216,12 @@
                                 <div class="channel-url" data-bind="text: url"></div>
                                 <div class="channel-meta">
                                     <span data-bind="if: platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
+                                    <!-- ko if: subscriberCount === 0 -->
+                                    <span class="badge bg-secondary"><i class="bi bi-person-x me-1"></i>No subscribers</span>
+                                    <!-- /ko -->
+                                    <!-- ko ifnot: subscriberCount === 0 -->
                                     Subscribed: <span data-bind="text: $parent.formatDate(subscribedAt)"></span>
+                                    <!-- /ko -->
                                 </div>
                             </div>
                             <div class="channel-actions d-flex gap-2">
@@ -216,7 +242,7 @@
                 <div data-bind="visible: channelViewMode() === 'avatar'" class="row">
                     <!-- ko foreach: channels -->
                     <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
-                        <div class="channel-avatar-card" data-bind="click: $parent.viewChannel">
+                        <div class="channel-avatar-card" data-bind="click: $parent.viewChannel, css: { 'channel-avatar-card--unsubbed': subscriberCount === 0 }">
                             <div class="channel-avatar-card-img-wrap">
                                 <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/160x160?text=' + name.charAt(0), alt: name }"
                                      class="channel-avatar-card-img" />
@@ -225,7 +251,12 @@
                                 <div class="channel-avatar-card-name" data-bind="text: name, attr: { title: name }"></div>
                                 <div class="channel-avatar-card-meta">
                                     <span data-bind="if: platform === 'Custom'" class="badge bg-secondary me-1">Custom</span>
+                                    <!-- ko if: subscriberCount === 0 -->
+                                    <span class="badge bg-secondary"><i class="bi bi-person-x me-1"></i>No subscribers</span>
+                                    <!-- /ko -->
+                                    <!-- ko ifnot: subscriberCount === 0 -->
                                     <span data-bind="text: $parent.formatDate(subscribedAt)" class="text-muted small"></span>
+                                    <!-- /ko -->
                                 </div>
                             </div>
                             <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">

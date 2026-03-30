@@ -13,6 +13,17 @@ class ChannelsViewModel {
         this.customChannelDescription = ko.observable('');
 
         this.isAdmin = window.isAdminUser === true;
+
+        // ── Include Unsubbed (admin only) ─────────────────────────────────────
+        const savedIncludeUnsubbed = this.isAdmin
+            ? localStorage.getItem('channelIncludeUnsubbed') === 'true'
+            : false;
+        this.includeUnsubbed = ko.observable(savedIncludeUnsubbed);
+        this.includeUnsubbed.subscribe(val => {
+            if (this.isAdmin) localStorage.setItem('channelIncludeUnsubbed', String(val));
+            this.loadChannels();
+        });
+
         this.isAddingChannel = ko.observable(false);
         this.channelToDelete = ko.observable(null);
         this.adminDeleteMetadata = ko.observable(false);
@@ -160,12 +171,15 @@ class ChannelsViewModel {
     loadChannels = async () => {
         this.loading(true);
 
-        if (this.enableChannelCategories()) {
-            // Use the richer endpoint that includes categoryId
-            let url = '/api/channels/my-channels';
-            if (this.platformFilter()) {
-                url += `?platform=${encodeURIComponent(this.platformFilter())}`;
-            }
+        if (this.isAdmin || this.enableChannelCategories()) {
+            // Admins always use the richer API endpoint (includes subscriber counts,
+            // categories, and proper cross-user visibility).
+            // Non-admin users use it only when categories are enabled.
+            const params = new URLSearchParams();
+            if (this.platformFilter()) params.append('platform', this.platformFilter());
+            if (this.isAdmin && this.includeUnsubbed()) params.append('includeUnsubbed', 'true');
+            const qs = params.toString();
+            const url = '/api/channels/my-channels' + (qs ? '?' + qs : '');
             try {
                 const response = await fetch(url);
                 if (response.ok) {
@@ -178,7 +192,7 @@ class ChannelsViewModel {
                 this.loading(false);
             }
         } else {
-            // Original OData path
+            // Original OData path for non-admin users without categories
             let url = '/odata/ChannelOData?$orderby=Name';
             if (this.platformFilter()) {
                 url += `&$filter=Platform eq '${this.platformFilter()}'`;
@@ -196,7 +210,8 @@ class ChannelsViewModel {
                     bannerUrl: c.BannerUrl,
                     platform: c.Platform,
                     subscribedAt: c.SubscribedAt,
-                    categoryId: null
+                    categoryId: null,
+                    subscriberCount: null
                 })));
             } catch (e) {
                 console.error('Error loading channels:', e);

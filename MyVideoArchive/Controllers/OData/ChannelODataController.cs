@@ -50,7 +50,7 @@ public class ChannelODataController : ODataController
 
             // Find the user's subscription
             bool userChannelExists = await userChannelRepository.ExistsAsync(x => x.UserId == userId && x.ChannelId == key);
-            if (userChannelExists)
+            if (!userChannelExists)
             {
                 return NotFound();
             }
