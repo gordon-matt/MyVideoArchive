@@ -122,6 +122,83 @@ Results are paginated. Combined with tags and custom playlists, you can organise
 
 Run the app as you would any standard .NET application. A Docker image is published to **GitHub Container Registry** for easy deployment.
 
+### Running with the published image
+
+The easiest way to use this app is with Docker. Here's what my stack looks like in Portainer:
+
+```yaml
+version: "3.9"
+
+services:
+  app:
+    image: ghcr.io/gordon-matt/myvideoarchive:latest
+    ports:
+      - "7000:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=myvideoarchive;Username=postgres;Password=your_password"
+      VideoDownload__VideoQuality: bestvideo[height=720]+bestaudio/bestvideo[height=720]+bestaudio/bestvideo[height=480]+bestaudio/best
+      VideoDownload__OutputPath: /app/data
+      YoutubeDL__ExecutablePath: /usr/local/bin/yt-dlp
+      YoutubeDL__FFmpegPath: /usr/bin/ffmpeg
+    volumes:
+      - /volume1/docker/myvideoarchive/videos:/app/data
+    networks:
+      - postgres-net
+    restart: unless-stopped
+
+networks:
+  postgres-net:
+    external: true
+```
+
+You can add postgres directly in the stack if you prefer, but I find that adding a separate postgres install for every app that needs it gets messy and wastes resources. I use one postgres stack for all apps that need it and I include pgadmin with it, so I can manage the databases myself. Here's an example:
+
+```yaml
+version: "3.9"
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_password
+    volumes:
+      - /volume1/docker/postgresql/data:/var/lib/postgresql:rw
+    ports:
+      - "7001:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - postgres-net
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: your_email
+      PGADMIN_DEFAULT_PASSWORD: your_password
+    ports:
+      - "7002:80"
+    volumes:
+      - /volume1/docker/postgresql/pgadmin:/var/lib/pgadmin:rw
+      - /volume1/docker/postgresql/backups:/var/lib/pgadmin/storage/your_email_replace_at/backups:rw
+    restart: unless-stopped
+    networks:
+      - postgres-net
+
+networks:
+  postgres-net:
+    external: true
+```
+
+where `your_email_replace_at` is the `@` signed replaced by an underscore `_` for your email address. Example: `test_something.com` instead of `test@something.com`.
+
 ### Configuration
 
 - **Local development:** Use **User Secrets** for the connection string (Visual Studio: right-click project → **Manage User Secrets**).
@@ -131,38 +208,3 @@ Run the app as you would any standard .NET application. A Docker image is publis
 - **Initial admin user:** On first run, an admin user is seeded. Configure via `SeedAdmin:Email` and `SeedAdmin:Password` (User Secrets or appsettings) or `SeedAdmin__Email` and `SeedAdmin__Password` (environment/Docker). Defaults: `admin@myvideoarchive.local` / `Admin@123`.
 
 **NOTE:** The application will automatically download yt-dlp and ffmpeg binaries on first run.
-
----
-
-## Publishing the Docker image (maintainers)
-
-The app image is published to **GitHub Container Registry** at `ghcr.io/gordon-matt/myvideoarchive`.
-
-### How to push to GHCR
-
-1. **Automatically on release**  
-   Create a new [GitHub Release](https://github.com/gordon-matt/MyVideoArchive/releases/new) (tag + publish). The workflow [`.github/workflows/publish-docker-ghcr.yml`](.github/workflows/publish-docker-ghcr.yml) builds and pushes the image. Tags like `v1.0.0` become image tags `ghcr.io/gordon-matt/myvideoarchive:v1.0.0`; `latest` is also updated.
-
-2. **Manually**  
-   In the repo: **Actions → Publish Docker image to GHCR → Run workflow**. This pushes from the default branch (no release tag).
-
-### Make the image public
-
-By default, GHCR packages are private. To allow public pulls:
-
-- Go to **GitHub → Your profile → Packages** (or the package page from the repo).
-- Open the **myvideoarchive** (or **MyVideoArchive**) package.
-- **Package settings → Danger zone → Change visibility → Public**.
-
-### Running with the published image
-
-Users can run the app without building locally by using the pre-built image. Example `docker-compose` override:
-
-```yaml
-services:
-  app:
-    image: ghcr.io/gordon-matt/myvideoarchive:latest
-    # Remove or comment out "build:" so Docker uses the image instead.
-```
-
-Use a specific version for production, e.g. `ghcr.io/gordon-matt/myvideoarchive:v1.0.0`. Keep `db`, `environment`, `volumes`, and `depends_on` as in the repo’s `docker-compose.yml`; only the app service needs to switch from `build` to `image`.

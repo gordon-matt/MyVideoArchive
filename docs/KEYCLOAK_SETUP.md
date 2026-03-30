@@ -194,7 +194,7 @@ getting any of them wrong can cause Keycloak to return "unknown_error" or
 "cannot map type for token claim".
 
 1. Go to **Clients → myvideoarchive** (click the client name).
-2. Open the **Client scopes** tab. Cclick on the **myvideoarchive-dedicated** scope.
+2. Open the **Client scopes** tab. Click on the **myvideoarchive-dedicated** scope.
 3. Open the **Mappers** tab.
 4. Click **Create** (or **Add mapper → By configuration**).
 5. Choose **User Realm Role**. If using predefined, then look for **realm roles**: 
