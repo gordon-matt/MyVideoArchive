@@ -67,11 +67,8 @@ class ChannelsViewModel {
             return this.channels().filter(c => !c.categoryId);
         });
 
-        // When categories are enabled, force avatar view and persist + reload data
+        // Persist + reload data whenever categories toggle
         this.enableChannelCategories.subscribe(async enabled => {
-            if (enabled) {
-                this.channelViewMode('avatar');
-            }
             await this.saveEnableCategories(enabled);
             if (enabled) {
                 await this.loadCategories();
@@ -134,10 +131,10 @@ class ChannelsViewModel {
             if (response.ok) {
                 const data = await response.json();
                 this.enableChannelCategories(data.enableChannelCategories === true);
-                if (!data.enableChannelCategories) {
-                    const saved = localStorage.getItem('channelIndexViewMode') || 'banner';
-                    this.channelViewMode(saved);
-                }
+
+                // Restore banner/avatar choice from localStorage (even if categories are currently enabled).
+                const saved = localStorage.getItem('channelIndexViewMode') || 'avatar';
+                this.channelViewMode(saved === 'banner' || saved === 'avatar' ? saved : 'avatar');
             }
         } catch (e) {
             console.warn('Failed to load user settings:', e);

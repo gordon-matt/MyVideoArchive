@@ -42,23 +42,22 @@
                     </label>
                 </div>
             }
-            <!-- Enable Categories toggle -->
-            <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" id="enableCategoriesSwitch"
-                       data-bind="checked: enableChannelCategories" />
-                <label class="form-check-label" for="enableCategoriesSwitch">
-                    <i class="bi bi-folder2-open me-1"></i> Enable Categories
-                </label>
-            </div>
-            <!-- Banner/Avatar view toggle — hidden when categories are enabled -->
-            <div class="btn-group" data-bind="visible: !enableChannelCategories()">
-                <button class="btn btn-outline-secondary" title="Banner view"
-                        data-bind="click: function(){ setChannelViewMode('banner'); }, css: { active: channelViewMode() === 'banner' }">
+            <!-- Banner/Avatar/Category view mode -->
+            <div class="btn-group" role="group">
+                <button class="btn btn-outline-secondary"
+                        title="Banner view"
+                        data-bind="click: function(){ enableChannelCategories(false); setChannelViewMode('banner'); }, css: { active: !enableChannelCategories() && channelViewMode() === 'banner' }">
                     <i class="bi bi-layout-text-sidebar-reverse"></i> Banner
                 </button>
-                <button class="btn btn-outline-secondary" title="Avatar grid view"
-                        data-bind="click: function(){ setChannelViewMode('avatar'); }, css: { active: channelViewMode() === 'avatar' }">
+                <button class="btn btn-outline-secondary"
+                        title="Avatar grid view"
+                        data-bind="click: function(){ enableChannelCategories(false); setChannelViewMode('avatar'); }, css: { active: !enableChannelCategories() && channelViewMode() === 'avatar' }">
                     <i class="bi bi-grid-3x3-gap"></i> Avatar
+                </button>
+                <button class="btn btn-outline-secondary"
+                        title="Category view"
+                        data-bind="click: function(){ enableChannelCategories(true); }, css: { active: enableChannelCategories() }">
+                    <i class="bi bi-folder2-open"></i> Category
                 </button>
             </div>
         </div>
