@@ -208,3 +208,9 @@ where `your_email_replace_at` is the `@` signed replaced by an underscore `_` fo
 - **Initial admin user:** On first run, an admin user is seeded. Configure via `SeedAdmin:Email` and `SeedAdmin:Password` (User Secrets or appsettings) or `SeedAdmin__Email` and `SeedAdmin__Password` (environment/Docker). Defaults: `admin@myvideoarchive.local` / `Admin@123`.
 
 **NOTE:** The application will automatically download yt-dlp and ffmpeg binaries on first run.
+
+---
+
+## Did I use AI for this?
+
+Yes—shamelessly. Without AI, this project would not exist. It is something I have wanted to build for years but never had the time. Life is busy: work, family, and everything in between. I am a senior developer and have been coding since the mid-2000s—I know what good code looks like and I know what sloppy code looks like. So yes: I used AI as a **productivity tool**, but the **architecture and decisions are mine**, and I am the one maintaining it.
