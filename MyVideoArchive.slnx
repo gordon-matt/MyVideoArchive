@@ -18,4 +18,5 @@
   <Project Path="MyVideoArchive.Services/MyVideoArchive.Services.csproj" Id="0d9c493b-c2b9-425d-8c43-c631933bbbd3" />
   <Project Path="MyVideoArchive.Tests/MyVideoArchive.Tests.csproj" Id="535c7760-bb8c-4374-b91a-497bf0dcf10e" />
   <Project Path="MyVideoArchive/MyVideoArchive.csproj" />
+  <Project Path="MyVideoArchive.Desktop/MyVideoArchive.Desktop.csproj" />
 </Solution>

@@ -1,0 +1,26 @@
+{
+  "appId": "com.myvideoarchive.desktop",
+  "productName": "MyVideoArchive",
+  "copyright": "Copyright © MyVideoArchive",
+  "directories": {
+    "output": "bin/Desktop"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": "x64"
+      }
+    ]
+  },
+  "linux": {
+    "target": [
+      "AppImage"
+    ]
+  },
+  "mac": {
+    "target": [
+      "dmg"
+    ]
+  }
+}

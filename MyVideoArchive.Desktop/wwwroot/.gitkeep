@@ -1,0 +1,4 @@
+# This folder intentionally exists so the ASP.NET Core Web SDK's static web assets
+# manifest loader has a real wwwroot to point at. Static asset *content* lives in
+# the shared ..\MyVideoArchive\wwwroot folder and is linked in via the .csproj;
+# at runtime, SharedAssetLocator.ResolveWebRoot() points WebRootPath there.
