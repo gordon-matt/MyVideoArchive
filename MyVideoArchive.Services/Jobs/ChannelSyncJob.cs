@@ -216,9 +216,12 @@ public class ChannelSyncJob
 
         try
         {
+            // Only auto-sync channels that have it enabled. Channels with auto-sync disabled
+            // can still be synced ad-hoc from the channel details page.
             var channelIds = await channelRepository.FindAsync(new SearchOptions<Channel>
             {
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                Query = x => x.IsAutoSyncEnabled
             }, x => x.Id);
 
             foreach (int channelId in channelIds)

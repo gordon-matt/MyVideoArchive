@@ -70,6 +70,12 @@ public interface IChannelService
     Result SyncChannel(int channelId);
 
     /// <summary>
+    /// Enables or disables the channel's inclusion in the scheduled "sync all channels" job.
+    /// Ad-hoc sync (via <see cref="SyncChannel"/>) remains available regardless of this flag.
+    /// </summary>
+    Task<Result> SetAutoSyncEnabledAsync(int channelId, bool enabled, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Updates user subscriptions for a channel. Adds and removes UserChannel records
     /// to match the supplied set of subscribed user IDs. Admin only.
     /// </summary>

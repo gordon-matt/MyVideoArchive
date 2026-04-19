@@ -210,6 +210,20 @@ public class ChannelApiController : ControllerBase
     }
 
     /// <summary>
+    /// Enables or disables inclusion of this channel in the scheduled "sync all channels" job.
+    /// The Sync button on the channel details page can still trigger an ad-hoc sync regardless.
+    /// </summary>
+    [HttpPut("{id:int}/auto-sync")]
+    public async Task<IActionResult> SetAutoSync(
+        int id,
+        [FromBody] SetChannelAutoSyncRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await channelService.SetAutoSyncEnabledAsync(id, request.Enabled, cancellationToken);
+        return result.ToActionResult(this, () => Ok(new { isAutoSyncEnabled = request.Enabled }));
+    }
+
+    /// <summary>
     /// Returns all users with their subscription status for a channel. Admin only.
     /// </summary>
     [HttpGet("{id:int}/user-subscriptions")]
@@ -235,4 +249,9 @@ public class ChannelApiController : ControllerBase
 public class AssignChannelCategoryRequest
 {
     public int? CategoryId { get; set; }
+}
+
+public class SetChannelAutoSyncRequest
+{
+    public bool Enabled { get; set; }
 }

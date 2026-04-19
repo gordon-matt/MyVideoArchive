@@ -26,6 +26,12 @@ public class Channel : BaseEntity<int>
 
     public DateTime? LastChecked { get; set; }
 
+    /// <summary>
+    /// When true, the channel is included in the scheduled "sync all channels" job.
+    /// Users can still trigger an ad-hoc sync regardless of this flag.
+    /// </summary>
+    public bool IsAutoSyncEnabled { get; set; } = true;
+
     public ICollection<Video> Videos { get; set; } = [];
 
     public ICollection<Playlist> Playlists { get; set; } = [];
@@ -47,6 +53,7 @@ public class ChannelMap : IEntityTypeConfiguration<Channel>
         builder.Property(m => m.Description).IsUnicode(true);
         builder.Property(m => m.Platform).IsRequired().HasMaxLength(64);
         builder.Property(m => m.SubscribedAt).IsRequired();
+        builder.Property(m => m.IsAutoSyncEnabled).IsRequired().HasDefaultValue(true);
 
         builder.HasIndex(m => new { m.Platform, m.ChannelId }).IsUnique();
     }

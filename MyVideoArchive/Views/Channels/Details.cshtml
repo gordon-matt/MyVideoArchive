@@ -15,12 +15,27 @@
                 &larr; Back to Channels
             </a>
 
-            <form method="post" asp-controller="Channels" asp-action="Sync" asp-route-id="@channelId" class="m-0">
-                @Html.AntiForgeryToken()
-                <button type="submit" class="btn btn-primary btn-sm" title="Sync this channel">
-                    <i class="bi bi-arrow-repeat"></i> Sync
-                </button>
-            </form>
+            <div class="d-flex align-items-center gap-3">
+                <div class="form-check form-switch m-0" data-bind="visible: channel">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="autoSyncSwitch"
+                           data-bind="checked: isAutoSyncEnabled, event: { change: toggleAutoSync }, disable: updatingAutoSync" />
+                    <label class="form-check-label" for="autoSyncSwitch"
+                           title="When off, this channel is excluded from the scheduled 'sync all channels' job. You can still sync it manually using the Sync button.">
+                        <span data-bind="visible: !updatingAutoSync()">Sync Status: <strong data-bind="text: isAutoSyncEnabled() ? 'On' : 'Off'"></strong></span>
+                        <span data-bind="visible: updatingAutoSync()">
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            Updating&hellip;
+                        </span>
+                    </label>
+                </div>
+                <form method="post" asp-controller="Channels" asp-action="Sync" asp-route-id="@channelId" class="m-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-primary btn-sm" title="Sync this channel now">
+                        <i class="bi bi-arrow-repeat"></i> Sync
+                    </button>
+                </form>
+            </div>
         </div>
         <div data-bind="with: channel">
             <div class="channel-header-card">

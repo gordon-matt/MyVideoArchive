@@ -46,6 +46,10 @@ class ChannelDetailsViewModel {
         this.isSyncing = ko.observable(false);
         this._channelSyncPollTimer = null;
 
+        // ── Auto-sync toggle (scheduled "sync all" inclusion) ────────────────
+        this.isAutoSyncEnabled = ko.observable(true);
+        this.updatingAutoSync = ko.observable(false);
+
         // ── Subscribers tab (admin only) ──────────────────────────────────────
         this.subscribers = ko.observableArray([]);
         this.subscribersLoading = ko.observable(false);
@@ -147,10 +151,50 @@ class ChannelDetailsViewModel {
     loadChannel = async () => {
         try {
             const response = await fetch(`/odata/ChannelOData(${this.channelId})`);
-            if (response.ok) this.channel(await response.json());
+            if (response.ok) {
+                const data = await response.json();
+                this.channel(data);
+                // OData casing matches the entity property (IsAutoSyncEnabled).
+                // Treat missing/undefined as enabled to match the entity default.
+                this.isAutoSyncEnabled(data.IsAutoSyncEnabled !== false);
+            }
         } catch (error) {
             console.error('Error loading channel:', error);
         }
+    };
+
+    toggleAutoSync = async () => {
+        const newValue = this.isAutoSyncEnabled();
+        this.updatingAutoSync(true);
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/auto-sync`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: newValue })
+            });
+
+            if (!response.ok) {
+                this.isAutoSyncEnabled(!newValue);
+                toast.error('Failed to update channel sync status.');
+                return;
+            }
+
+            const ch = this.channel();
+            if (ch) {
+                ch.IsAutoSyncEnabled = newValue;
+            }
+
+            toast.success(newValue
+                ? 'Channel will be included in scheduled syncs.'
+                : 'Channel will be skipped during scheduled syncs.');
+        } catch (error) {
+            console.error('Error updating auto-sync:', error);
+            this.isAutoSyncEnabled(!newValue);
+            toast.error('Failed to update channel sync status.');
+        } finally {
+            this.updatingAutoSync(false);
+        }
+        return true;
     };
 
     initTags = async () => {

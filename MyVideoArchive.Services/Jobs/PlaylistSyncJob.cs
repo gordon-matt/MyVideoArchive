@@ -394,9 +394,12 @@ public class PlaylistSyncJob
 
         try
         {
+            // Skip playlists belonging to channels with auto-sync disabled. Those channels are
+            // intentionally excluded from scheduled runs — their playlists shouldn't sync either.
             var playlists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
             {
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                Query = x => x.Channel == null || x.Channel.IsAutoSyncEnabled
             });
 
             foreach (var playlist in playlists)

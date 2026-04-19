@@ -570,6 +570,49 @@ public class ChannelService : IChannelService
         }
     }
 
+    public async Task<Result> SetAutoSyncEnabledAsync(int channelId, bool enabled, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var channel = await channelRepository.FindOneAsync(new SearchOptions<Channel>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.Id == channelId
+            });
+
+            if (channel is null)
+            {
+                return Result.NotFound("Channel not found");
+            }
+
+            if (channel.IsAutoSyncEnabled == enabled)
+            {
+                return Result.Success();
+            }
+
+            channel.IsAutoSyncEnabled = enabled;
+            await channelRepository.UpdateAsync(channel, ContextOptions.ForCancellationToken(cancellationToken));
+
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation(
+                    "Auto-sync for channel {ChannelId} set to {Enabled}",
+                    channelId, enabled);
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error updating auto-sync flag for channel {ChannelId}", channelId);
+            }
+
+            return Result.Error("An error occurred while updating the channel sync status");
+        }
+    }
+
     public Result SyncChannel(int channelId)
     {
         try
