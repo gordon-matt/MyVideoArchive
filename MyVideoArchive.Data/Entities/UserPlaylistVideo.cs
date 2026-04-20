@@ -24,9 +24,9 @@ public class UserPlaylistVideo : IEntity
     /// </summary>
     public bool IsHidden { get; set; }
 
-    public Playlist Playlist { get; set; } = null!;
+    public virtual Playlist Playlist { get; set; } = null!;
 
-    public Video Video { get; set; } = null!;
+    public virtual Video Video { get; set; } = null!;
 
     [IgnoreDataMember]
     public object[] KeyValues => [UserId, PlaylistId, VideoId];

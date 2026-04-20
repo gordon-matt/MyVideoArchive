@@ -42,11 +42,11 @@ public class Video : BaseEntity<int>
 
     public int ChannelId { get; set; }
 
-    public Channel Channel { get; set; } = null!;
+    public virtual Channel Channel { get; set; } = null!;
 
-    public ICollection<PlaylistVideo> PlaylistVideos { get; set; } = [];
+    public virtual ICollection<PlaylistVideo> PlaylistVideos { get; set; } = [];
 
-    public ICollection<VideoTag> VideoTags { get; set; } = [];
+    public virtual ICollection<VideoTag> VideoTags { get; set; } = [];
 }
 
 public class VideoMap : IEntityTypeConfiguration<Video>

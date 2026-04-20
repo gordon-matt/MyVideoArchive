@@ -32,11 +32,13 @@ public class Channel : BaseEntity<int>
     /// </summary>
     public bool IsAutoSyncEnabled { get; set; } = true;
 
-    public ICollection<Video> Videos { get; set; } = [];
+    public virtual ICollection<Video> Videos { get; set; } = [];
 
-    public ICollection<Playlist> Playlists { get; set; } = [];
+    public virtual ICollection<Playlist> Playlists { get; set; } = [];
 
-    public ICollection<ChannelTag> ChannelTags { get; set; } = [];
+    public virtual ICollection<ChannelTag> ChannelTags { get; set; } = [];
+
+    public virtual ICollection<UserChannel> UserChannels { get; set; } = [];
 }
 
 public class ChannelMap : IEntityTypeConfiguration<Channel>

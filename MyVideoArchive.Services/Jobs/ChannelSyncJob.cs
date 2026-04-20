@@ -221,7 +221,7 @@ public class ChannelSyncJob
             var channelIds = await channelRepository.FindAsync(new SearchOptions<Channel>
             {
                 CancellationToken = cancellationToken,
-                Query = x => x.IsAutoSyncEnabled
+                Query = x => x.IsAutoSyncEnabled && x.UserChannels.Any()
             }, x => x.Id);
 
             foreach (int channelId in channelIds)

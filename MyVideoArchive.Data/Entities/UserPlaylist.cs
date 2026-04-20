@@ -23,7 +23,7 @@ public class UserPlaylist : IEntity
     /// </summary>
     public bool IsIgnored { get; set; }
 
-    public Playlist Playlist { get; set; } = null!;
+    public virtual Playlist Playlist { get; set; } = null!;
 
     [IgnoreDataMember]
     public object[] KeyValues => [UserId, PlaylistId];

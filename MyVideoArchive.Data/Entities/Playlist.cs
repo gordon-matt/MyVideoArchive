@@ -26,11 +26,11 @@ public class Playlist : BaseEntity<int>
 
     public int ChannelId { get; set; }
 
-    public Channel Channel { get; set; } = null!;
+    public virtual Channel Channel { get; set; } = null!;
 
-    public ICollection<PlaylistVideo> PlaylistVideos { get; set; } = [];
+    public virtual ICollection<PlaylistVideo> PlaylistVideos { get; set; } = [];
 
-    public ICollection<PlaylistTag> PlaylistTags { get; set; } = [];
+    public virtual ICollection<PlaylistTag> PlaylistTags { get; set; } = [];
 }
 
 public class PlaylistMap : IEntityTypeConfiguration<Playlist>

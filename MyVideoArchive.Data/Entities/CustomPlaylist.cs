@@ -14,9 +14,9 @@ public class CustomPlaylist : BaseEntity<int>
 
     public DateTime CreatedAt { get; set; }
 
-    public ICollection<CustomPlaylistVideo> CustomPlaylistVideos { get; set; } = [];
+    public virtual ICollection<CustomPlaylistVideo> CustomPlaylistVideos { get; set; } = [];
 
-    public ICollection<CustomPlaylistTag> CustomPlaylistTags { get; set; } = [];
+    public virtual ICollection<CustomPlaylistTag> CustomPlaylistTags { get; set; } = [];
 }
 
 public class CustomPlaylistMap : IEntityTypeConfiguration<CustomPlaylist>

@@ -399,7 +399,9 @@ public class PlaylistSyncJob
             var playlists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
             {
                 CancellationToken = cancellationToken,
-                Query = x => x.Channel == null || x.Channel.IsAutoSyncEnabled
+                Query = x =>
+                    x.Channel.IsAutoSyncEnabled &&
+                    x.Channel.UserChannels.Any()
             });
 
             foreach (var playlist in playlists)

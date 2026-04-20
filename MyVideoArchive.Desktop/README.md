@@ -1,3 +1,5 @@
+**NOTE**: This is just an experimental project.
+
 # MyVideoArchive.Desktop
 
 Electron-wrapped desktop build of MyVideoArchive, powered by

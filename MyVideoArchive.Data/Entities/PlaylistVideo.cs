@@ -17,9 +17,9 @@ public class PlaylistVideo : IEntity
     /// </summary>
     public int Order { get; set; }
 
-    public Playlist Playlist { get; set; } = null!;
+    public virtual Playlist Playlist { get; set; } = null!;
 
-    public Video Video { get; set; } = null!;
+    public virtual Video Video { get; set; } = null!;
 
     [IgnoreDataMember]
     public object[] KeyValues => [PlaylistId, VideoId];

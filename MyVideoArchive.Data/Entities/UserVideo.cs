@@ -20,7 +20,7 @@ public class UserVideo : IEntity
     /// </summary>
     public bool IsIgnored { get; set; }
 
-    public Video Video { get; set; } = null!;
+    public virtual Video Video { get; set; } = null!;
 
     [IgnoreDataMember]
     public object[] KeyValues => [UserId, VideoId];

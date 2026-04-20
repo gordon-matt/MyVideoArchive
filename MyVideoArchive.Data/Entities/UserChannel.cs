@@ -17,9 +17,9 @@ public class UserChannel : IEntity
 
     public int? CategoryId { get; set; }
 
-    public Channel Channel { get; set; } = null!;
+    public virtual Channel Channel { get; set; } = null!;
 
-    public ChannelCategory? Category { get; set; }
+    public virtual ChannelCategory? Category { get; set; }
 
     [IgnoreDataMember]
     public object[] KeyValues => [UserId, ChannelId];
@@ -39,7 +39,7 @@ public class UserChannelMap : IEntityTypeConfiguration<UserChannel>
             .HasDefaultValueSql("NOW()");
 
         builder.HasOne(uc => uc.Channel)
-            .WithMany()
+            .WithMany(c => c.UserChannels)
             .HasForeignKey(uc => uc.ChannelId)
             .OnDelete(DeleteBehavior.ClientNoAction);
 
