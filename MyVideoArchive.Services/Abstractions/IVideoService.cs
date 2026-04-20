@@ -53,6 +53,16 @@ public interface IVideoService
     Task<Result<VideoStreamInfo>> GetVideoStreamInfoAsync(int videoId);
 
     /// <summary>
+    /// List the sidecar subtitle tracks (.vtt files) available for a downloaded video.
+    /// </summary>
+    Task<Result<GetVideoSubtitlesResponse>> GetVideoSubtitlesAsync(int videoId);
+
+    /// <summary>
+    /// Get the file path of a specific subtitle track for a downloaded video.
+    /// </summary>
+    Task<Result<SubtitleFileInfo>> GetVideoSubtitleFileAsync(int videoId, string lang);
+
+    /// <summary>
     /// Returns the IDs of videos (from the supplied list) that the current user has watched
     /// </summary>
     Task<Result<GetWatchedVideoIdsResponse>> GetWatchedVideoIdsAsync(int[] videoIds);

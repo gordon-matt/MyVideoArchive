@@ -80,5 +80,8 @@ public class VideoDownloaderFactoryTests
 
         public Task<string> DownloadVideoAsync(string videoUrl, string outputPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default) =>
             Task.FromResult("");
+
+        public Task<bool> DownloadSubtitlesAsync(string videoUrl, string outputPath, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 }

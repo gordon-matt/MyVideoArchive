@@ -17,11 +17,14 @@ function clearPosition(vid) {
     localStorage.removeItem(`mva-pos-${vid}`);
 }
 
+const STORAGE_KEY_SUBTITLE_LANG = 'mva-subtitle-lang';
+
 class VideoPlayerViewModel {
     constructor(videoId) {
         this.videoId = videoId;
         this.video = ko.observable(null);
         this.playlists = ko.observableArray([]);
+        this.subtitles = [];
         this.watched = ko.observable(false);
         this.loading = ko.observable(true);
         this.retrying = ko.observable(false);
@@ -66,6 +69,17 @@ class VideoPlayerViewModel {
                 console.error('Error loading video:', error);
                 this.loading(false);
             });
+    };
+
+    loadSubtitles = async () => {
+        try {
+            const response = await fetch(`/api/videos/${this.videoId}/subtitles`);
+            if (!response.ok) return;
+            const data = await response.json();
+            this.subtitles = data.subtitles || [];
+        } catch (error) {
+            console.error('Error loading subtitles:', error);
+        }
     };
 
     loadPlaylists = async () => {
@@ -359,6 +373,40 @@ function initVideoJsPlayer() {
     return player;
 }
 
+function attachSubtitleTracks(subtitles) {
+    if (!player || !Array.isArray(subtitles) || subtitles.length === 0) {
+        return;
+    }
+
+    const savedLang = localStorage.getItem(STORAGE_KEY_SUBTITLE_LANG) || '';
+
+    subtitles.forEach(sub => {
+        player.addRemoteTextTrack({
+            kind: 'captions',
+            src: sub.url,
+            srclang: sub.lang,
+            label: sub.label,
+            default: savedLang
+                ? sub.lang.toLowerCase() === savedLang.toLowerCase()
+                : false
+        }, false);
+    });
+
+    // Persist the user's caption choice so it survives navigation between videos.
+    player.textTracks().addEventListener('change', () => {
+        const tracks = player.textTracks();
+        for (let i = 0; i < tracks.length; i++) {
+            const t = tracks[i];
+            if (t.kind === 'captions' && t.mode === 'showing' && t.language) {
+                localStorage.setItem(STORAGE_KEY_SUBTITLE_LANG, t.language);
+                return;
+            }
+        }
+        // No captions currently showing — clear the saved preference.
+        localStorage.removeItem(STORAGE_KEY_SUBTITLE_LANG);
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     viewModel = new VideoPlayerViewModel(videoId);
     ko.applyBindings(viewModel);
@@ -366,11 +414,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load video data first so the container is visible before Video.js measures it
     await viewModel.loadVideo();
 
+    // Fetch subtitle list before initialising the player so the tracks appear in
+    // the captions menu the first time the user opens it.
+    if (viewModel._pendingVideoUrl) {
+        await viewModel.loadSubtitles();
+    }
+
     initVideoJsPlayer();
 
     // Set the video source once player is ready
     if (viewModel._pendingVideoUrl) {
         player.src({ type: 'video/mp4', src: viewModel._pendingVideoUrl });
+        attachSubtitleTracks(viewModel.subtitles);
     }
 
     // Restore saved playback position after metadata is available

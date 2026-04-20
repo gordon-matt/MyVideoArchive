@@ -28,4 +28,17 @@ public interface IVideoDownloader
         string outputPath,
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Downloads only the sidecar subtitle files (.vtt) for an already-downloaded video,
+    /// using yt-dlp's <c>--skip-download</c> mode. Honours the <c>Subtitles</c> configuration
+    /// section; does nothing when subtitles are globally disabled.
+    /// </summary>
+    /// <param name="videoUrl">The URL of the video whose subtitles to fetch.</param>
+    /// <param name="outputPath">Directory where sidecar files should be written (typically the channel folder).</param>
+    /// <returns>True when yt-dlp succeeded (zero or more sub files written), false on error.</returns>
+    Task<bool> DownloadSubtitlesAsync(
+        string videoUrl,
+        string outputPath,
+        CancellationToken cancellationToken = default);
 }

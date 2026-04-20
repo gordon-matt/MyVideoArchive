@@ -63,6 +63,8 @@ public partial class BitChuteDownloader : IVideoDownloader
                 NoPlaylist = true
             };
 
+            SubtitleOptionsExtensions.ApplySubtitleOptions(options, configuration);
+
             RunResult<string?> result = null;
 
             try
@@ -116,6 +118,26 @@ public partial class BitChuteDownloader : IVideoDownloader
                 logger.LogError(ex, "Error downloading BitChute video from {Url}", videoUrl);
             }
             throw;
+        }
+    }
+
+    public async Task<bool> DownloadSubtitlesAsync(
+        string videoUrl,
+        string outputPath,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await SubtitleOptionsExtensions.RunSubtitleOnlyDownloadAsync(
+                ytdl, logger, configuration, videoUrl, outputPath, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error downloading BitChute subtitles from {Url}", videoUrl);
+            }
+            return false;
         }
     }
 }

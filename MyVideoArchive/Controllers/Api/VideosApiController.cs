@@ -125,4 +125,30 @@ public class VideosApiController : ControllerBase
             return File(fileStream, info.ContentType, enableRangeProcessing: true);
         });
     }
+
+    /// <summary>
+    /// List the sidecar subtitle tracks (.vtt) downloaded for a video.
+    /// </summary>
+    [HttpGet("{videoId}/subtitles")]
+    public async Task<IActionResult> GetSubtitles(int videoId)
+    {
+        var result = await videoService.GetVideoSubtitlesAsync(videoId);
+
+        return result.ToActionResult(this, value => Ok(new { subtitles = value.Subtitles }));
+    }
+
+    /// <summary>
+    /// Stream a specific subtitle track (WebVTT) for a video. Served inline so video.js can load it as a text track.
+    /// </summary>
+    [HttpGet("{videoId}/subtitles/{lang}")]
+    public async Task<IActionResult> GetSubtitleFile(int videoId, string lang)
+    {
+        var result = await videoService.GetVideoSubtitleFileAsync(videoId, lang);
+
+        return result.ToActionResult(this, info =>
+        {
+            var fileStream = new FileStream(info.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return File(fileStream, "text/vtt");
+        });
+    }
 }

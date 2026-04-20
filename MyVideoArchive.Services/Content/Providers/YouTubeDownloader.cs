@@ -66,6 +66,8 @@ public partial class YouTubeDownloader : IVideoDownloader
                 NoPlaylist = true // Download only the single video, not playlist
             };
 
+            SubtitleOptionsExtensions.ApplySubtitleOptions(options, configuration);
+
             // Note: Progress reporting via OutputReceived is not available in this version of YoutubeDLSharp
             // Progress will be logged but not reported via IProgress
 
@@ -127,6 +129,26 @@ public partial class YouTubeDownloader : IVideoDownloader
                 logger.LogError(ex, "Error downloading video from {Url}", videoUrl);
             }
             throw;
+        }
+    }
+
+    public async Task<bool> DownloadSubtitlesAsync(
+        string videoUrl,
+        string outputPath,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await SubtitleOptionsExtensions.RunSubtitleOnlyDownloadAsync(
+                ytdl, logger, configuration, videoUrl, outputPath, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error downloading subtitles from {Url}", videoUrl);
+            }
+            return false;
         }
     }
 }

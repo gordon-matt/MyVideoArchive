@@ -26,5 +26,12 @@ public static class ScheduledTaskInitializer
             "metadata-review",
             job => job.ExecuteAsync(CancellationToken.None),
             Cron.Weekly()); // Retry previously unavailable video metadata once per week
+
+        RecurringJob.AddOrUpdate<SubtitleBackfillJob>(
+            "subtitle-backfill",
+            job => job.ExecuteAsync(CancellationToken.None),
+            Cron.Weekly()); // Fetch missing sidecar subtitle files for already-downloaded videos.
+                            // No-ops when Subtitles:Enabled is false; can also be triggered
+                            // manually from the Hangfire dashboard.
     }
 }
