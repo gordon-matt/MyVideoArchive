@@ -45,7 +45,9 @@
                 <tr>
                     <td>
                         <i class="bi bi-file-earmark me-1 text-muted"></i>
-                        <span data-bind="text: fileName"></span>
+                        <a data-bind="attr: { href: '/api/additional-content/' + id + '/download' }, text: fileName"
+                           target="_blank" rel="noopener noreferrer"
+                           class="link-body-emphasis"></a>
                         <small class="text-muted ms-1" data-bind="text: contentType ? '(' + contentType + ')' : ''"></small>
                     </td>
                     <td>

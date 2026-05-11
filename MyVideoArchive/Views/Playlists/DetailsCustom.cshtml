@@ -72,7 +72,6 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Item</th>
-                                        <th>Playlists</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -80,10 +79,9 @@
                                     <tr>
                                         <td>
                                             <i class="bi bi-file-earmark me-1 text-muted"></i>
-                                            <span data-bind="text: fileName"></span>
-                                        </td>
-                                        <td class="small">
-                                            <span data-bind="text: $parent.formatExtrasPlaylistNames($data)"></span>
+                                            <a data-bind="attr: { href: '/api/additional-content/' + id + '/download' }, text: fileName"
+                                               target="_blank" rel="noopener noreferrer"
+                                               class="link-body-emphasis"></a>
                                         </td>
                                         <td class="text-nowrap">
                                             <a class="btn btn-sm btn-outline-secondary"
@@ -235,7 +233,9 @@
                     <label class="list-group-item d-flex align-items-center gap-2">
                         <input type="checkbox" class="form-check-input flex-shrink-0 mt-0"
                                data-bind="checkedValue: id, checked: $parent.extrasPickerSelectedIds" />
-                        <span class="flex-grow-1" data-bind="text: fileName"></span>
+                        <a class="flex-grow-1 min-w-0 text-truncate link-body-emphasis"
+                           data-bind="attr: { href: '/api/additional-content/' + id + '/download' }, text: fileName"
+                           target="_blank" rel="noopener noreferrer"></a>
                         <small class="text-muted text-truncate" style="max-width: 40%;"
                                data-bind="text: $parent.formatExtrasPlaylistNames($data)"></small>
                     </label>

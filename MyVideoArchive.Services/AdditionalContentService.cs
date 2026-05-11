@@ -301,6 +301,16 @@ public class AdditionalContentService : IAdditionalContentService
             };
         }
 
+        var video = await videoRepository.FindOneAsync(videoId);
+        if (video is null)
+        {
+            return Result.NotFound("Video not found");
+        }
+
+        int channelId = video.ChannelId;
+
+        var playlistIdsContainingVideo = await GetPlaylistIdsContainingVideoOnChannelAsync(videoId, channelId);
+
         var allowedIds = available.Value.Select(i => i.Id).ToHashSet();
         foreach (int itemId in (request.ItemIds ?? []).Distinct())
         {
@@ -313,19 +323,58 @@ public class AdditionalContentService : IAdditionalContentService
             {
                 Query = x => x.VideoId == videoId && x.AdditionalContentItemId == itemId
             });
-            if (exists is not null)
+            if (exists is null)
+            {
+                await videoLinkRepository.InsertAsync(new VideoAdditionalContentItem
+                {
+                    VideoId = videoId,
+                    AdditionalContentItemId = itemId
+                });
+            }
+
+            await EnsurePlaylistLinksForItemAsync(itemId, playlistIdsContainingVideo);
+        }
+
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Distinct playlist DB ids (same channel as the video) that contain this video via <see cref="PlaylistVideo"/>.
+    /// </summary>
+    private async Task<IReadOnlyList<int>> GetPlaylistIdsContainingVideoOnChannelAsync(int videoId, int channelId)
+    {
+        var memberships = await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+        {
+            Query = x => x.VideoId == videoId,
+            Include = query => query.Include(x => x.Playlist)
+        });
+
+        return memberships
+            .Where(m => m.Playlist is not null && m.Playlist.ChannelId == channelId)
+            .Select(m => m.PlaylistId)
+            .Distinct()
+            .ToList();
+    }
+
+    private async Task EnsurePlaylistLinksForItemAsync(int itemId, IReadOnlyList<int> playlistIds)
+    {
+        foreach (int playlistId in playlistIds)
+        {
+            var linkExists = await playlistLinkRepository.FindOneAsync(new SearchOptions<PlaylistAdditionalContentItem>
+            {
+                Query = x => x.PlaylistId == playlistId && x.AdditionalContentItemId == itemId
+            });
+            if (linkExists is not null)
             {
                 continue;
             }
 
-            await videoLinkRepository.InsertAsync(new VideoAdditionalContentItem
+            await playlistLinkRepository.InsertAsync(new PlaylistAdditionalContentItem
             {
-                VideoId = videoId,
+                PlaylistId = playlistId,
                 AdditionalContentItemId = itemId
             });
         }
-
-        return Result.Success();
     }
 
     public async Task<Result> UnlinkItemFromVideoAsync(int videoId, int itemId)
