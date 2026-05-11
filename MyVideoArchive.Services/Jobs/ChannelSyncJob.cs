@@ -85,20 +85,22 @@ public class ChannelSyncJob
                 channel.Description = channelMetadata.Description;
                 channel.SubscriberCount = channelMetadata.SubscriberCount;
 
+                // Channel banner and avatar images are intentionally NOT updated on sync.
+                // Users pick their preferred images via the thumbnail picker when a channel is
+                // first added or by editing channel images explicitly. Auto-updating during sync
+                // would clobber the user's choice whenever the upstream platform changes images.
                 string channelDir = Path.Combine(downloadPath, channel.ChannelId);
 
-                // Don't overwrite BannerUrl if the user has already uploaded a custom image (served via /api/)
-                bool bannerIsUserUploaded = channel.BannerUrl?.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) == true;
-                if (!bannerIsUserUploaded)
+                // Populate images only if the channel has never had any set (e.g. legacy data
+                // imported without images). In the normal add-channel flow these are already set.
+                if (string.IsNullOrEmpty(channel.BannerUrl) && !string.IsNullOrEmpty(channelMetadata.BannerUrl))
                 {
                     string? localBannerUrl = await thumbnailService.DownloadAndSaveAsync(
                         channelMetadata.BannerUrl, channelDir, "banner", downloadPath, cancellationToken);
-                    channel.BannerUrl = localBannerUrl ?? channelMetadata.BannerUrl ?? channel.BannerUrl;
+                    channel.BannerUrl = localBannerUrl ?? channelMetadata.BannerUrl;
                 }
 
-                // Don't overwrite AvatarUrl if the user has already uploaded a custom image (served via /api/)
-                bool avatarIsUserUploaded = channel.AvatarUrl?.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) == true;
-                if (!avatarIsUserUploaded && channelMetadata.AvatarUrl != null)
+                if (string.IsNullOrEmpty(channel.AvatarUrl) && !string.IsNullOrEmpty(channelMetadata.AvatarUrl))
                 {
                     string? localAvatarUrl = await thumbnailService.DownloadAndSaveAsync(
                         channelMetadata.AvatarUrl, channelDir, "avatar", downloadPath, cancellationToken);

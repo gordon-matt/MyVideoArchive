@@ -269,7 +269,8 @@ class ChannelsViewModel {
             }
 
             const data = await response.json();
-            // Normalise to camelCase
+            // Normalise to camelCase. Include every field the channel list bindings read
+            // (e.g. subscriberCount) so Knockout doesn't throw ReferenceError when rendering.
             const channel = {
                 id: data.Id,
                 channelId: data.ChannelId,
@@ -279,6 +280,7 @@ class ChannelsViewModel {
                 bannerUrl: data.BannerUrl,
                 platform: data.Platform,
                 subscribedAt: data.SubscribedAt,
+                subscriberCount: data.SubscriberCount ?? null,
                 categoryId: null
             };
             this.channels.push(channel);

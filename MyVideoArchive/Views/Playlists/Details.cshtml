@@ -208,7 +208,7 @@
                                     <i class="bi bi-eye-slash"></i>
                                 </button>
                                 <!-- /ko -->
-                                <!-- ko if: !downloadedAt && !downloadFailed && title != '@Constants.PrivateVideoTitle' && title != '@Constants.DeletedVideoTitle' -->
+                                <!-- ko if: !downloadedAt && !downloadFailed && !isQueued && title != '@Constants.PrivateVideoTitle' && title != '@Constants.DeletedVideoTitle' -->
                                 <button class="btn btn-sm btn-primary" data-bind="click: function(data, event) { event.stopPropagation(); $parent.downloadVideo(data, event); }">
                                     <i class="bi bi-download"></i>
                                 </button>

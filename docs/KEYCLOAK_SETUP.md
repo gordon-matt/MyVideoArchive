@@ -203,9 +203,9 @@ getting any of them wrong can cause Keycloak to return "unknown_error" or
 | Field                | Value        |
 |----------------------|--------------|
 | Name                 | `realm-roles`|
+| **Multivalued**      | **On**       |
 | Token Claim Name     | `roles`      |
 | **Claim JSON Type**  | **`String`** — do **not** use `JSON` or Keycloak will throw "cannot map type for token claim". |
-| **Multivalued**      | **On**       |
 | Add to ID token      | **On**       |
 | Add to access token  | On           |
 | Add to userinfo      | On           |
