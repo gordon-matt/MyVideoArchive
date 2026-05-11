@@ -6,7 +6,7 @@ namespace MyVideoArchive.Controllers.Api;
 /// <summary>
 /// API for managing supplementary files (PDFs, images, archives, etc.) associated with channels,
 /// playlists and videos. Any authenticated user can read/download; only administrators can
-/// create, edit or delete items.
+/// create, edit or delete items (or change associations).
 /// </summary>
 [ApiController]
 [Route("api")]
@@ -29,10 +29,17 @@ public class AdditionalContentApiController : ControllerBase
         return result.ToActionResult(this, items => Ok(new { items }));
     }
 
-    [HttpGet("playlists/{playlistId:int}/additional-content")]
-    public async Task<IActionResult> GetByPlaylist(int playlistId)
+    [HttpGet("videos/{videoId:int}/additional-content")]
+    public async Task<IActionResult> GetByVideo(int videoId)
     {
-        var result = await service.GetPlaylistItemsAsync(playlistId);
+        var result = await service.GetItemsForVideoAsync(videoId);
+        return result.ToActionResult(this, items => Ok(new { items }));
+    }
+
+    [HttpGet("playlists/{playlistId:int}/videos/{videoId:int}/additional-content/available")]
+    public async Task<IActionResult> GetAvailableForVideoOnPlaylist(int playlistId, int videoId)
+    {
+        var result = await service.GetAvailableItemsForVideoOnPlaylistAsync(playlistId, videoId);
         return result.ToActionResult(this, items => Ok(new { items }));
     }
 
@@ -47,8 +54,6 @@ public class AdditionalContentApiController : ControllerBase
                 : StatusCode(StatusCodes.Status500InternalServerError);
         }
 
-        // Serve with the user-visible FileName so the browser prompts the correct name,
-        // not the UUID-based stored file name.
         return PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType, result.Value.DownloadFileName);
     }
 
@@ -57,14 +62,15 @@ public class AdditionalContentApiController : ControllerBase
     [HttpPost("channels/{channelId:int}/additional-content")]
     [Authorize(Roles = Constants.Roles.Administrator)]
     [RequestSizeLimit(500 * 1024 * 1024)] // 500 MB
-    public async Task<IActionResult> Upload(int channelId, IFormFile file, [FromForm] int? playlistId = null)
+    public async Task<IActionResult> Upload(int channelId, IFormFile file, [FromForm] int[]? playlistIds = null)
     {
         if (file is null || file.Length == 0)
         {
             return BadRequest(new { message = "No file provided." });
         }
 
-        var result = await service.UploadAsync(channelId, file, playlistId);
+        IReadOnlyList<int>? ids = playlistIds is { Length: > 0 } ? playlistIds : null;
+        var result = await service.UploadAsync(channelId, file, ids);
         return result.ToActionResult(this, item => Ok(new { item }));
     }
 
@@ -81,6 +87,22 @@ public class AdditionalContentApiController : ControllerBase
     public async Task<IActionResult> Delete(int id)
     {
         var result = await service.DeleteAsync(id);
+        return result.ToActionResult(this, NoContent);
+    }
+
+    [HttpPost("playlists/{playlistId:int}/videos/{videoId:int}/additional-content")]
+    [Authorize(Roles = Constants.Roles.Administrator)]
+    public async Task<IActionResult> LinkToVideo(int playlistId, int videoId, [FromBody] LinkAdditionalContentToVideoRequest request)
+    {
+        var result = await service.LinkItemsToVideoAsync(videoId, playlistId, request);
+        return result.ToActionResult(this, NoContent);
+    }
+
+    [HttpDelete("videos/{videoId:int}/additional-content/{itemId:int}")]
+    [Authorize(Roles = Constants.Roles.Administrator)]
+    public async Task<IActionResult> UnlinkFromVideo(int videoId, int itemId)
+    {
+        var result = await service.UnlinkItemFromVideoAsync(videoId, itemId);
         return result.ToActionResult(this, NoContent);
     }
 }

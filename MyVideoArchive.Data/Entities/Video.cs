@@ -47,6 +47,8 @@ public class Video : BaseEntity<int>
     public virtual ICollection<PlaylistVideo> PlaylistVideos { get; set; } = [];
 
     public virtual ICollection<VideoTag> VideoTags { get; set; } = [];
+
+    public virtual ICollection<VideoAdditionalContentItem> VideoAdditionalContentItems { get; set; } = [];
 }
 
 public class VideoMap : IEntityTypeConfiguration<Video>

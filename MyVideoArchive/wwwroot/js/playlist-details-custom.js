@@ -79,16 +79,26 @@ class CustomPlaylistDetailsViewModel {
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
 
-        // ── Extras section ─────────────────────────────────────────────────
+        // ── Extras (per current video) ─────────────────────────────────────
         this.extrasItems = ko.observableArray([]);
         this.extrasLoading = ko.observable(false);
+        this.extrasPickerItems = ko.observableArray([]);
+        this.extrasPickerLoading = ko.observable(false);
+        this.extrasPickerSelectedIds = ko.observableArray([]);
+        this.extrasPickerSaving = ko.observable(false);
+    }
+
+    formatExtrasPlaylistNames(item) {
+        const names = item?.playlistNames;
+        if (names && names.length) return names.join(', ');
+        return '—';
     }
 
     loadPlaylist = async () => {
         try {
             await Promise.all([this._fetchPlaylist(), this._loadOrderSetting()]);
             this.loading(false);
-            await Promise.all([this.loadPlaylistVideos(), this.loadExtras()]);
+            await this.loadPlaylistVideos();
         } catch (error) {
             console.error('Error loading playlist:', error);
             this.loading(false);
@@ -281,58 +291,111 @@ class CustomPlaylistDetailsViewModel {
         }
     };
 
-    // ── Extras section ────────────────────────────────────────────────────────
+    // ── Extras (files linked to the current video) ───────────────────────────
 
-    loadExtras = async () => {
+    loadVideoExtras = async (videoId) => {
+        if (!videoId) {
+            this.extrasItems([]);
+            return;
+        }
         this.extrasLoading(true);
         try {
-            const response = await fetch(`/api/playlists/${this.playlistId}/additional-content`);
+            const response = await fetch(`/api/videos/${videoId}/additional-content`);
             if (response.ok) {
                 const data = await response.json();
-                // Make videoId observable for the dropdown binding
-                this.extrasItems((data.items || []).map(item => ({ ...item, videoId: ko.observable(item.videoId ? String(item.videoId) : '') })));
+                this.extrasItems(data.items || []);
+            } else {
+                this.extrasItems([]);
             }
         } catch (error) {
-            console.error('Error loading extras:', error);
+            console.error('Error loading video extras:', error);
+            this.extrasItems([]);
         } finally {
             this.extrasLoading(false);
         }
     };
 
-    updateExtrasVideo = async (item) => {
+    openVideoExtrasPicker = async () => {
+        const video = this.currentVideo();
+        if (!video?.id || globalThis.isAdmin !== true) return;
+
+        this.extrasPickerSelectedIds([]);
+        this.extrasPickerItems([]);
+        this.extrasPickerLoading(true);
+        const modal = new bootstrap.Modal(document.getElementById('videoExtrasPickerModal'));
+        modal.show();
+
         try {
-            const videoId = item.videoId();
-            const response = await fetch(`/api/additional-content/${item.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    fileName: item.fileName,
-                    playlistId: item.playlistId ?? null,
-                    videoId: videoId ? parseInt(videoId, 10) : null
-                })
-            });
-            if (!response.ok) {
-                toast.error('Failed to update video association.');
+            const response = await fetch(
+                `/api/playlists/${this.playlistId}/videos/${video.id}/additional-content/available`
+            );
+            if (response.ok) {
+                const data = await response.json();
+                this.extrasPickerItems(data.items || []);
+            } else {
+                toast.error('Could not load available files.');
             }
         } catch (error) {
-            console.error('Error updating extras video:', error);
-            toast.error('An error occurred while updating the item.');
+            console.error('Error loading extras picker:', error);
+            toast.error('Could not load available files.');
+        } finally {
+            this.extrasPickerLoading(false);
         }
     };
 
-    deleteExtras = async (item) => {
-        if (!confirm(`Delete "${item.fileName}"? This cannot be undone.`)) return;
+    confirmVideoExtrasPicker = async () => {
+        const video = this.currentVideo();
+        const ids = this.extrasPickerSelectedIds().slice();
+        if (!video?.id || ids.length === 0) return;
+
+        this.extrasPickerSaving(true);
         try {
-            const response = await fetch(`/api/additional-content/${item.id}`, { method: 'DELETE' });
+            const response = await fetch(
+                `/api/playlists/${this.playlistId}/videos/${video.id}/additional-content`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemIds: ids })
+                }
+            );
             if (response.ok) {
-                this.extrasItems.remove(item);
-                toast.success('Item deleted.');
+                bootstrap.Modal.getInstance(document.getElementById('videoExtrasPickerModal'))?.hide();
+                this.extrasPickerSelectedIds([]);
+                await this.loadVideoExtras(video.id);
+                toast.success('Files associated with this video.');
             } else {
-                toast.error('Failed to delete item.');
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.message || 'Failed to associate files.');
             }
         } catch (error) {
-            console.error('Error deleting extras:', error);
-            toast.error('An error occurred while deleting the item.');
+            console.error('Error associating extras:', error);
+            toast.error('Failed to associate files.');
+        } finally {
+            this.extrasPickerSaving(false);
+        }
+    };
+
+    removeVideoExtra = async (item) => {
+        if (globalThis.isAdmin !== true) return;
+        const video = this.currentVideo();
+        if (!video?.id) return;
+        if (!confirm(`Remove "${item.fileName}" from this video? The file will remain on the channel.`)) return;
+
+        try {
+            const response = await fetch(
+                `/api/videos/${video.id}/additional-content/${item.id}`,
+                { method: 'DELETE' }
+            );
+            if (response.ok) {
+                this.extrasItems.remove(item);
+                toast.success('Removed from this video.');
+            } else {
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.message || 'Failed to remove association.');
+            }
+        } catch (error) {
+            console.error('Error removing video extra:', error);
+            toast.error('Failed to remove association.');
         }
     };
 }
@@ -385,6 +448,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         _currentVideoId = video.id;
         viewModel.currentVideo(video);
+        viewModel.loadVideoExtras(video.id);
 
         setTimeout(() => {
             const activeItem = document.querySelector('.playlist-video-item.active');

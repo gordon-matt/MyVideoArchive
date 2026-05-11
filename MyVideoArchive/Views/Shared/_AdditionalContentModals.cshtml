@@ -13,14 +13,17 @@
                            data-bind="event: { change: onExtrasFileSelected }" />
                     <div class="form-text">Any file type is accepted. Max 500 MB per file.</div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Associate with Playlist (optional)</label>
-                    <select class="form-select" data-bind="value: extrasUploadPlaylistId">
-                        <option value="">— None —</option>
+                <div class="mb-3" data-bind="visible: playlists().length > 0">
+                    <label class="form-label">Associate with playlists (optional)</label>
+                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
                         <!-- ko foreach: playlists -->
-                        <option data-bind="value: Id ?? id, text: Name ?? name"></option>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   data-bind="checkedValue: (typeof Id !== 'undefined' && Id !== null) ? Id : id, checked: $parent.extrasUploadPlaylistIds" />
+                            <label class="form-check-label" data-bind="text: (typeof Name !== 'undefined' && Name) ? Name : name"></label>
+                        </div>
                         <!-- /ko -->
-                    </select>
+                    </div>
                 </div>
                 <!-- ko if: extrasUploadFiles().length > 0 -->
                 <div class="alert alert-secondary py-2">
@@ -56,14 +59,17 @@
                     <label class="form-label">File Name <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" data-bind="value: extrasEditFileName" />
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Playlist</label>
-                    <select class="form-select" data-bind="value: extrasEditPlaylistId">
-                        <option value="">— None —</option>
+                <div class="mb-3" data-bind="visible: playlists().length > 0">
+                    <label class="form-label">Playlists</label>
+                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
                         <!-- ko foreach: playlists -->
-                        <option data-bind="value: Id ?? id, text: Name ?? name"></option>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   data-bind="checkedValue: (typeof Id !== 'undefined' && Id !== null) ? Id : id, checked: $parent.extrasEditPlaylistIds" />
+                            <label class="form-check-label" data-bind="text: (typeof Name !== 'undefined' && Name) ? Name : name"></label>
+                        </div>
                         <!-- /ko -->
-                    </select>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

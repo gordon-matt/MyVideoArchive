@@ -34,6 +34,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<AdditionalContentItem> AdditionalContent { get; set; }
 
+    public DbSet<PlaylistAdditionalContentItem> PlaylistAdditionalContent { get; set; }
+
+    public DbSet<VideoAdditionalContentItem> VideoAdditionalContent { get; set; }
+
     public DbSet<Video> Videos { get; set; }
 
     public DbSet<VideoTag> VideoTags { get; set; }

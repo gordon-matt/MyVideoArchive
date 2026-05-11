@@ -1,5 +1,7 @@
 using Ardalis.Result;
+using ResultStatus = Ardalis.Result.ResultStatus;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using MyVideoArchive.Models.Requests.AdditionalContent;
 using MyVideoArchive.Models.Responses;
 
@@ -12,19 +14,31 @@ public class AdditionalContentService : IAdditionalContentService
     private readonly IRepository<AdditionalContentItem> repository;
     private readonly IRepository<Channel> channelRepository;
     private readonly IRepository<Playlist> playlistRepository;
+    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
+    private readonly IRepository<Video> videoRepository;
+    private readonly IRepository<PlaylistAdditionalContentItem> playlistLinkRepository;
+    private readonly IRepository<VideoAdditionalContentItem> videoLinkRepository;
 
     public AdditionalContentService(
         ILogger<AdditionalContentService> logger,
         IConfiguration configuration,
         IRepository<AdditionalContentItem> repository,
         IRepository<Channel> channelRepository,
-        IRepository<Playlist> playlistRepository)
+        IRepository<Playlist> playlistRepository,
+        IRepository<PlaylistVideo> playlistVideoRepository,
+        IRepository<Video> videoRepository,
+        IRepository<PlaylistAdditionalContentItem> playlistLinkRepository,
+        IRepository<VideoAdditionalContentItem> videoLinkRepository)
     {
         this.logger = logger;
         this.configuration = configuration;
         this.repository = repository;
         this.channelRepository = channelRepository;
         this.playlistRepository = playlistRepository;
+        this.playlistVideoRepository = playlistVideoRepository;
+        this.videoRepository = videoRepository;
+        this.playlistLinkRepository = playlistLinkRepository;
+        this.videoLinkRepository = videoLinkRepository;
     }
 
     public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetChannelItemsAsync(int channelId)
@@ -33,29 +47,72 @@ public class AdditionalContentService : IAdditionalContentService
         {
             Query = x => x.ChannelId == channelId,
             Include = query => query
-                .Include(x => x.Playlist)
-                .Include(x => x.Video)
+                .Include(x => x.PlaylistLinks)
+                .ThenInclude(l => l.Playlist)
         });
 
         return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(
             items.Select(ToDto).ToList());
     }
 
-    public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetPlaylistItemsAsync(int playlistId)
+    public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetItemsForVideoAsync(int videoId)
     {
         var items = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
-            Query = x => x.PlaylistId == playlistId,
+            Query = x => x.VideoLinks.Any(v => v.VideoId == videoId),
             Include = query => query
-                .Include(x => x.Playlist)
-                .Include(x => x.Video)
+                .Include(x => x.PlaylistLinks)
+                .ThenInclude(l => l.Playlist)
         });
 
-        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(
-            items.Select(ToDto).ToList());
+        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(ToDto).ToList());
     }
 
-    public async Task<Result<AdditionalContentItemDto>> UploadAsync(int channelId, IFormFile file, int? playlistId)
+    public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetAvailableItemsForVideoOnPlaylistAsync(int playlistId, int videoId)
+    {
+        var playlist = await playlistRepository.FindOneAsync(playlistId);
+        if (playlist is null)
+        {
+            return Result.NotFound("Playlist not found");
+        }
+
+        var video = await videoRepository.FindOneAsync(videoId);
+        if (video is null)
+        {
+            return Result.NotFound("Video not found");
+        }
+
+        if (video.ChannelId != playlist.ChannelId)
+        {
+            return Result.Invalid([new ValidationError(nameof(videoId), "Video does not belong to the same channel as the playlist.")]);
+        }
+
+        var inPlaylist = await playlistVideoRepository.FindOneAsync(new SearchOptions<PlaylistVideo>
+        {
+            Query = x => x.PlaylistId == playlistId && x.VideoId == videoId
+        });
+        if (inPlaylist is null)
+        {
+            return Result.Invalid([new ValidationError(nameof(videoId), "Video is not in this playlist.")]);
+        }
+
+        int channelId = playlist.ChannelId;
+
+        var items = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
+        {
+            Query = x => x.ChannelId == channelId &&
+                (!x.PlaylistLinks.Any() || x.PlaylistLinks.Any(l => l.PlaylistId == playlistId)) &&
+                !x.VideoLinks.Any(v => v.VideoId == videoId),
+            Include = query => query
+                .Include(x => x.PlaylistLinks)
+                .ThenInclude(l => l.Playlist)
+                .Include(x => x.VideoLinks)
+        });
+
+        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(ToDto).ToList());
+    }
+
+    public async Task<Result<AdditionalContentItemDto>> UploadAsync(int channelId, IFormFile file, IReadOnlyList<int>? playlistIds)
     {
         try
         {
@@ -65,17 +122,17 @@ public class AdditionalContentService : IAdditionalContentService
                 return Result.NotFound("Channel not found");
             }
 
-            Playlist? playlist = null;
-            if (playlistId.HasValue)
+            var distinctPlaylistIds = (playlistIds ?? []).Distinct().ToList();
+            foreach (int pid in distinctPlaylistIds)
             {
-                playlist = await playlistRepository.FindOneAsync(playlistId.Value);
-                if (playlist is null || playlist.ChannelId != channelId)
+                var pl = await playlistRepository.FindOneAsync(pid);
+                if (pl is null || pl.ChannelId != channelId)
                 {
-                    return Result.Invalid([new ValidationError("PlaylistId", "Playlist not found or does not belong to this channel.")]);
+                    return Result.Invalid([new ValidationError("playlistIds", "One or more playlists are invalid for this channel.")]);
                 }
             }
 
-            string extrasDir = GetExtrasDirectory(channel, playlist);
+            string extrasDir = GetExtrasDirectoryRoot(channel);
             Directory.CreateDirectory(extrasDir);
 
             string originalExt = Path.GetExtension(file.FileName);
@@ -94,20 +151,31 @@ public class AdditionalContentService : IAdditionalContentService
                 ContentType = ResolveContentType(file.ContentType, originalExt),
                 FileSize = file.Length,
                 UploadedAt = DateTime.UtcNow,
-                ChannelId = channelId,
-                PlaylistId = playlistId,
-                VideoId = null
+                ChannelId = channelId
             };
 
             await repository.InsertAsync(item);
+
+            foreach (int pid in distinctPlaylistIds)
+            {
+                await playlistLinkRepository.InsertAsync(new PlaylistAdditionalContentItem
+                {
+                    PlaylistId = pid,
+                    AdditionalContentItemId = item.Id
+                });
+            }
+
+            var reloaded = await repository.FindOneAsync(new SearchOptions<AdditionalContentItem>
+            {
+                Query = x => x.Id == item.Id,
+                Include = query => query
+                    .Include(x => x.PlaylistLinks)
+                    .ThenInclude(l => l.Playlist)
+            });
+
             logger.LogInformation("Uploaded additional content {FileName} to channel {ChannelId}", item.FileName, channelId);
 
-            var dto = ToDto(item) with
-            {
-                PlaylistName = playlist?.Name
-            };
-
-            return Result.Success(dto);
+            return Result.Success(ToDto(reloaded!));
         }
         catch (Exception ex)
         {
@@ -131,35 +199,39 @@ public class AdditionalContentService : IAdditionalContentService
                 return Result.NotFound("Item not found");
             }
 
-            // If playlist changed, move the file to the new location
-            if (item.PlaylistId != request.PlaylistId)
+            var distinctPlaylistIds = (request.PlaylistIds ?? []).Distinct().ToList();
+            foreach (int pid in distinctPlaylistIds)
             {
-                Playlist? newPlaylist = null;
-                if (request.PlaylistId.HasValue)
+                var pl = await playlistRepository.FindOneAsync(pid);
+                if (pl is null || pl.ChannelId != item.ChannelId)
                 {
-                    newPlaylist = await playlistRepository.FindOneAsync(request.PlaylistId.Value);
-                    if (newPlaylist is null || newPlaylist.ChannelId != item.ChannelId)
-                    {
-                        return Result.Invalid([new ValidationError("PlaylistId", "Playlist not found or does not belong to this channel.")]);
-                    }
+                    return Result.Invalid([new ValidationError(nameof(request.PlaylistIds), "One or more playlists are invalid for this channel.")]);
                 }
-
-                string newDir = GetExtrasDirectory(item.Channel, newPlaylist);
-                Directory.CreateDirectory(newDir);
-
-                string newFilePath = Path.Combine(newDir, Path.GetFileName(item.FilePath));
-
-                if (File.Exists(item.FilePath))
-                {
-                    File.Move(item.FilePath, newFilePath, overwrite: true);
-                }
-
-                item.FilePath = newFilePath;
-                item.PlaylistId = request.PlaylistId;
             }
 
             item.FileName = request.FileName;
-            item.VideoId = request.VideoId;
+
+            var existingLinks = await playlistLinkRepository.FindAsync(new SearchOptions<PlaylistAdditionalContentItem>
+            {
+                Query = x => x.AdditionalContentItemId == id
+            });
+            var desired = distinctPlaylistIds.ToHashSet();
+            var existingIds = existingLinks.Select(l => l.PlaylistId).ToHashSet();
+
+            var toRemove = existingLinks.Where(l => !desired.Contains(l.PlaylistId)).ToList();
+            if (toRemove.Count > 0)
+            {
+                await playlistLinkRepository.DeleteAsync(toRemove);
+            }
+
+            foreach (int pid in desired.Except(existingIds))
+            {
+                await playlistLinkRepository.InsertAsync(new PlaylistAdditionalContentItem
+                {
+                    PlaylistId = pid,
+                    AdditionalContentItemId = item.Id
+                });
+            }
 
             await repository.UpdateAsync(item);
             return Result.Success();
@@ -206,8 +278,6 @@ public class AdditionalContentService : IAdditionalContentService
         }
 
         string contentType = item.ContentType ?? "application/octet-stream";
-        // Append the original extension to the display name to ensure the browser
-        // gets the correct file type, even if the user renamed without extension.
         string displayName = item.FileName;
         string storedExt = Path.GetExtension(item.FilePath);
         if (!string.IsNullOrEmpty(storedExt) && !item.FileName.EndsWith(storedExt, StringComparison.OrdinalIgnoreCase))
@@ -218,12 +288,61 @@ public class AdditionalContentService : IAdditionalContentService
         return Result.Success(new AdditionalContentDownloadInfo(item.FilePath, contentType, displayName));
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    public async Task<Result> LinkItemsToVideoAsync(int videoId, int playlistId, LinkAdditionalContentToVideoRequest request)
+    {
+        var available = await GetAvailableItemsForVideoOnPlaylistAsync(playlistId, videoId);
+        if (!available.IsSuccess)
+        {
+            return available.Status switch
+            {
+                ResultStatus.NotFound => Result.NotFound(),
+                ResultStatus.Invalid => Result.Invalid(available.ValidationErrors),
+                _ => Result.Error(string.Join("; ", available.Errors))
+            };
+        }
 
-    /// <summary>
-    /// Imports an existing file from disk into the database without copying it.
-    /// Used by the file system scan job.
-    /// </summary>
+        var allowedIds = available.Value.Select(i => i.Id).ToHashSet();
+        foreach (int itemId in (request.ItemIds ?? []).Distinct())
+        {
+            if (!allowedIds.Contains(itemId))
+            {
+                return Result.Invalid([new ValidationError(nameof(request.ItemIds), $"Item {itemId} is not available to associate for this video.")]);
+            }
+
+            var exists = await videoLinkRepository.FindOneAsync(new SearchOptions<VideoAdditionalContentItem>
+            {
+                Query = x => x.VideoId == videoId && x.AdditionalContentItemId == itemId
+            });
+            if (exists is not null)
+            {
+                continue;
+            }
+
+            await videoLinkRepository.InsertAsync(new VideoAdditionalContentItem
+            {
+                VideoId = videoId,
+                AdditionalContentItemId = itemId
+            });
+        }
+
+        return Result.Success();
+    }
+
+    public async Task<Result> UnlinkItemFromVideoAsync(int videoId, int itemId)
+    {
+        var link = await videoLinkRepository.FindOneAsync(new SearchOptions<VideoAdditionalContentItem>
+        {
+            Query = x => x.VideoId == videoId && x.AdditionalContentItemId == itemId
+        });
+        if (link is null)
+        {
+            return Result.NotFound("Association not found");
+        }
+
+        await videoLinkRepository.DeleteAsync(link);
+        return Result.Success();
+    }
+
     public async Task ImportFileAsync(string filePath, int channelId, int? playlistId, CancellationToken cancellationToken = default)
     {
         var exists = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
@@ -247,47 +366,55 @@ public class AdditionalContentService : IAdditionalContentService
             ContentType = ResolveContentType(null, ext),
             FileSize = fileInfo.Length,
             UploadedAt = fileInfo.LastWriteTimeUtc,
-            ChannelId = channelId,
-            PlaylistId = playlistId,
-            VideoId = null
+            ChannelId = channelId
         };
 
         await repository.InsertAsync(item, ContextOptions.ForCancellationToken(cancellationToken));
+
+        if (playlistId.HasValue)
+        {
+            await playlistLinkRepository.InsertAsync(new PlaylistAdditionalContentItem
+            {
+                PlaylistId = playlistId.Value,
+                AdditionalContentItemId = item.Id
+            }, ContextOptions.ForCancellationToken(cancellationToken));
+        }
+
         logger.LogInformation("Imported additional content file {FilePath}", filePath);
     }
 
-    private string GetExtrasDirectory(Channel channel, Playlist? playlist)
+    private string GetExtrasDirectoryRoot(Channel channel)
     {
         string downloadPath = GetDownloadPath();
         string channelFolder = channel.Platform == "Custom"
             ? Path.Combine(downloadPath, "_Custom", channel.ChannelId)
             : Path.Combine(downloadPath, channel.ChannelId);
 
-        string extrasDir = Path.Combine(channelFolder, "_extras");
-
-        if (playlist is not null)
-        {
-            extrasDir = Path.Combine(extrasDir, playlist.PlaylistId);
-        }
-
-        return extrasDir;
+        return Path.Combine(channelFolder, "_extras");
     }
 
     private string GetDownloadPath() =>
         configuration.GetValue<string>("VideoDownload:OutputPath")
         ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
-    private static AdditionalContentItemDto ToDto(AdditionalContentItem item) => new(
-        item.Id,
-        item.FileName,
-        item.ContentType,
-        item.FileSize,
-        item.UploadedAt,
-        item.ChannelId,
-        item.PlaylistId,
-        item.Playlist?.Name,
-        item.VideoId,
-        item.Video?.Title);
+    private static AdditionalContentItemDto ToDto(AdditionalContentItem item)
+    {
+        var ordered = item.PlaylistLinks
+            .Where(l => l.Playlist is not null)
+            .Select(l => (l.PlaylistId, Name: l.Playlist!.Name))
+            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new AdditionalContentItemDto(
+            item.Id,
+            item.FileName,
+            item.ContentType,
+            item.FileSize,
+            item.UploadedAt,
+            item.ChannelId,
+            ordered.Select(t => t.PlaylistId).ToList(),
+            ordered.Select(t => t.Name).ToList());
+    }
 
     private static string ResolveContentType(string? providedType, string extension)
     {

@@ -33,13 +33,13 @@ class CustomChannelViewModel {
 
         // Upload state
         this.extrasUploadFiles = ko.observableArray([]);
-        this.extrasUploadPlaylistId = ko.observable('');
+        this.extrasUploadPlaylistIds = ko.observableArray([]);
         this.extrasUploading = ko.observable(false);
 
         // Edit state
         this.extrasEditId = ko.observable(null);
         this.extrasEditFileName = ko.observable('');
-        this.extrasEditPlaylistId = ko.observable('');
+        this.extrasEditPlaylistIds = ko.observableArray([]);
 
         // Edit channel form
         this.editName = ko.observable('');
@@ -473,6 +473,12 @@ class CustomChannelViewModel {
 
     // ── Additional Content tab ────────────────────────────────────────────────
 
+    formatExtrasPlaylistNames = (item) => {
+        const names = item?.playlistNames;
+        if (names && names.length) return names.join(', ');
+        return '—';
+    };
+
     loadAdditionalContent = async () => {
         if (this.extrasLoaded) return;
         this.extrasLoading(true);
@@ -490,10 +496,13 @@ class CustomChannelViewModel {
         }
     };
 
-    openUploadExtras = () => {
+    openUploadExtras = async () => {
         this.extrasUploadFiles([]);
-        this.extrasUploadPlaylistId('');
+        this.extrasUploadPlaylistIds([]);
         document.getElementById('extrasUploadInput').value = '';
+        if (this.playlists().length === 0) {
+            await this.loadPlaylists();
+        }
         new bootstrap.Modal(document.getElementById('uploadExtrasModal')).show();
     };
 
@@ -512,8 +521,9 @@ class CustomChannelViewModel {
             for (const file of files) {
                 const form = new FormData();
                 form.append('file', file);
-                const playlistId = this.extrasUploadPlaylistId();
-                if (playlistId) form.append('playlistId', playlistId);
+                for (const pid of this.extrasUploadPlaylistIds()) {
+                    form.append('playlistIds', String(pid));
+                }
 
                 const response = await fetch(`/api/channels/${this.channelId}/additional-content`, {
                     method: 'POST',
@@ -542,10 +552,13 @@ class CustomChannelViewModel {
         }
     };
 
-    openEditExtras = (item) => {
+    openEditExtras = async (item) => {
         this.extrasEditId(item.id);
         this.extrasEditFileName(item.fileName);
-        this.extrasEditPlaylistId(item.playlistId ? String(item.playlistId) : '');
+        this.extrasEditPlaylistIds((item.playlistIds || []).slice());
+        if (this.playlists().length === 0) {
+            await this.loadPlaylists();
+        }
         new bootstrap.Modal(document.getElementById('editExtrasModal')).show();
     };
 
@@ -558,8 +571,7 @@ class CustomChannelViewModel {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     fileName: this.extrasEditFileName(),
-                    playlistId: this.extrasEditPlaylistId() ? parseInt(this.extrasEditPlaylistId(), 10) : null,
-                    videoId: null
+                    playlistIds: this.extrasEditPlaylistIds().slice()
                 })
             });
 

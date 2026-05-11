@@ -18,6 +18,7 @@ public class FileSystemScanJob
     private readonly IRepository<Video> videoRepository;
     private readonly IRepository<AdditionalContentItem> additionalContentRepository;
     private readonly IRepository<Playlist> playlistRepository;
+    private readonly IAdditionalContentService additionalContentService;
 
     public FileSystemScanJob(
         ILogger<FileSystemScanJob> logger,
@@ -25,7 +26,8 @@ public class FileSystemScanJob
         IRepository<Channel> channelRepository,
         IRepository<Video> videoRepository,
         IRepository<AdditionalContentItem> additionalContentRepository,
-        IRepository<Playlist> playlistRepository)
+        IRepository<Playlist> playlistRepository,
+        IAdditionalContentService additionalContentService)
     {
         this.logger = logger;
         this.configuration = configuration;
@@ -33,6 +35,7 @@ public class FileSystemScanJob
         this.videoRepository = videoRepository;
         this.additionalContentRepository = additionalContentRepository;
         this.playlistRepository = playlistRepository;
+        this.additionalContentService = additionalContentService;
     }
 
     /// <summary>
@@ -389,7 +392,6 @@ public class FileSystemScanJob
             p => p.Id,
             StringComparer.OrdinalIgnoreCase);
 
-        // Load already-tracked paths to skip them
         var trackedPaths = (await additionalContentRepository.FindAsync(
             new SearchOptions<AdditionalContentItem>
             {
@@ -413,8 +415,6 @@ public class FileSystemScanJob
 
             try
             {
-                // Resolve PlaylistId from the immediate parent folder name if it sits one level
-                // deeper than _extras (i.e. _extras/{playlistStringId}/file.pdf).
                 int? playlistDbId = null;
                 string? parentDir = Path.GetDirectoryName(filePath);
                 if (parentDir != null && !parentDir.Equals(extrasRoot, StringComparison.OrdinalIgnoreCase))
@@ -426,40 +426,8 @@ public class FileSystemScanJob
                     }
                 }
 
-                var fileInfo = new FileInfo(filePath);
-                string ext = fileInfo.Extension.ToLowerInvariant();
-                string contentType = ext switch
-                {
-                    ".pdf" => "application/pdf",
-                    ".jpg" or ".jpeg" => "image/jpeg",
-                    ".png" => "image/png",
-                    ".gif" => "image/gif",
-                    ".webp" => "image/webp",
-                    ".mp3" => "audio/mpeg",
-                    ".zip" => "application/zip",
-                    ".txt" => "text/plain",
-                    ".srt" => "text/plain",
-                    ".vtt" => "text/vtt",
-                    ".epub" => "application/epub+zip",
-                    _ => "application/octet-stream"
-                };
-
-                var item = new AdditionalContentItem
-                {
-                    FileName = fileInfo.Name,
-                    FilePath = filePath,
-                    ContentType = contentType,
-                    FileSize = fileInfo.Length,
-                    UploadedAt = fileInfo.LastWriteTimeUtc,
-                    ChannelId = channel.Id,
-                    PlaylistId = playlistDbId,
-                    VideoId = null
-                };
-
-                await additionalContentRepository.InsertAsync(item, ContextOptions.ForCancellationToken(cancellationToken));
+                await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, cancellationToken);
                 trackedPaths.Add(filePath);
-
-                logger.LogInformation("Imported additional content file {FilePath}", filePath);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

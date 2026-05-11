@@ -3,10 +3,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace MyVideoArchive.Data.Entities;
 
 /// <summary>
-/// Represents a supplementary file (PDF, image, archive, etc.) associated with a channel,
-/// optionally scoped to a playlist and/or a specific video.
-/// Files are stored under the channel folder in an "_extras" subfolder; if a PlaylistId is set,
-/// the file lives in "_extras/{playlist.PlaylistId}/".
+/// A supplementary file stored under the channel's "_extras" folder. Playlist and video
+/// scoping is expressed via <see cref="PlaylistAdditionalContentItem"/> and
+/// <see cref="VideoAdditionalContentItem"/> junction rows.
 /// </summary>
 public class AdditionalContentItem : BaseEntity<int>
 {
@@ -24,15 +23,11 @@ public class AdditionalContentItem : BaseEntity<int>
 
     public int ChannelId { get; set; }
 
-    public int? PlaylistId { get; set; }
-
-    public int? VideoId { get; set; }
-
     public virtual Channel Channel { get; set; } = null!;
 
-    public virtual Playlist? Playlist { get; set; }
+    public virtual ICollection<PlaylistAdditionalContentItem> PlaylistLinks { get; set; } = [];
 
-    public virtual Video? Video { get; set; }
+    public virtual ICollection<VideoAdditionalContentItem> VideoLinks { get; set; } = [];
 }
 
 public class AdditionalContentItemMap : IEntityTypeConfiguration<AdditionalContentItem>
@@ -51,15 +46,5 @@ public class AdditionalContentItemMap : IEntityTypeConfiguration<AdditionalConte
             .WithMany()
             .HasForeignKey(m => m.ChannelId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(m => m.Playlist)
-            .WithMany()
-            .HasForeignKey(m => m.PlaylistId)
-            .OnDelete(DeleteBehavior.SetNull);
-
-        builder.HasOne(m => m.Video)
-            .WithMany()
-            .HasForeignKey(m => m.VideoId)
-            .OnDelete(DeleteBehavior.SetNull);
     }
 }

@@ -120,13 +120,13 @@ class ChannelDetailsViewModel {
 
         // Upload state
         this.extrasUploadFiles = ko.observableArray([]);
-        this.extrasUploadPlaylistId = ko.observable('');
+        this.extrasUploadPlaylistIds = ko.observableArray([]);
         this.extrasUploading = ko.observable(false);
 
         // Edit state
         this.extrasEditId = ko.observable(null);
         this.extrasEditFileName = ko.observable('');
-        this.extrasEditPlaylistId = ko.observable('');
+        this.extrasEditPlaylistIds = ko.observableArray([]);
 
         // ── Thumbnail picker ──────────────────────────────────────────────────
         this.thumbnailPickerMode = ko.observable('banner'); // 'banner' | 'avatar'
@@ -1142,6 +1142,12 @@ class ChannelDetailsViewModel {
 
     // ── Additional Content tab ────────────────────────────────────────────────
 
+    formatExtrasPlaylistNames = (item) => {
+        const names = item?.playlistNames;
+        if (names && names.length) return names.join(', ');
+        return '—';
+    };
+
     loadAdditionalContent = async () => {
         if (this.extrasLoaded) return;
         this.extrasLoading(true);
@@ -1161,7 +1167,7 @@ class ChannelDetailsViewModel {
 
     openUploadExtras = async () => {
         this.extrasUploadFiles([]);
-        this.extrasUploadPlaylistId('');
+        this.extrasUploadPlaylistIds([]);
         document.getElementById('extrasUploadInput').value = '';
         // Ensure playlists are loaded for the dropdown
         if (this.playlists().length === 0) {
@@ -1185,8 +1191,9 @@ class ChannelDetailsViewModel {
             for (const file of files) {
                 const form = new FormData();
                 form.append('file', file);
-                const playlistId = this.extrasUploadPlaylistId();
-                if (playlistId) form.append('playlistId', playlistId);
+                for (const pid of this.extrasUploadPlaylistIds()) {
+                    form.append('playlistIds', String(pid));
+                }
 
                 const response = await fetch(`/api/channels/${this.channelId}/additional-content`, {
                     method: 'POST',
@@ -1218,7 +1225,7 @@ class ChannelDetailsViewModel {
     openEditExtras = async (item) => {
         this.extrasEditId(item.id);
         this.extrasEditFileName(item.fileName);
-        this.extrasEditPlaylistId(item.playlistId ? String(item.playlistId) : '');
+        this.extrasEditPlaylistIds((item.playlistIds || []).slice());
         // Ensure playlists are loaded for the dropdown
         if (this.playlists().length === 0) {
             await this.loadPlaylists();
@@ -1235,8 +1242,7 @@ class ChannelDetailsViewModel {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     fileName: this.extrasEditFileName(),
-                    playlistId: this.extrasEditPlaylistId() ? parseInt(this.extrasEditPlaylistId(), 10) : null,
-                    videoId: null
+                    playlistIds: this.extrasEditPlaylistIds().slice()
                 })
             });
 
