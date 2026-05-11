@@ -214,21 +214,32 @@ class CustomVideoViewModel {
 
     saveChannelPlaylistMemberships = async () => {
         try {
-            await fetch(`/api/custom/videos/${this.videoId}`, {
+            const rawDate = this.video()?.UploadDate;
+            const uploadDate = rawDate ? new Date(rawDate).toISOString() : null;
+
+            const response = await fetch(`/api/custom/videos/${this.videoId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: this.editTitle() || this.video()?.Title,
                     description: this.editDescription() || this.video()?.Description || null,
                     thumbnailUrl: this.video()?.ThumbnailUrl ?? null,
-                    uploadDate: this.video()?.UploadDate ?? null,
+                    uploadDate,
                     duration: this.video()?.Duration ?? null,
                     filePath: this.editFilePath() || this.video()?.FilePath || null,
                     playlistIds: this.editPlaylistIds()
                 })
             });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.message || 'Failed to update playlist membership. Please try again.');
+            } else {
+                toast.success('Playlist membership updated.');
+            }
         } catch (error) {
             console.error('Error saving playlist memberships:', error);
+            toast.error('Failed to update playlist membership.');
         }
     };
 

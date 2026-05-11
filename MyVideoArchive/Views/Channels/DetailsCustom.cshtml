@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Custom Channel";
     var channelId = ViewBag.ChannelId;
+    var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
 }
 
 @section Styles {
@@ -73,6 +74,12 @@
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="playlists-tab" data-bs-toggle="tab" data-bs-target="#playlists" type="button" role="tab">
             Playlists
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="additional-content-tab" data-bs-toggle="tab" data-bs-target="#additional-content" type="button" role="tab"
+                data-bind="click: loadAdditionalContent">
+            Additional Content
         </button>
     </li>
 </ul>
@@ -230,7 +237,15 @@
             GoToPageFn: "playlistsGoToPage",
             ItemLabel: "playlists"))
     </div>
+
+    <!-- ── Additional Content tab ────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="additional-content" role="tabpanel">
+        @await Html.PartialAsync("_AdditionalContentTab", isAdminUser)
+    </div>
+
 </div>
+
+@await Html.PartialAsync("_AdditionalContentModals")
 
 <!-- Edit Channel Modal -->
 <div class="modal fade" id="editChannelModal" tabindex="-1" aria-hidden="true">
@@ -385,6 +400,7 @@
 @section Scripts {
     <script type="text/javascript">
         const channelId = @channelId;
+        const isAdmin = @(isAdminUser ? "true" : "false");
     </script>
     <script type="module" src="~/js/channel-details-custom.js" asp-append-version="true"></script>
 }

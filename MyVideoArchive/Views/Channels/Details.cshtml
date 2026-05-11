@@ -124,6 +124,12 @@
             Playlists
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="additional-content-tab" data-bs-toggle="tab" data-bs-target="#additional-content" type="button" role="tab"
+                data-bind="click: loadAdditionalContent">
+            Additional Content
+        </button>
+    </li>
 
     @if (isAdminUser)
     {
@@ -654,6 +660,12 @@
             </div>
         </div>
     </div>
+
+    <!-- ── Additional Content tab ────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="additional-content" role="tabpanel">
+        @await Html.PartialAsync("_AdditionalContentTab", isAdminUser)
+    </div>
+
 </div>
 
 <!-- Hidden file input used for playlist thumbnail upload (only for missing thumbnails) -->
@@ -833,6 +845,8 @@
         </div>
     </div>
 </div>
+
+@await Html.PartialAsync("_AdditionalContentModals")
 
 @section Scripts {
     <script type="text/javascript">

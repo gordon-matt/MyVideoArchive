@@ -12,7 +12,7 @@
 		<PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
 		<PackageReference Include="Keycloak.NETCore.Client" Version="1.0.2" />
 		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.9" />
-		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.6" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.7" />
 		<PackageReference Include="Xabe.FFmpeg" Version="6.0.2" />
 		<PackageReference Include="YoutubeDLSharp" Version="1.2.0" />
 	</ItemGroup>

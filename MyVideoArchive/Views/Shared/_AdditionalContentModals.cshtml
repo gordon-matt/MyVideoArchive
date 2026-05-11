@@ -1,0 +1,78 @@
+<!-- ── Upload Additional Content Modal ────────────────────────────────────── -->
+<div class="modal fade" id="uploadExtrasModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Upload Additional Content</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">File(s) <span class="text-danger">*</span></label>
+                    <input type="file" class="form-control" id="extrasUploadInput" multiple
+                           data-bind="event: { change: onExtrasFileSelected }" />
+                    <div class="form-text">Any file type is accepted. Max 500 MB per file.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Associate with Playlist (optional)</label>
+                    <select class="form-select" data-bind="value: extrasUploadPlaylistId">
+                        <option value="">— None —</option>
+                        <!-- ko foreach: playlists -->
+                        <option data-bind="value: Id ?? id, text: Name ?? name"></option>
+                        <!-- /ko -->
+                    </select>
+                </div>
+                <!-- ko if: extrasUploadFiles().length > 0 -->
+                <div class="alert alert-secondary py-2">
+                    <strong data-bind="text: extrasUploadFiles().length"></strong> file(s) selected
+                </div>
+                <!-- /ko -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        data-bind="click: confirmUploadExtras, enable: extrasUploadFiles().length > 0 && !extrasUploading()">
+                    <span data-bind="visible: !extrasUploading()"><i class="bi bi-upload me-1"></i>Upload</span>
+                    <span data-bind="visible: extrasUploading()">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        Uploading&hellip;
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Edit Additional Content Modal ──────────────────────────────────────── -->
+<div class="modal fade" id="editExtrasModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">File Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" data-bind="value: extrasEditFileName" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Playlist</label>
+                    <select class="form-select" data-bind="value: extrasEditPlaylistId">
+                        <option value="">— None —</option>
+                        <!-- ko foreach: playlists -->
+                        <option data-bind="value: Id ?? id, text: Name ?? name"></option>
+                        <!-- /ko -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        data-bind="click: confirmEditExtras, enable: extrasEditFileName().trim().length > 0">
+                    <i class="bi bi-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

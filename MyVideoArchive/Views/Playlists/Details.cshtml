@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Playlist";
     var playlistId = ViewBag.PlaylistId;
+    var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
 }
 
 @section Styles {
@@ -75,6 +76,72 @@
                         <h6 class="mb-1"><i class="bi bi-tags"></i> Video tags</h6>
                         <input id="playlistPageVideoTagsInput" class="form-control form-control-sm" placeholder="Add tags..." />
                         <div class="form-text">Press Enter or comma to add a tag. Changes are saved automatically.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Extras Section -->
+            <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-paperclip me-1"></i>Extras</h6>
+                </div>
+                <div class="card-body p-2">
+                    <div data-bind="visible: extrasLoading" class="text-center py-2">
+                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                    </div>
+                    <div data-bind="visible: !extrasLoading() && extrasItems().length === 0" class="text-muted small p-2">
+                        No additional content for this playlist.
+                    </div>
+                    <div data-bind="visible: !extrasLoading() && extrasItems().length > 0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Video</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody data-bind="foreach: extrasItems">
+                                    <tr>
+                                        <td>
+                                            <i class="bi bi-file-earmark me-1 text-muted"></i>
+                                            <span data-bind="text: fileName"></span>
+                                        </td>
+                                        <td>
+                                            @if (isAdminUser)
+                                            {
+                                                <select class="form-select form-select-sm"
+                                                        data-bind="value: videoId, event: { change: $parent.updateExtrasVideo.bind($parent, $data) }">
+                                                    <option value="">— None —</option>
+                                                    <!-- ko foreach: $parent.playlistVideos -->
+                                                    <option data-bind="value: id, text: title"></option>
+                                                    <!-- /ko -->
+                                                </select>
+                                            }
+                                            else
+                                            {
+                                                <span data-bind="text: videoTitle || '—'"></span>
+                                            }
+                                        </td>
+                                        <td class="text-nowrap">
+                                            <a class="btn btn-sm btn-outline-secondary"
+                                               data-bind="attr: { href: '/api/additional-content/' + id + '/download' }"
+                                               target="_blank" title="Download">
+                                                <i class="bi bi-download"></i>
+                                            </a>
+                                            @if (isAdminUser)
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger ms-1"
+                                                        data-bind="click: $parent.deleteExtras" title="Delete">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            }
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -302,6 +369,7 @@
 
     <script type="text/javascript">
         const playlistId = @playlistId;
+        const isAdmin = @(isAdminUser ? "true" : "false");
         const PRIVATE_VIDEO_TITLE = '@MyVideoArchive.Constants.PrivateVideoTitle';
         const DELETED_VIDEO_TITLE = '@MyVideoArchive.Constants.DeletedVideoTitle';
     </script>

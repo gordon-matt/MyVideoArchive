@@ -105,13 +105,17 @@ class PlaylistDetailsViewModel {
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
         this.formatNumber = formatNumber;
+
+        // ── Extras section ─────────────────────────────────────────────────
+        this.extrasItems = ko.observableArray([]);
+        this.extrasLoading = ko.observable(false);
     }
 
     loadPlaylist = async () => {
         try {
             await Promise.all([this._fetchPlaylist(), this._loadOrderSetting()]);
             this.loading(false);
-            await this.loadPlaylistVideos();
+            await Promise.all([this.loadPlaylistVideos(), this.loadExtras()]);
         } catch (error) {
             console.error('Error loading playlist:', error);
             this.loading(false);
@@ -502,6 +506,60 @@ class PlaylistDetailsViewModel {
         } catch (error) {
             console.error('Error saving order:', error);
             toast.error('Error saving custom order: ' + error.message);
+        }
+    };
+
+    // ── Extras section ────────────────────────────────────────────────────────
+
+    loadExtras = async () => {
+        this.extrasLoading(true);
+        try {
+            const response = await fetch(`/api/playlists/${this.playlistId}/additional-content`);
+            if (response.ok) {
+                const data = await response.json();
+                this.extrasItems((data.items || []).map(item => ({ ...item, videoId: ko.observable(item.videoId ? String(item.videoId) : '') })));
+            }
+        } catch (error) {
+            console.error('Error loading extras:', error);
+        } finally {
+            this.extrasLoading(false);
+        }
+    };
+
+    updateExtrasVideo = async (item) => {
+        try {
+            const videoId = item.videoId();
+            const response = await fetch(`/api/additional-content/${item.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fileName: item.fileName,
+                    playlistId: item.playlistId ?? null,
+                    videoId: videoId ? parseInt(videoId, 10) : null
+                })
+            });
+            if (!response.ok) {
+                toast.error('Failed to update video association.');
+            }
+        } catch (error) {
+            console.error('Error updating extras video:', error);
+            toast.error('An error occurred while updating the item.');
+        }
+    };
+
+    deleteExtras = async (item) => {
+        if (!confirm(`Delete "${item.fileName}"? This cannot be undone.`)) return;
+        try {
+            const response = await fetch(`/api/additional-content/${item.id}`, { method: 'DELETE' });
+            if (response.ok) {
+                this.extrasItems.remove(item);
+                toast.success('Item deleted.');
+            } else {
+                toast.error('Failed to delete item.');
+            }
+        } catch (error) {
+            console.error('Error deleting extras:', error);
+            toast.error('An error occurred while deleting the item.');
         }
     };
 }

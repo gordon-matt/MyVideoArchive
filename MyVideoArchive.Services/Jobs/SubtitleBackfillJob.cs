@@ -35,14 +35,23 @@ public class SubtitleBackfillJob
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        // Honour the global toggle. The recurring schedule is registered once at startup, so we
-        // check at execution time rather than at registration time — that way flipping the flag
-        // in appsettings takes effect on the next run without needing to redeploy.
+        // Honour the global subtitle toggle and the backfill-specific toggle.
+        // Both are checked at execution time so flipping either flag in appsettings
+        // takes effect on the next run without needing to redeploy.
         if (!configuration.GetValue<bool>("Subtitles:Enabled", false))
         {
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation("Subtitle backfill skipped — Subtitles:Enabled is false");
+            }
+            return;
+        }
+
+        if (!configuration.GetValue<bool>("Subtitles:BackfillEnabled", true))
+        {
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Subtitle backfill skipped — Subtitles:BackfillEnabled is false");
             }
             return;
         }

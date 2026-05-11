@@ -295,7 +295,9 @@ public class CustomChannelService : ICustomChannelService
             video.Title = request.Title;
             video.Description = request.Description;
             video.ThumbnailUrl = request.ThumbnailUrl;
-            video.UploadDate = request.UploadDate;
+            video.UploadDate = request.UploadDate.HasValue
+                ? DateTime.SpecifyKind(request.UploadDate.Value, DateTimeKind.Utc)
+                : null;
             video.Duration = request.Duration;
 
             if (!string.IsNullOrEmpty(request.FilePath))

@@ -242,6 +242,7 @@ internal static class ServiceCollectionExtensions
             services.AddScoped<IUserContextService, UserContextService>();
 
             // Register other services
+            services.AddSingleton<IAdditionalContentService, AdditionalContentService>();
             services.AddSingleton<IChannelService, ChannelService>();
             services.AddSingleton<ICustomChannelService, CustomChannelService>();
             services.AddSingleton<ICustomPlaylistService, CustomPlaylistService>();

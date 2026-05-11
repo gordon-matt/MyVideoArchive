@@ -1,4 +1,4 @@
-import { formatDate, formatDuration } from './utils.js';
+import { formatDate, formatDuration, formatFileSize } from './utils.js';
 import { getTagifyOptions } from './tagify-options.js';
 
 class ChannelDetailsViewModel {
@@ -111,6 +111,22 @@ class ChannelDetailsViewModel {
 
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
+        this.formatFileSize = formatFileSize;
+
+        // ── Additional Content tab ────────────────────────────────────────────
+        this.extrasItems = ko.observableArray([]);
+        this.extrasLoading = ko.observable(false);
+        this.extrasLoaded = false;
+
+        // Upload state
+        this.extrasUploadFiles = ko.observableArray([]);
+        this.extrasUploadPlaylistId = ko.observable('');
+        this.extrasUploading = ko.observable(false);
+
+        // Edit state
+        this.extrasEditId = ko.observable(null);
+        this.extrasEditFileName = ko.observable('');
+        this.extrasEditPlaylistId = ko.observable('');
 
         // ── Thumbnail picker ──────────────────────────────────────────────────
         this.thumbnailPickerMode = ko.observable('banner'); // 'banner' | 'avatar'
@@ -1121,6 +1137,136 @@ class ChannelDetailsViewModel {
             console.error('Error refreshing playlists:', error);
             this.refreshingPlaylists(false);
             toast.error('Error refreshing playlists from the platform. Please try again.');
+        }
+    };
+
+    // ── Additional Content tab ────────────────────────────────────────────────
+
+    loadAdditionalContent = async () => {
+        if (this.extrasLoaded) return;
+        this.extrasLoading(true);
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/additional-content`);
+            if (response.ok) {
+                const data = await response.json();
+                this.extrasItems(data.items || []);
+                this.extrasLoaded = true;
+            }
+        } catch (error) {
+            console.error('Error loading additional content:', error);
+        } finally {
+            this.extrasLoading(false);
+        }
+    };
+
+    openUploadExtras = async () => {
+        this.extrasUploadFiles([]);
+        this.extrasUploadPlaylistId('');
+        document.getElementById('extrasUploadInput').value = '';
+        // Ensure playlists are loaded for the dropdown
+        if (this.playlists().length === 0) {
+            await this.loadPlaylists();
+        }
+        new bootstrap.Modal(document.getElementById('uploadExtrasModal')).show();
+    };
+
+    onExtrasFileSelected = (data, event) => {
+        const files = Array.from(event.target.files || []);
+        this.extrasUploadFiles(files);
+    };
+
+    confirmUploadExtras = async () => {
+        const files = this.extrasUploadFiles();
+        if (!files.length) return;
+
+        this.extrasUploading(true);
+        let anyFailed = false;
+        try {
+            for (const file of files) {
+                const form = new FormData();
+                form.append('file', file);
+                const playlistId = this.extrasUploadPlaylistId();
+                if (playlistId) form.append('playlistId', playlistId);
+
+                const response = await fetch(`/api/channels/${this.channelId}/additional-content`, {
+                    method: 'POST',
+                    body: form
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.extrasItems.push(data.item);
+                } else {
+                    anyFailed = true;
+                    const data = await response.json().catch(() => ({}));
+                    toast.error(data.message || `Failed to upload "${file.name}".`);
+                }
+            }
+
+            if (!anyFailed) {
+                bootstrap.Modal.getInstance(document.getElementById('uploadExtrasModal')).hide();
+                toast.success(`${files.length} file(s) uploaded successfully.`);
+            }
+        } catch (error) {
+            console.error('Error uploading additional content:', error);
+            toast.error('An error occurred while uploading files.');
+        } finally {
+            this.extrasUploading(false);
+        }
+    };
+
+    openEditExtras = async (item) => {
+        this.extrasEditId(item.id);
+        this.extrasEditFileName(item.fileName);
+        this.extrasEditPlaylistId(item.playlistId ? String(item.playlistId) : '');
+        // Ensure playlists are loaded for the dropdown
+        if (this.playlists().length === 0) {
+            await this.loadPlaylists();
+        }
+        new bootstrap.Modal(document.getElementById('editExtrasModal')).show();
+    };
+
+    confirmEditExtras = async () => {
+        const id = this.extrasEditId();
+        if (!id) return;
+        try {
+            const response = await fetch(`/api/additional-content/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fileName: this.extrasEditFileName(),
+                    playlistId: this.extrasEditPlaylistId() ? parseInt(this.extrasEditPlaylistId(), 10) : null,
+                    videoId: null
+                })
+            });
+
+            if (response.ok) {
+                this.extrasLoaded = false;
+                await this.loadAdditionalContent();
+                bootstrap.Modal.getInstance(document.getElementById('editExtrasModal')).hide();
+            } else {
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.message || 'Failed to update item.');
+            }
+        } catch (error) {
+            console.error('Error updating additional content:', error);
+            toast.error('An error occurred while updating the item.');
+        }
+    };
+
+    deleteExtras = async (item) => {
+        if (!confirm(`Delete "${item.fileName}"? This cannot be undone.`)) return;
+        try {
+            const response = await fetch(`/api/additional-content/${item.id}`, { method: 'DELETE' });
+            if (response.ok) {
+                this.extrasItems.remove(item);
+                toast.success('Item deleted.');
+            } else {
+                toast.error('Failed to delete item.');
+            }
+        } catch (error) {
+            console.error('Error deleting additional content:', error);
+            toast.error('An error occurred while deleting the item.');
         }
     };
 }
