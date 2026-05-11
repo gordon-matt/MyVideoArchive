@@ -39,6 +39,14 @@
     max-height: 900px;
 }
 
+/* "Extras for this video": keep the actions column only as wide as the two icon buttons */
+.playlist-video-extras-actions {
+    width: 1%;
+    white-space: nowrap;
+    vertical-align: middle;
+    text-align: end;
+}
+
 .playlist-video-item {
     display: flex;
     padding: 10px;

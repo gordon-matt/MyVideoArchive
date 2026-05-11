@@ -109,7 +109,7 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Item</th>
-                                        <th>Actions</th>
+                                        <th class="playlist-video-extras-actions">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody data-bind="foreach: extrasItems">
@@ -120,9 +120,9 @@
                                                target="_blank" rel="noopener noreferrer"
                                                class="link-body-emphasis"></a>
                                         </td>
-                                        <td class="text-nowrap">
+                                        <td class="playlist-video-extras-actions">
                                             <a class="btn btn-sm btn-outline-secondary"
-                                               data-bind="attr: { href: '/api/additional-content/' + id + '/download' }"
+                                               data-bind="attr: { href: '/api/additional-content/' + id + '/download?isForDownload=true' }"
                                                target="_blank" title="Download">
                                                 <i class="bi bi-download"></i>
                                             </a>

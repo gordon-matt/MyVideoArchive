@@ -43,8 +43,12 @@ public class AdditionalContentApiController : ControllerBase
         return result.ToActionResult(this, items => Ok(new { items }));
     }
 
+    /// <summary>
+    /// Serves the raw file. Use <paramref name="isForDownload"/> = true to suggest a filename (attachment);
+    /// omit or false to open inline in the browser (e.g. images, PDFs) when possible.
+    /// </summary>
     [HttpGet("additional-content/{id:int}/download")]
-    public async Task<IActionResult> Download(int id)
+    public async Task<IActionResult> GetFile(int id, [FromQuery] bool isForDownload = false)
     {
         var result = await service.GetDownloadInfoAsync(id);
         if (!result.IsSuccess)
@@ -54,7 +58,10 @@ public class AdditionalContentApiController : ControllerBase
                 : StatusCode(StatusCodes.Status500InternalServerError);
         }
 
-        return PhysicalFile(result.Value.PhysicalPath, result.Value.ContentType, result.Value.DownloadFileName);
+        var info = result.Value;
+        return isForDownload
+            ? PhysicalFile(info.PhysicalPath, info.ContentType, info.DownloadFileName)
+            : PhysicalFile(info.PhysicalPath, info.ContentType);
     }
 
     // ── Write (administrators only) ───────────────────────────────────────────
