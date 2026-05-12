@@ -288,6 +288,7 @@ build/
 
 MyVideoArchive/wwwroot/lib
 MyVideoArchive/ffmpeg.exe
+MyVideoArchive/ffprobe.exe
 MyVideoArchive/yt-dlp.exe
 
 Sejil-*.sqlite
