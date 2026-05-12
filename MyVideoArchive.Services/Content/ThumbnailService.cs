@@ -46,10 +46,36 @@ public class ThumbnailService
     /// Builds a relative URL from a physical file path and the downloads base path.
     /// E.g. downloadBasePath="C:/Downloads", filePath="C:/Downloads/UCxxx/video.jpg" → "/archive/UCxxx/video.jpg"
     /// </summary>
+    /// <remarks>
+    /// Each path segment is URI-encoded so characters such as <c>#</c>, spaces, and <c>+</c> work in HTML
+    /// <c>src</c> attributes (otherwise <c>#</c> starts a fragment and the rest of the path is never requested).
+    /// </remarks>
     public static string BuildRelativeUrl(string downloadBasePath, string filePath)
     {
         string relative = Path.GetRelativePath(downloadBasePath, filePath);
-        return ArchiveUrlPrefix + relative.Replace('\\', '/');
+        string normalized = relative.Replace('\\', '/');
+        string[] segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return ArchiveUrlPrefix.TrimEnd('/');
+        }
+
+        IEnumerable<string> encoded = segments.Select(static segment =>
+        {
+            string decoded;
+            try
+            {
+                decoded = Uri.UnescapeDataString(segment);
+            }
+            catch (UriFormatException)
+            {
+                decoded = segment;
+            }
+
+            return Uri.EscapeDataString(decoded);
+        });
+
+        return ArchiveUrlPrefix + string.Join("/", encoded);
     }
 
     /// <summary>
@@ -120,6 +146,10 @@ public class ThumbnailService
     /// A relative <c>/archive/…</c> URL on success, or <c>null</c> if the file does not exist or
     /// ffmpeg fails.
     /// </returns>
+    /// <remarks>
+    /// Requires startup configuration via <see cref="FfmpegToolsBootstrapper.ConfigureXabeAsync"/> so that
+    /// Xabe can find ffmpeg and ffprobe (see Xabe.FFmpeg <c>ValidateExecutables</c>).
+    /// </remarks>
     public async Task<string?> GenerateFromVideoAsync(
         string videoFilePath,
         string saveDirectory,
@@ -141,7 +171,6 @@ public class ThumbnailService
 
             conversion.SetOverwriteOutput(true);
 
-            // Xabe.FFmpeg.Start() does not accept a CancellationToken; check before and after.
             cancellationToken.ThrowIfCancellationRequested();
             await conversion.Start();
             cancellationToken.ThrowIfCancellationRequested();

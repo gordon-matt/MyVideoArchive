@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Extenso.AspNetCore.OData;
@@ -8,10 +7,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.OData;
 using MyVideoArchive.Data;
 using MyVideoArchive.Infrastructure;
+using MyVideoArchive.Services.Content;
 using Sejil;
 using Serilog;
 using Serilog.Sinks.PostgreSQL.ColumnWriters;
-using Xabe.FFmpeg;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -219,24 +218,19 @@ var services = scope.ServiceProvider;
 try
 {
     var configuration = services.GetRequiredService<IConfiguration>();
+    var startupLogger = services.GetRequiredService<ILogger<Program>>();
 
-    #region Xabe.Ffmpeg configuration
-
-    bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-    string ffmpegName = isWindows ? "ffmpeg.exe" : "ffmpeg";
-
-    string? configuredFfmpegPath = configuration["YoutubeDL:FFmpegPath"];
-    if (string.IsNullOrWhiteSpace(configuredFfmpegPath))
+    try
     {
-        configuredFfmpegPath = null;
+        await FfmpegToolsBootstrapper.ConfigureXabeAsync(configuration, startupLogger, CancellationToken.None);
     }
-
-    string ffmpegPath = configuredFfmpegPath
-        ?? Path.Combine(Directory.GetCurrentDirectory(), ffmpegName);
-
-    FFmpeg.SetExecutablesPath(ffmpegPath);
-
-    #endregion Xabe.Ffmpeg configuration
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+        if (startupLogger.IsEnabled(LogLevel.Warning))
+        {
+            startupLogger.LogWarning(ex, "FFmpeg bootstrap failed; Xabe thumbnail generation may not work until ffmpeg+ffprobe are available.");
+        }
+    }
 
     var context = services.GetRequiredService<ApplicationDbContext>();
     await context.Database.MigrateAsync();

@@ -244,7 +244,7 @@ public class FileSystemScanJob
             },
             x => new VideoEntry(x.Id, x.VideoId, x.FilePath, x.NeedsMetadataReview, x.IsManuallyImported, x.Title, x.DownloadedAt, x.ThumbnailUrl));
 
-        var trackedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var trackedVideoPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var videosByVideoId = new Dictionary<string, VideoEntry>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entry in videoEntries)
@@ -259,7 +259,7 @@ public class FileSystemScanJob
                 }
                 else
                 {
-                    trackedPaths.Add(entry.FilePath);
+                    trackedVideoPaths.Add(entry.FilePath);
                 }
             }
         }
@@ -272,14 +272,18 @@ public class FileSystemScanJob
         // Convert any .srt subtitle files found in the channel folder to .vtt
         ConvertSrtFilesInDirectory(channelPath);
 
+        var allVideoFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (string filePath in EnumerateVideoFiles(channelPath))
         {
+            allVideoFilePaths.Add(filePath);
+
             if (cancellationToken.IsCancellationRequested)
             {
                 break;
             }
 
-            if (trackedPaths.Contains(filePath))
+            if (trackedVideoPaths.Contains(filePath))
             {
                 // For already-tracked videos with no thumbnail, try to resolve one
                 string videoId = Path.GetFileNameWithoutExtension(filePath);
@@ -299,6 +303,9 @@ public class FileSystemScanJob
                 logger.LogError(ex, "Error processing file: {FilePath}", filePath);
             }
         }
+
+        // Scan non-video files in the channel root as additional content
+        await ScanCustomChannelRootExtrasAsync(channel, channelPath, allVideoFilePaths, cancellationToken);
     }
 
     // ── Custom channels ───────────────────────────────────────────────────────
@@ -565,6 +572,74 @@ public class FileSystemScanJob
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Error importing extras file: {FilePath}", filePath);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Scans all non-video, non-subtitle files in a custom channel's root folder and
+    /// imports any untracked ones as AdditionalContentItems.
+    /// This complements ScanExtrasAsync (which only looks in _extras) so that files
+    /// placed directly in the channel folder are also picked up.
+    /// </summary>
+    private async Task ScanCustomChannelRootExtrasAsync(
+        ChannelEntry channel,
+        string channelPath,
+        HashSet<string> videoFilePaths,
+        CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(channelPath))
+        {
+            return;
+        }
+
+        var trackedPaths = (await additionalContentRepository.FindAsync(
+            new SearchOptions<AdditionalContentItem>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.ChannelId == channel.Id
+            },
+            x => x.FilePath))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string filePath in Directory.EnumerateFiles(channelPath, "*", SearchOption.AllDirectories))
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (trackedPaths.Contains(filePath))
+            {
+                continue;
+            }
+
+            if (videoFilePaths.Contains(filePath))
+            {
+                continue;
+            }
+
+            string ext = Path.GetExtension(filePath);
+
+            if (VideoExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (SubtitleExtensionsToSkip.Contains(ext, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            try
+            {
+                await additionalContentService.ImportFileAsync(filePath, channel.Id, null, cancellationToken);
+                trackedPaths.Add(filePath);
+                logger.LogInformation("Imported additional content file {FilePath}", filePath);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Error importing additional content file: {FilePath}", filePath);
             }
         }
     }

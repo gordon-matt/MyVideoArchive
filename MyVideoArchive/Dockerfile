@@ -12,6 +12,10 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 python3-pip ffmpeg \
   && pip3 install --break-system-packages --no-cache-dir "yt-dlp[default]" \
   && rm -rf /var/lib/apt/lists/*
+# Xabe.FFmpeg requires ffmpeg and ffprobe in the same directory (see FfmpegToolsBootstrapper).
+# Ubuntu's ffmpeg package installs both under /usr/bin; fail the image build if that ever changes.
+RUN test -x /usr/bin/ffmpeg && test -x /usr/bin/ffprobe \
+  && /usr/bin/ffprobe -version | head -n1
 # Verify yt-dlp is present and runnable — build fails here if something went wrong.
 RUN test -x /usr/local/bin/yt-dlp && /usr/local/bin/yt-dlp --version
 WORKDIR /app

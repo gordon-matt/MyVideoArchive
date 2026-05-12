@@ -5,7 +5,27 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/channel-details.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/playlist-details.css" asp-append-version="true" />
+    <style>
+        .series-playlist-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--bs-border-color);
+            transition: background 0.15s;
+            cursor: default;
+        }
+        .series-playlist-item:last-child { border-bottom: none; }
+        .series-playlist-item:hover { background: rgba(0,0,0,.03); }
+        .series-playlist-thumbnail {
+            width: 80px;
+            height: 45px;
+            object-fit: cover;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+        .series-playlist-info { flex: 1; min-width: 0; }
+    </style>
 }
 
 <div data-bind="with: series">
@@ -22,46 +42,47 @@
         }
     </div>
 
-    <div class="mb-4">
-        <h2 class="mb-1" data-bind="text: name"></h2>
-        <small class="text-muted">
-            <span data-bind="text: playlists.length"></span>
-            <span data-bind="text: playlists.length === 1 ? ' playlist' : ' playlists'"></span>
-        </small>
-    </div>
+    <h2 class="mb-1" data-bind="text: name"></h2>
+    <p class="text-muted mb-4">
+        <span data-bind="text: playlists.length"></span>
+        <span data-bind="text: playlists.length === 1 ? ' playlist' : ' playlists'"></span>
+        @if (isAdminUser)
+        {
+            <text> &mdash; <small><i class="bi bi-grip-vertical"></i> Drag rows to reorder</small></text>
+        }
+    </p>
 
-    <!-- Playlists grid -->
+    <!-- Playlist list -->
     <div data-bind="visible: playlists.length === 0" class="alert alert-info">
         No playlists in this series yet.
     </div>
 
-    <div data-bind="visible: playlists.length > 0" class="row g-3">
-        <!-- ko foreach: playlists -->
-        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
-            <div class="card h-100">
-                <a data-bind="attr: { href: '/playlists/' + id }" class="text-decoration-none">
-                    <!-- ko if: thumbnailUrl -->
-                    <img data-bind="attr: { src: thumbnailUrl, alt: name }"
-                         class="card-img-top"
-                         style="aspect-ratio: 16/9; object-fit: cover;" />
-                    <!-- /ko -->
-                    <!-- ko ifnot: thumbnailUrl -->
-                    <div class="card-img-top d-flex align-items-center justify-content-center bg-secondary"
-                         style="aspect-ratio: 16/9;">
-                        <i class="bi bi-collection-play text-white fs-2"></i>
-                    </div>
-                    <!-- /ko -->
-                </a>
-                <div class="card-body p-2">
+    <div class="card" data-bind="visible: playlists.length > 0">
+        <div id="seriesPlaylistList" data-bind="foreach: playlists">
+            <div class="series-playlist-item" data-bind="attr: { 'data-playlist-id': id }">
+                @if (isAdminUser)
+                {
+                    <span class="drag-handle me-2">
+                        <i class="bi bi-grip-vertical"></i>
+                    </span>
+                }
+                <!-- ko if: thumbnailUrl -->
+                <img data-bind="attr: { src: thumbnailUrl, alt: name }" class="series-playlist-thumbnail me-3" />
+                <!-- /ko -->
+                <!-- ko ifnot: thumbnailUrl -->
+                <div class="series-playlist-thumbnail me-3 d-flex align-items-center justify-content-center bg-secondary rounded">
+                    <i class="bi bi-collection-play text-white"></i>
+                </div>
+                <!-- /ko -->
+                <div class="series-playlist-info">
                     <a data-bind="attr: { href: '/playlists/' + id }, text: name"
-                       class="text-decoration-none fw-semibold text-body d-block text-truncate"></a>
-                    <small class="text-muted">
-                        Sort order: <span data-bind="text: sortOrder + 1"></span>
-                    </small>
+                       class="text-decoration-none fw-semibold"></a>
+                </div>
+                <div class="ms-3 text-muted small">
+                    #<span data-bind="text: $index() + 1"></span>
                 </div>
             </div>
         </div>
-        <!-- /ko -->
     </div>
 
 </div>
@@ -73,7 +94,19 @@
     </div>
 </div>
 
-<!-- Edit modal (reuse from channel) -->
+<!-- Saving indicator -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1050;" data-bind="visible: saving">
+    <div class="toast show align-items-center text-white bg-secondary border-0">
+        <div class="d-flex">
+            <div class="toast-body">
+                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                Saving order&hellip;
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit modal (admin only) -->
 @if (isAdminUser)
 {
     @await Html.PartialAsync("_SeriesModals")
@@ -81,8 +114,17 @@
 
 @section Scripts {
     <script type="text/javascript">
-        const seriesId = @seriesId;
-        const isAdmin = @(isAdminUser ? "true" : "false");
+        var seriesId = @seriesId;
+        var isAdmin = @(isAdminUser ? "true" : "false");
     </script>
+    @if (isAdminUser)
+    {
+        <environment include="Development">
+            <script src="~/lib/sortablejs/Sortable.js"></script>
+        </environment>
+        <environment exclude="Development">
+            <script src="~/lib/sortablejs/Sortable.min.js"></script>
+        </environment>
+    }
     <script type="module" src="~/js/series-details.js" asp-append-version="true"></script>
 }

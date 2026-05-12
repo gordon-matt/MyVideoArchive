@@ -115,6 +115,8 @@ public class YoutubeDLInitializer
                     logger.LogWarning("ffmpeg not found at '{Path}'; downloading.", ffmpegPath);
                 }
 
+                // YoutubeDLSharp only fetches an ffmpeg binary for yt-dlp. Xabe.FFmpeg also needs ffprobe
+                // in the same folder; startup runs FfmpegToolsBootstrapper (official ffbinaries) when either is missing.
                 await Utils.DownloadFFmpeg();
             }
 

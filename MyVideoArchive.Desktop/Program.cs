@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using ElectronNET;
@@ -13,10 +12,10 @@ using Microsoft.Extensions.FileProviders;
 using MyVideoArchive.Data;
 using MyVideoArchive.Desktop;
 using MyVideoArchive.Infrastructure;
+using MyVideoArchive.Services.Content;
 using Sejil;
 using Serilog;
 using Serilog.Sinks.PostgreSQL.ColumnWriters;
-using Xabe.FFmpeg;
 
 // ────────────────────────────────────────────────────────────────────────────────
 // Desktop entry point. This is the Electron-wrapped variant of MyVideoArchive.
@@ -239,20 +238,19 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var configuration = services.GetRequiredService<IConfiguration>();
+        var startupLogger = services.GetRequiredService<ILogger<Program>>();
 
-        bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        string ffmpegName = isWindows ? "ffmpeg.exe" : "ffmpeg";
-
-        string? configuredFfmpegPath = configuration["YoutubeDL:FFmpegPath"];
-        if (string.IsNullOrWhiteSpace(configuredFfmpegPath))
+        try
         {
-            configuredFfmpegPath = null;
+            await FfmpegToolsBootstrapper.ConfigureXabeAsync(configuration, startupLogger, CancellationToken.None);
         }
-
-        string ffmpegPath = configuredFfmpegPath
-            ?? Path.Combine(Directory.GetCurrentDirectory(), ffmpegName);
-
-        FFmpeg.SetExecutablesPath(ffmpegPath);
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            if (startupLogger.IsEnabled(LogLevel.Warning))
+            {
+                startupLogger.LogWarning(ex, "FFmpeg bootstrap failed; Xabe thumbnail generation may not work until ffmpeg+ffprobe are available.");
+            }
+        }
 
         var context = services.GetRequiredService<ApplicationDbContext>();
         await context.Database.MigrateAsync();

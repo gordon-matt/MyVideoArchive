@@ -60,3 +60,33 @@ export function formatNumber(num) {
     if (!num) return '0';
     return num.toLocaleString();
 }
+
+/**
+ * Encodes each segment of a local /archive/... path so it is safe in HTML img src (e.g. # in "C#", spaces).
+ * Preserves an existing query string (e.g. ?t= for cache bust). Idempotent for already-encoded segments.
+ * @param {string | null | undefined} url
+ * @returns {string | null | undefined}
+ */
+export function encodeArchiveUrlForHtml(url) {
+    if (url == null || typeof url !== 'string') return url;
+    const prefix = '/archive/';
+    if (!url.startsWith(prefix)) return url;
+
+    const qIndex = url.indexOf('?');
+    const path = qIndex >= 0 ? url.slice(0, qIndex) : url;
+    const query = qIndex >= 0 ? url.slice(qIndex) : '';
+    const rest = path.slice(prefix.length);
+    const encoded = rest
+        .split('/')
+        .filter(Boolean)
+        .map((part) => {
+            try {
+                return encodeURIComponent(decodeURIComponent(part));
+            } catch {
+                return encodeURIComponent(part);
+            }
+        })
+        .join('/');
+
+    return prefix + encoded + query;
+}

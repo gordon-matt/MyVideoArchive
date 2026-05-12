@@ -1,8 +1,12 @@
+import { encodeArchiveUrlForHtml } from './utils.js';
+
 class SeriesDetailsViewModel {
     constructor(seriesId) {
         this.seriesId = seriesId;
         this.series = ko.observable(null);
         this.loading = ko.observable(true);
+        this.saving = ko.observable(false);
+        this._sortable = null;
 
         // Edit series state (used by _SeriesModals partial)
         this.seriesEditId = ko.observable(null);
@@ -19,12 +23,72 @@ class SeriesDetailsViewModel {
         try {
             const response = await fetch(`/api/series/${this.seriesId}`);
             if (response.ok) {
-                this.series(await response.json());
+                const s = await response.json();
+                if (s.playlists?.length) {
+                    s.playlists = s.playlists.map(p => ({
+                        ...p,
+                        thumbnailUrl: p.thumbnailUrl ? encodeArchiveUrlForHtml(p.thumbnailUrl) : p.thumbnailUrl
+                    }));
+                }
+                this.series(s);
+                if (isAdmin) {
+                    setTimeout(() => this._initSortable(), 100);
+                }
             }
         } catch (error) {
             console.error('Error loading series:', error);
         } finally {
             this.loading(false);
+        }
+    };
+
+    _initSortable = () => {
+        const container = document.getElementById('seriesPlaylistList');
+        if (!container) return;
+        if (this._sortable) this._sortable.destroy();
+
+        this._sortable = new Sortable(container, {
+            handle: '.drag-handle',
+            animation: 150,
+            onEnd: async () => {
+                const items = container.querySelectorAll('.series-playlist-item');
+                const s = this.series();
+                if (!s) return;
+
+                const reordered = [];
+                items.forEach(item => {
+                    const id = parseInt(item.getAttribute('data-playlist-id'));
+                    const pl = s.playlists.find(p => p.id === id);
+                    if (pl) reordered.push(pl);
+                });
+
+                // Update the observable so $index() re-renders.
+                // Knockout will re-render the list, so we re-init Sortable afterwards.
+                const updated = { ...s, playlists: reordered };
+                this.series(updated);
+                setTimeout(() => this._initSortable(), 50);
+
+                await this._saveOrder(reordered.map(p => p.id));
+            }
+        });
+    };
+
+    _saveOrder = async (playlistIds) => {
+        this.saving(true);
+        try {
+            const response = await fetch(`/api/series/${this.seriesId}/playlists`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playlistIds })
+            });
+            if (!response.ok) {
+                toast.error('Failed to save order.');
+            }
+        } catch (error) {
+            console.error('Error saving order:', error);
+            toast.error('An error occurred while saving.');
+        } finally {
+            this.saving(false);
         }
     };
 

@@ -1,4 +1,4 @@
-﻿import { formatDuration, formatFileSize } from './utils.js';
+﻿import { formatDuration, formatFileSize, encodeArchiveUrlForHtml } from './utils.js';
 
 class VideoViewModel {
     constructor() {
@@ -15,7 +15,11 @@ class VideoViewModel {
         await fetch('/odata/VideoOData?$filter=DownloadedAt ne null&$orderby=DownloadedAt desc&$top=20&$expand=Channel')
             .then(response => response.json())
             .then(data => {
-                this.videos(data.value || []);
+                this.videos((data.value || []).map(v => {
+                    const raw = v.ThumbnailUrl ?? v.thumbnailUrl;
+                    const thumb = raw ? encodeArchiveUrlForHtml(raw) : raw;
+                    return { ...v, ThumbnailUrl: thumb, thumbnailUrl: thumb };
+                }));
                 this.loading(false);
             })
             .catch(error => {

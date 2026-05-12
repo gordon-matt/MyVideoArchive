@@ -1,4 +1,4 @@
-import { formatDate, formatDuration, formatFileSize } from './utils.js';
+import { formatDate, formatDuration, formatFileSize, encodeArchiveUrlForHtml } from './utils.js';
 import { getTagifyOptions } from './tagify-options.js';
 
 class CustomVideoViewModel {
@@ -48,9 +48,12 @@ class CustomVideoViewModel {
             const response = await fetch(`/odata/VideoOData(${this.videoId})?$expand=Channel`);
             if (!response.ok) throw new Error('Video not found');
             const data = await response.json();
-            this.video(data);
+            const rawThumb = data.ThumbnailUrl ?? data.thumbnailUrl;
+            const thumb = rawThumb ? encodeArchiveUrlForHtml(rawThumb) : rawThumb;
+            const normalized = { ...data, ThumbnailUrl: thumb, thumbnailUrl: thumb };
+            this.video(normalized);
             if (data.FilePath) this.videoUrl(`/api/videos/${data.Id}/stream`);
-            this.populateEditForm(data);
+            this.populateEditForm(normalized);
 
             if (data.ChannelId) {
                 const [playlistsRes, membershipRes] = await Promise.all([

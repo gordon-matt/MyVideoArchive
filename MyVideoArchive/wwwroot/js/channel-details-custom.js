@@ -1,4 +1,4 @@
-import { formatDate, formatFileSize } from './utils.js';
+import { formatDate, formatFileSize, encodeArchiveUrlForHtml } from './utils.js';
 import { getTagifyOptions } from './tagify-options.js';
 
 class CustomChannelViewModel {
@@ -126,7 +126,18 @@ class CustomChannelViewModel {
     loadChannel = async () => {
         try {
             const response = await fetch(`/odata/ChannelOData(${this.channelId})`);
-            if (response.ok) this.channel(await response.json());
+            if (response.ok) {
+                const ch = await response.json();
+                const banner = ch.BannerUrl ?? ch.bannerUrl;
+                const avatar = ch.AvatarUrl ?? ch.avatarUrl;
+                this.channel({
+                    ...ch,
+                    BannerUrl: banner ? encodeArchiveUrlForHtml(banner) : banner,
+                    bannerUrl: banner ? encodeArchiveUrlForHtml(banner) : banner,
+                    AvatarUrl: avatar ? encodeArchiveUrlForHtml(avatar) : avatar,
+                    avatarUrl: avatar ? encodeArchiveUrlForHtml(avatar) : avatar
+                });
+            }
         } catch (error) {
             console.error('Error loading channel:', error);
         }
@@ -182,7 +193,7 @@ class CustomChannelViewModel {
         this.loading(true);
         try {
             const skip = (this.videosCurrentPage() - 1) * this.videosPageSize;
-            let filter = `ChannelId eq ${this.channelId}`;
+            let filter = `ChannelId eq ${this.channelId} and IsIgnored ne true`;
             const search = this.videosSearch().trim();
             if (search) {
                 const escaped = search.replace(/'/g, "''");
@@ -193,7 +204,11 @@ class CustomChannelViewModel {
             const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
-                this.videos((data.value || []).map(v => ({ ...v, _selected: ko.observable(false) })));
+                this.videos((data.value || []).map(v => {
+                    const rawThumb = v.ThumbnailUrl ?? v.thumbnailUrl;
+                    const thumb = rawThumb ? encodeArchiveUrlForHtml(rawThumb) : rawThumb;
+                    return { ...v, ThumbnailUrl: thumb, thumbnailUrl: thumb, _selected: ko.observable(false) };
+                }));
                 this.videosSelectAll(false);
                 const total = data['@odata.count'] ?? 0;
                 this.videosTotalCount(total);
@@ -332,7 +347,11 @@ class CustomChannelViewModel {
             const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
-                this.playlists(data.value || []);
+                this.playlists((data.value || []).map(p => {
+                    const raw = p.ThumbnailUrl ?? p.thumbnailUrl;
+                    const thumb = raw ? encodeArchiveUrlForHtml(raw) : raw;
+                    return { ...p, ThumbnailUrl: thumb, thumbnailUrl: thumb };
+                }));
                 const total = data['@odata.count'] ?? 0;
                 this.playlistsTotalCount(total);
                 this.playlistsTotalPages(Math.max(1, Math.ceil(total / this.playlistsPageSize)));
@@ -394,7 +413,7 @@ class CustomChannelViewModel {
                     return;
                 }
                 const data = await uploadRes.json();
-                bannerUrl = data.thumbnailUrl;
+                bannerUrl = data.thumbnailUrl ? encodeArchiveUrlForHtml(data.thumbnailUrl) : data.thumbnailUrl;
             }
 
             const response = await fetch(`/api/custom/channels/${this.channelId}`, {
@@ -731,7 +750,8 @@ class CustomChannelViewModel {
 
     openThumbnailModal = (playlist) => {
         this.thumbnailTargetPlaylist(playlist);
-        this.thumbnailPreviewUrl(playlist.thumbnailUrl ? playlist.thumbnailUrl + '?t=' + Date.now() : null);
+        const raw = playlist.thumbnailUrl ?? playlist.ThumbnailUrl;
+        this.thumbnailPreviewUrl(raw ? encodeArchiveUrlForHtml(raw) + '?t=' + Date.now() : null);
         this.thumbnailFile(null);
         new bootstrap.Modal(document.getElementById('playlistThumbnailModal')).show();
     };
@@ -786,7 +806,9 @@ class CustomChannelViewModel {
                 const data = await response.json();
                 const idx = this.playlists().indexOf(playlist);
                 if (idx >= 0) {
-                    const updated = Object.assign({}, playlist, { ThumbnailUrl: data.thumbnailUrl });
+                    const u = data.thumbnailUrl ?? data.ThumbnailUrl;
+                    const enc = u ? encodeArchiveUrlForHtml(u) : u;
+                    const updated = Object.assign({}, playlist, { ThumbnailUrl: enc, thumbnailUrl: enc });
                     this.playlists.splice(idx, 1, updated);
                 }
                 bootstrap.Modal.getInstance(document.getElementById('playlistThumbnailModal')).hide();
@@ -834,7 +856,10 @@ class CustomChannelViewModel {
     };
 
     _normalizeSeries = (s) => {
-        const urls = (s.playlists || []).slice(0, 4).map(p => p.thumbnailUrl || null);
+        const urls = (s.playlists || []).slice(0, 4).map(p => {
+            const raw = p.thumbnailUrl ?? p.ThumbnailUrl;
+            return raw ? encodeArchiveUrlForHtml(raw) : null;
+        });
         while (urls.length < 4) urls.push(null);
         return { ...s, collageImages: urls };
     };
@@ -846,11 +871,15 @@ class CustomChannelViewModel {
             const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
-                this.seriesAvailablePlaylists((data.value || []).map(p => ({
-                    id: p.Id,
-                    name: p.Name,
-                    thumbnailUrl: p.ThumbnailUrl
-                })));
+                this.seriesAvailablePlaylists((data.value || []).map(p => {
+                    const raw = p.ThumbnailUrl ?? p.thumbnailUrl;
+                    const thumb = raw ? encodeArchiveUrlForHtml(raw) : raw;
+                    return {
+                        id: p.Id,
+                        name: p.Name,
+                        thumbnailUrl: thumb
+                    };
+                }));
             }
         } catch (error) {
             console.error('Error loading playlists for series:', error);

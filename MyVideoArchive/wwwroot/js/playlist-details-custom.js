@@ -1,4 +1,4 @@
-import { formatDate, formatDuration } from './utils.js';
+import { formatDate, formatDuration, encodeArchiveUrlForHtml } from './utils.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
@@ -140,7 +140,12 @@ class CustomPlaylistDetailsViewModel {
         try {
             const response = await fetch(`/api/playlists/${this.playlistId}/videos?useCustomOrder=${this.useCustomOrder()}&showHidden=${this.showHidden()}`);
             const data = await response.json();
-            this.playlistVideos(data.videos || []);
+            const videos = (data.videos || []).map(v => {
+                const raw = v.thumbnailUrl ?? v.ThumbnailUrl;
+                const thumb = raw ? encodeArchiveUrlForHtml(raw) : raw;
+                return { ...v, thumbnailUrl: thumb, ThumbnailUrl: thumb };
+            });
+            this.playlistVideos(videos);
 
             setTimeout(() => this.initializeSortable(), 100);
             this._syncPlayerPlaylist(prevVideoId, prevTime);
