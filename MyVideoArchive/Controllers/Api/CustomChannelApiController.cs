@@ -123,4 +123,14 @@ public class CustomChannelApiController : ControllerBase
         var result = await customChannelService.UploadVideoThumbnailAsync(videoId, stream, file.FileName);
         return result.ToActionResult(this, thumbnailUrl => Ok(new { thumbnailUrl }));
     }
+
+    [HttpPost("playlists/{playlistId:int}/videos/bulk")]
+    public async Task<IActionResult> BulkAddVideosToPlaylist(int playlistId, [FromBody] BulkAddVideosRequest request)
+    {
+        var result = await customChannelService.BulkAddVideosToPlaylistAsync(
+            playlistId, request.VideoIds, HttpContext.RequestAborted);
+        return result.ToActionResult(this, added => Ok(new { added }));
+    }
 }
+
+public record BulkAddVideosRequest(List<int> VideoIds);

@@ -76,6 +76,13 @@
             Playlists
         </button>
     </li>
+    <li class="nav-item" role="presentation" data-bind="visible: seriesCount() > 0">
+        <button class="nav-link" id="series-tab" data-bs-toggle="tab" data-bs-target="#series" type="button" role="tab"
+                data-bind="click: loadSeries">
+            Series
+            <span class="badge bg-secondary rounded-pill ms-1" data-bind="text: seriesCount(), visible: seriesCount() > 0"></span>
+        </button>
+    </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="additional-content-tab" data-bs-toggle="tab" data-bs-target="#additional-content" type="button" role="tab"
                 data-bind="click: loadAdditionalContent">
@@ -89,7 +96,7 @@
     <!-- ── Videos tab ─────────────────────────────────────────────────────── -->
     <div class="tab-pane fade show active" id="videos" role="tabpanel">
 
-        <!-- Toolbar: search + view mode -->
+        <!-- Toolbar: search + bulk actions + view mode -->
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
             <div class="input-group" style="max-width: 340px;">
                 <input type="text" id="videosSearchInput" class="form-control" placeholder="Search videos…"
@@ -100,6 +107,38 @@
                 <button class="btn btn-outline-secondary" data-bind="click: clearVideoSearch, visible: videosSearch()">
                     <i class="bi bi-x-lg"></i>
                 </button>
+            </div>
+
+            <!-- Bulk actions (visible when at least one video is selected) -->
+            <div class="d-flex align-items-center gap-2" data-bind="visible: selectedVideos().length > 0">
+                <span class="text-muted small">
+                    <span data-bind="text: selectedVideos().length"></span> selected
+                </span>
+                <button class="btn btn-sm btn-outline-danger"
+                        data-bind="click: deleteSelectedVideos, enable: !videosBulkDeleting()">
+                    <span data-bind="visible: !videosBulkDeleting()">
+                        <i class="bi bi-trash"></i> Delete selected
+                    </span>
+                    <span data-bind="visible: videosBulkDeleting()">
+                        <span class="spinner-border spinner-border-sm"></span>
+                    </span>
+                </button>
+                <div class="d-flex gap-1">
+                    <select class="form-select form-select-sm" style="max-width: 180px;"
+                            data-bind="value: videosBulkTargetPlaylistId,
+                                       options: playlists,
+                                       optionsText: 'Name',
+                                       optionsValue: 'Id',
+                                       optionsCaption: 'Add to playlist…'">
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary"
+                            data-bind="click: addSelectedToPlaylist, enable: !videosBulkAddingToPlaylist() && videosBulkTargetPlaylistId()">
+                        <span data-bind="visible: !videosBulkAddingToPlaylist()"><i class="bi bi-plus"></i></span>
+                        <span data-bind="visible: videosBulkAddingToPlaylist()">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </span>
+                    </button>
+                </div>
             </div>
 
             <div class="btn-group ms-auto">
@@ -114,6 +153,15 @@
             </div>
         </div>
 
+        <!-- Select all bar -->
+        <div data-bind="visible: !loading() && videos().length > 0" class="mb-2">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="videosSelectAll"
+                       data-bind="checked: videosSelectAll" />
+                <label class="form-check-label small text-muted" for="videosSelectAll">Select all on this page</label>
+            </div>
+        </div>
+
         <div data-bind="visible: loading" class="text-center">
             <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
@@ -124,29 +172,38 @@
 
         <!-- List view -->
         <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'list', foreach: videos">
-            <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
-                <div class="video-item">
+            <div class="video-item">
+                <input type="checkbox" class="form-check-input me-2 flex-shrink-0"
+                       data-bind="checked: _selected" />
+                <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none d-flex align-items-center" style="flex: 1; min-width: 0;">
                     <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/120x68?text=No+Thumbnail', alt: Title }"
                          class="video-thumbnail-small" />
-                    <div style="flex: 1;">
+                    <div style="flex: 1; min-width: 0;">
                         <h6 data-bind="text: Title"></h6>
                         <small class="text-muted">
                             <span data-bind="if: UploadDate">Uploaded: <span data-bind="text: $parent.formatDate(UploadDate)"></span></span>
                         </small>
                         <span data-bind="if: NeedsMetadataReview" class="badge bg-danger ms-2">Needs Review</span>
                     </div>
-                    <div class="ms-auto">
+                    <div class="ms-3">
                         <i class="bi bi-play-circle fs-3 text-primary"></i>
                     </div>
-                </div>
-            </a>
+                </a>
+                <button class="btn btn-sm btn-outline-danger ms-3" data-bind="click: $parent.deleteVideoFile" title="Delete file">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Grid view -->
         <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'grid'" class="row">
             <!-- ko foreach: videos -->
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
-                <div class="video-grid-card card h-100">
+                <div class="video-grid-card card h-100" data-bind="css: { 'border-primary': _selected() }">
+                    <div class="position-absolute top-0 start-0 m-1" style="z-index:1;">
+                        <input type="checkbox" class="form-check-input" data-bind="checked: _selected"
+                               onclick="event.stopPropagation();" />
+                    </div>
                     <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
                         <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }"
                              class="card-img-top video-grid-thumbnail" />
@@ -157,6 +214,14 @@
                             <span data-bind="if: UploadDate"><span data-bind="text: $parent.formatDate(UploadDate)"></span></span>
                         </small>
                         <span data-bind="if: NeedsMetadataReview" class="badge bg-danger mt-1">Needs Review</span>
+                    </div>
+                    <div class="card-footer p-1">
+                        <button class="btn btn-sm btn-outline-danger w-100"
+                                data-bind="click: $parent.deleteVideoFile"
+                                onclick="event.stopPropagation();"
+                                title="Delete file">
+                            <i class="bi bi-trash"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -238,6 +303,11 @@
             ItemLabel: "playlists"))
     </div>
 
+    <!-- ── Series tab ──────────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="series" role="tabpanel">
+        @await Html.PartialAsync("_SeriesTab", isAdminUser)
+    </div>
+
     <!-- ── Additional Content tab ────────────────────────────────────────── -->
     <div class="tab-pane fade" id="additional-content" role="tabpanel">
         @await Html.PartialAsync("_AdditionalContentTab", isAdminUser)
@@ -246,6 +316,7 @@
 </div>
 
 @await Html.PartialAsync("_AdditionalContentModals")
+@await Html.PartialAsync("_SeriesModals")
 
 <!-- Edit Channel Modal -->
 <div class="modal fade" id="editChannelModal" tabindex="-1" aria-hidden="true">

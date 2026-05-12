@@ -113,6 +113,15 @@ class PlaylistDetailsViewModel {
         this.extrasPickerLoading = ko.observable(false);
         this.extrasPickerSelectedIds = ko.observableArray([]);
         this.extrasPickerSaving = ko.observable(false);
+
+        // ── Add to Series ─────────────────────────────────────────────────
+        this.addToSeriesLoading = ko.observable(false);
+        this.addToSeriesOptions = ko.observableArray([]);
+        this.addToSeriesSelected = ko.observable(null);
+        this.addToSeriesCurrentMemberships = ko.observableArray([]);
+        this.addToSeriesShowNewForm = ko.observable(false);
+        this.addToSeriesNewName = ko.observable('');
+        this.addToSeriesCreating = ko.observable(false);
     }
 
     formatExtrasPlaylistNames(item) {
@@ -624,6 +633,116 @@ class PlaylistDetailsViewModel {
         } catch (error) {
             console.error('Error removing video extra:', error);
             toast.error('Failed to remove association.');
+        }
+    };
+
+    // ── Add to Series ─────────────────────────────────────────────────────────
+
+    openAddToSeries = async () => {
+        const pl = this.playlist();
+        if (!pl) return;
+
+        this.addToSeriesLoading(true);
+        this.addToSeriesShowNewForm(false);
+        this.addToSeriesNewName('');
+        this.addToSeriesOptions([]);
+        this.addToSeriesCurrentMemberships([]);
+        new bootstrap.Modal(document.getElementById('addToSeriesModal')).show();
+
+        try {
+            const [channelSeriesRes, memberRes] = await Promise.all([
+                fetch(`/api/channels/${pl.ChannelId}/series`),
+                fetch(`/api/playlists/${this.playlistId}/series`)
+            ]);
+
+            if (channelSeriesRes.ok) {
+                const data = await channelSeriesRes.json();
+                this.addToSeriesOptions(data.series || []);
+            }
+            if (memberRes.ok) {
+                const data = await memberRes.json();
+                this.addToSeriesCurrentMemberships((data.series || []).map(s => s.id));
+            }
+        } catch (error) {
+            console.error('Error loading series:', error);
+            toast.error('Failed to load series.');
+        } finally {
+            this.addToSeriesLoading(false);
+        }
+    };
+
+    playlistIsInSeries = (seriesId) => {
+        return this.addToSeriesCurrentMemberships().includes(seriesId);
+    };
+
+    addToExistingSeries = async (series) => {
+        if (this.playlistIsInSeries(series.id)) return;
+        try {
+            const currentIds = (this.addToSeriesOptions()
+                .find(s => s.id === series.id)?.playlists || [])
+                .map(p => p.id);
+
+            if (!currentIds.includes(this.playlistId)) {
+                currentIds.push(this.playlistId);
+            }
+
+            const response = await fetch(`/api/series/${series.id}/playlists`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playlistIds: currentIds })
+            });
+
+            if (response.ok) {
+                this.addToSeriesCurrentMemberships([...this.addToSeriesCurrentMemberships(), series.id]);
+                toast.success(`Added to "${series.name}".`);
+            } else {
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.message || 'Failed to add to series.');
+            }
+        } catch (error) {
+            console.error('Error adding to series:', error);
+            toast.error('Failed to add to series.');
+        }
+    };
+
+    openNewSeriesInline = () => {
+        this.addToSeriesShowNewForm(true);
+        this.addToSeriesNewName('');
+    };
+
+    createSeriesAndAdd = async () => {
+        const name = this.addToSeriesNewName().trim();
+        if (!name) return;
+        const pl = this.playlist();
+        if (!pl) return;
+
+        this.addToSeriesCreating(true);
+        try {
+            const createRes = await fetch(`/api/channels/${pl.ChannelId}/series`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+
+            if (!createRes.ok) { toast.error('Failed to create series.'); return; }
+            const data = await createRes.json();
+            const newSeries = data.series;
+
+            await fetch(`/api/series/${newSeries.id}/playlists`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playlistIds: [this.playlistId] })
+            });
+
+            this.addToSeriesOptions([...this.addToSeriesOptions(), newSeries]);
+            this.addToSeriesCurrentMemberships([...this.addToSeriesCurrentMemberships(), newSeries.id]);
+            this.addToSeriesShowNewForm(false);
+            toast.success(`Created series "${name}" and added this playlist.`);
+        } catch (error) {
+            console.error('Error creating series:', error);
+            toast.error('Failed to create series.');
+        } finally {
+            this.addToSeriesCreating(false);
         }
     };
 }

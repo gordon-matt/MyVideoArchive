@@ -244,6 +244,7 @@ internal static class ServiceCollectionExtensions
             // Register other services
             services.AddSingleton<IAdditionalContentService, AdditionalContentService>();
             services.AddSingleton<IChannelService, ChannelService>();
+            services.AddSingleton<ISeriesService, SeriesService>();
             services.AddSingleton<ICustomChannelService, CustomChannelService>();
             services.AddSingleton<ICustomPlaylistService, CustomPlaylistService>();
             services.AddSingleton<IFileSystemScanService, FileSystemScanService>();

@@ -33,4 +33,6 @@ public interface ICustomChannelService
     Task<Result<string>> UploadPlaylistThumbnailAsync(int playlistId, Stream fileStream, string fileName);
 
     Task<Result<string>> UploadVideoThumbnailAsync(int videoId, Stream fileStream, string fileName);
+
+    Task<Result<int>> BulkAddVideosToPlaylistAsync(int playlistId, IReadOnlyList<int> videoIds, CancellationToken cancellationToken = default);
 }

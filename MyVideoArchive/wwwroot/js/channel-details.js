@@ -113,6 +113,21 @@ class ChannelDetailsViewModel {
         this.formatDuration = formatDuration;
         this.formatFileSize = formatFileSize;
 
+        // ── Series tab ────────────────────────────────────────────────────────
+        this.seriesList = ko.observableArray([]);
+        this.seriesLoading = ko.observable(false);
+        this.seriesLoaded = false;
+        this.seriesCount = ko.observable(0);
+
+        // Series edit form
+        this.seriesEditId = ko.observable(null);
+        this.seriesEditIsNew = ko.observable(true);
+        this.seriesEditName = ko.observable('');
+        this.seriesEditPlaylistIds = ko.observableArray([]);
+        this.seriesAvailablePlaylists = ko.observableArray([]);
+        this.seriesPlaylistsLoading = ko.observable(false);
+        this.seriesSaving = ko.observable(false);
+
         // ── Additional Content tab ────────────────────────────────────────────
         this.extrasItems = ko.observableArray([]);
         this.extrasLoading = ko.observable(false);
@@ -1275,6 +1290,151 @@ class ChannelDetailsViewModel {
             toast.error('An error occurred while deleting the item.');
         }
     };
+
+    // ── Series tab ────────────────────────────────────────────────────────────
+
+    loadSeriesCount = async () => {
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/series`);
+            if (response.ok) {
+                const data = await response.json();
+                this.seriesCount((data.series || []).length);
+            }
+        } catch (error) {
+            console.error('Error loading series count:', error);
+        }
+    };
+
+    loadSeries = async () => {
+        if (this.seriesLoaded) return;
+        this.seriesLoading(true);
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/series`);
+            if (response.ok) {
+                const data = await response.json();
+                this.seriesList((data.series || []).map(s => this._normalizeSeries(s)));
+                this.seriesCount(this.seriesList().length);
+                this.seriesLoaded = true;
+            }
+        } catch (error) {
+            console.error('Error loading series:', error);
+        } finally {
+            this.seriesLoading(false);
+        }
+    };
+
+    _normalizeSeries = (s) => {
+        const urls = (s.playlists || []).slice(0, 4).map(p => p.thumbnailUrl || null);
+        while (urls.length < 4) urls.push(null);
+        return { ...s, collageImages: urls };
+    };
+
+    _loadSeriesAvailablePlaylists = async () => {
+        this.seriesPlaylistsLoading(true);
+        try {
+            const url = `/odata/PlaylistOData?$filter=ChannelId eq ${this.channelId}&$orderby=Name&$top=200&$select=Id,Name,ThumbnailUrl`;
+            const response = await fetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                this.seriesAvailablePlaylists((data.value || []).map(p => ({
+                    id: p.Id,
+                    name: p.Name,
+                    thumbnailUrl: p.ThumbnailUrl
+                })));
+            }
+        } catch (error) {
+            console.error('Error loading playlists for series:', error);
+        } finally {
+            this.seriesPlaylistsLoading(false);
+        }
+    };
+
+    openCreateSeries = async () => {
+        this.seriesEditId(null);
+        this.seriesEditIsNew(true);
+        this.seriesEditName('');
+        this.seriesEditPlaylistIds([]);
+        await this._loadSeriesAvailablePlaylists();
+        new bootstrap.Modal(document.getElementById('seriesEditModal')).show();
+    };
+
+    openEditSeries = async (series) => {
+        this.seriesEditId(series.id);
+        this.seriesEditIsNew(false);
+        this.seriesEditName(series.name);
+        this.seriesEditPlaylistIds((series.playlists || []).map(p => p.id));
+        await this._loadSeriesAvailablePlaylists();
+        new bootstrap.Modal(document.getElementById('seriesEditModal')).show();
+    };
+
+    confirmSaveSeriesEdit = async () => {
+        const name = this.seriesEditName().trim();
+        if (!name) return;
+
+        this.seriesSaving(true);
+        try {
+            if (this.seriesEditIsNew()) {
+                const response = await fetch(`/api/channels/${this.channelId}/series`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (!response.ok) { toast.error('Failed to create series.'); return; }
+                const data = await response.json();
+                const newId = data.series.id;
+
+                await fetch(`/api/series/${newId}/playlists`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playlistIds: this.seriesEditPlaylistIds().slice() })
+                });
+
+                toast.success('Series created.');
+            } else {
+                const seriesId = this.seriesEditId();
+                const [nameRes, playlistsRes] = await Promise.all([
+                    fetch(`/api/series/${seriesId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    }),
+                    fetch(`/api/series/${seriesId}/playlists`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ playlistIds: this.seriesEditPlaylistIds().slice() })
+                    })
+                ]);
+                if (!nameRes.ok || !playlistsRes.ok) { toast.error('Failed to update series.'); return; }
+                toast.success('Series updated.');
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('seriesEditModal')).hide();
+            this.seriesLoaded = false;
+            await this.loadSeries();
+        } catch (error) {
+            console.error('Error saving series:', error);
+            toast.error('An error occurred while saving.');
+        } finally {
+            this.seriesSaving(false);
+        }
+    };
+
+    deleteSeries = async (series) => {
+        if (!confirm(`Delete series "${series.name}"? The playlists themselves will not be deleted.`)) return;
+        try {
+            const response = await fetch(`/api/series/${series.id}`, { method: 'DELETE' });
+            if (response.ok) {
+                this.seriesList.remove(s => s.id === series.id);
+                this.seriesCount(this.seriesList().length);
+                toast.success('Series deleted.');
+            } else {
+                toast.error('Failed to delete series.');
+            }
+        } catch (error) {
+            console.error('Error deleting series:', error);
+            toast.error('An error occurred while deleting.');
+        }
+    };
 }
 
 var viewModel;
@@ -1287,6 +1447,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await viewModel.initTags();
     await viewModel.loadVideos();
     await viewModel.loadSubscribedPlaylists();
+    await viewModel.loadSeriesCount();
     viewModel.startSyncPolling();
 
     // Load available videos when the tab is clicked

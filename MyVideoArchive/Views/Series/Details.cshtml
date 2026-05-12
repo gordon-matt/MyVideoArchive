@@ -1,0 +1,88 @@
+@{
+    ViewData["Title"] = "Series";
+    var seriesId = ViewBag.SeriesId;
+    var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/channel-details.css" asp-append-version="true" />
+}
+
+<div data-bind="with: series">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <a data-bind="attr: { href: '/channels/' + channelId }" class="btn btn-outline-secondary btn-sm">
+            &larr; Back to Channel
+        </a>
+        @if (isAdminUser)
+        {
+            <button class="btn btn-sm btn-outline-secondary ms-auto" data-bind="click: $parent.openEditSeries">
+                <i class="bi bi-pencil"></i> Edit Series
+            </button>
+        }
+    </div>
+
+    <div class="mb-4">
+        <h2 class="mb-1" data-bind="text: name"></h2>
+        <small class="text-muted">
+            <span data-bind="text: playlists.length"></span>
+            <span data-bind="text: playlists.length === 1 ? ' playlist' : ' playlists'"></span>
+        </small>
+    </div>
+
+    <!-- Playlists grid -->
+    <div data-bind="visible: playlists.length === 0" class="alert alert-info">
+        No playlists in this series yet.
+    </div>
+
+    <div data-bind="visible: playlists.length > 0" class="row g-3">
+        <!-- ko foreach: playlists -->
+        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+            <div class="card h-100">
+                <a data-bind="attr: { href: '/playlists/' + id }" class="text-decoration-none">
+                    <!-- ko if: thumbnailUrl -->
+                    <img data-bind="attr: { src: thumbnailUrl, alt: name }"
+                         class="card-img-top"
+                         style="aspect-ratio: 16/9; object-fit: cover;" />
+                    <!-- /ko -->
+                    <!-- ko ifnot: thumbnailUrl -->
+                    <div class="card-img-top d-flex align-items-center justify-content-center bg-secondary"
+                         style="aspect-ratio: 16/9;">
+                        <i class="bi bi-collection-play text-white fs-2"></i>
+                    </div>
+                    <!-- /ko -->
+                </a>
+                <div class="card-body p-2">
+                    <a data-bind="attr: { href: '/playlists/' + id }, text: name"
+                       class="text-decoration-none fw-semibold text-body d-block text-truncate"></a>
+                    <small class="text-muted">
+                        Sort order: <span data-bind="text: sortOrder + 1"></span>
+                    </small>
+                </div>
+            </div>
+        </div>
+        <!-- /ko -->
+    </div>
+
+</div>
+
+<!-- Loading state -->
+<div data-bind="visible: loading" class="text-center py-5">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading&hellip;</span>
+    </div>
+</div>
+
+<!-- Edit modal (reuse from channel) -->
+@if (isAdminUser)
+{
+    @await Html.PartialAsync("_SeriesModals")
+}
+
+@section Scripts {
+    <script type="text/javascript">
+        const seriesId = @seriesId;
+        const isAdmin = @(isAdminUser ? "true" : "false");
+    </script>
+    <script type="module" src="~/js/series-details.js" asp-append-version="true"></script>
+}

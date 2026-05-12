@@ -8,247 +8,271 @@
 }
 
 <div class="container-fluid px-0">
-    <div class="row g-0">
-        <div class="col-12">
-            <div id="video-player-container" class="bg-dark" style="min-height: 400px;">
-                <div class="text-center text-white py-5" data-bind="visible: loading">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-3">Loading video...</p>
-                </div>
 
-                <div data-bind="visible: !loading() && video() && hasFile()">
-                    <video id="videoPlayer" class="w-100" controls data-bind="attr: { src: videoUrl }">
-                        Your browser does not support the video tag.
-                    </video>
-                </div>
-
-                <div data-bind="visible: !loading() && video() && !hasFile()" class="text-center text-white py-5">
-                    <i class="bi bi-file-earmark-play fs-1 opacity-50"></i>
-                    <h4 class="mt-3">No video file linked yet</h4>
-                    <p class="opacity-75">Use the edit form below to link a file on disk to this video.</p>
-                </div>
-
-                <div data-bind="visible: !loading() && !video()" class="text-center text-white py-5">
-                    <h3>Video not found</h3>
-                    <a href="/channels" class="btn btn-outline-light">Back to Channels</a>
-                </div>
+    <!-- ── Player ────────────────────────────────────────────────────────── -->
+    <div id="video-player-container" class="bg-dark">
+        <div class="text-center text-white py-5" data-bind="visible: loading">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
             </div>
+            <p class="mt-3">Loading video...</p>
+        </div>
+
+        <div data-bind="visible: !loading() && video() && hasFile()">
+            <video id="videoPlayer" class="w-100" controls data-bind="attr: { src: videoUrl }">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
+        <div data-bind="visible: !loading() && video() && !hasFile()" class="text-center text-white py-5">
+            <i class="bi bi-file-earmark-play fs-1 opacity-50"></i>
+            <h4 class="mt-3">No video file linked yet</h4>
+            <p class="opacity-75 small">Edit the metadata below to link a file on disk.</p>
+        </div>
+
+        <div data-bind="visible: !loading() && !video()" class="text-center text-white py-5">
+            <h3>Video not found</h3>
+            <a href="/channels" class="btn btn-outline-light">Back to Channels</a>
         </div>
     </div>
 
-    <div class="row mt-4" data-bind="visible: video()">
-        <div class="col-12 col-lg-8">
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h2 class="card-title" data-bind="text: video() && video().Title"></h2>
-                    <div class="d-flex align-items-center mb-3 text-muted">
-                        <span data-bind="if: video() && video().UploadDate">
-                            <i class="bi bi-calendar"></i>
-                            <span data-bind="text: formatDate(video().UploadDate)"></span>
-                        </span>
-                        <span class="badge bg-secondary ms-2">Custom</span>
-                    </div>
-                    <div class="mb-3">
-                        <a data-bind="attr: { href: '/channels/' + (video() && video().ChannelId) }" class="text-decoration-none">
-                            <strong><i class="bi bi-person-circle"></i>
-                            <span data-bind="text: video() && video().Channel && video().Channel.Name"></span></strong>
-                        </a>
-                    </div>
-                    <div class="description-box p-3 bg-light rounded" data-bind="if: video() && video().Description">
-                        <p class="mb-0" data-bind="text: video().Description" style="white-space: pre-wrap;"></p>
-                    </div>
-                </div>
-            </div>
+    <!-- ── Content ───────────────────────────────────────────────────────── -->
+    <div class="mt-3 px-3 px-lg-4" data-bind="visible: video()">
 
-            <!-- Tags -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="bi bi-tags"></i> Tags</h6>
-                </div>
-                <div class="card-body">
-                    <input id="videoTagsInput" class="form-control" placeholder="Add tags..." />
-                    <div class="form-text">Press Enter or comma to add a tag. Changes are saved automatically.</div>
-                </div>
-            </div>
-
-            <!-- Edit Metadata Card -->
-            <div class="card">
-                <div class="card-header d-flex align-items-center justify-content-between">
-                    <h5 class="mb-0"><i class="bi bi-pencil"></i> Edit Metadata</h5>
-                    <button class="btn btn-sm btn-link" data-bind="click: toggleEditForm">
-                        <span data-bind="text: showEditForm() ? 'Hide' : 'Show'"></span>
-                    </button>
-                </div>
-                <div class="card-body" data-bind="visible: showEditForm">
-                    <div class="mb-3">
-                        <label class="form-label">Title <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" data-bind="value: editTitle" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" rows="4" data-bind="value: editDescription"></textarea>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Upload Date</label>
-                            <input type="date" class="form-control" data-bind="value: editUploadDate" />
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Duration (HH:MM:SS)</label>
-                            <input type="text" class="form-control" data-bind="value: editDuration" placeholder="00:00:00" />
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Thumbnail</label>
-                        <div class="d-flex align-items-start gap-3 flex-wrap">
-                            <img data-bind="visible: video() && video().ThumbnailUrl,
-                                            attr: { src: video() && video().ThumbnailUrl ? video().ThumbnailUrl + '?t=' + thumbnailCacheBust() : '' }"
-                                 style="width: 160px; height: 90px; object-fit: cover; border-radius: 4px; flex-shrink: 0;" />
-                            <div style="flex: 1; min-width: 200px;">
-                                <div id="videoThumbnailDropZone"
-                                     class="border rounded p-3 text-center"
-                                     style="border-style: dashed !important; cursor: pointer; min-height: 80px;"
-                                     data-bind="event: { dragover: onThumbnailDragOver, drop: onThumbnailDrop, click: triggerThumbnailInput }">
-                                    <i class="bi bi-cloud-arrow-up text-muted"></i>
-                                    <p class="text-muted small mb-0" data-bind="visible: !thumbnailFile()">
-                                        Drop image or click to browse<br>
-                                        <small>Saved next to the video file on disk</small>
-                                    </p>
-                                    <p class="text-success small mb-0" data-bind="visible: thumbnailFile()">
-                                        <i class="bi bi-check-circle"></i>
-                                        <span data-bind="text: thumbnailFile() && thumbnailFile().name"></span>
-                                        &mdash; click Save to upload
-                                    </p>
-                                </div>
-                                <input type="file" id="videoThumbnailInput" accept="image/*" style="display:none;"
-                                       data-bind="event: { change: onThumbnailFileSelected }" />
-                                <div class="form-text">JPG, PNG or WebP &mdash; max 10 MB</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">File Path</label>
-                        <input type="text" class="form-control" data-bind="value: editFilePath"
-                               placeholder="C:\Videos\my-video.mp4" />
-                        <div class="form-text">Absolute path to the video file on disk.</div>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-primary" data-bind="click: saveMetadata, enable: editTitle().length > 0">
-                            <i class="bi bi-save"></i> Save
-                        </button>
-                        <button class="btn btn-outline-secondary" data-bind="click: resetEditForm">Cancel</button>
-                    </div>
-                </div>
+        <!-- Title row -->
+        <div class="d-flex align-items-start justify-content-between gap-3 mb-1">
+            <h2 class="mb-0 fw-semibold" data-bind="text: video() && video().Title"></h2>
+            <div class="d-flex gap-2 flex-shrink-0">
+                <button class="btn btn-sm btn-outline-secondary" data-bind="click: toggleEditForm">
+                    <i class="bi bi-pencil"></i>
+                    <span class="d-none d-sm-inline">Edit</span>
+                </button>
+                <button class="btn btn-sm btn-outline-danger"
+                        data-bind="click: deleteVideoFile, enable: !deleting() && hasFile()"
+                        title="Delete linked file">
+                    <i class="bi bi-trash"></i>
+                </button>
             </div>
         </div>
 
-        <div class="col-12 col-lg-4 mt-4 mt-lg-0">
-            <div class="card">
-                <div class="card-header d-flex align-items-center justify-content-between">
-                    <h5 class="mb-0">Video Information</h5>
-                    <button class="btn btn-sm btn-outline-danger"
-                            data-bind="click: deleteVideoFile, enable: !deleting() && hasFile()"
-                            title="Delete linked file">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm">
-                        <tbody>
-                            <tr data-bind="if: video() && video().Duration">
-                                <th>Duration</th>
-                                <td data-bind="text: formatDuration(video().Duration)"></td>
-                            </tr>
-                            <tr>
-                                <th>Platform</th>
-                                <td><span class="badge bg-secondary">Custom</span></td>
-                            </tr>
-                            <tr data-bind="if: video() && video().DownloadedAt">
-                                <th>Imported</th>
-                                <td data-bind="text: formatDate(video().DownloadedAt)"></td>
-                            </tr>
-                            <tr data-bind="if: video() && video().FileSize">
-                                <th>File Size</th>
-                                <td data-bind="text: formatFileSize(video().FileSize)"></td>
-                            </tr>
-                            <tr data-bind="if: video() && video().FilePath">
-                                <th>File</th>
-                                <td><small class="text-muted text-break" data-bind="text: video().FilePath"></small></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        <!-- Subtitle: channel + date + badge -->
+        <div class="d-flex align-items-center gap-3 mb-3 text-muted small">
+            <a data-bind="attr: { href: '/channels/' + (video() && video().ChannelId) }" class="text-decoration-none fw-semibold">
+                <i class="bi bi-person-circle me-1"></i>
+                <span data-bind="text: video() && video().Channel && video().Channel.Name"></span>
+            </a>
+            <span data-bind="if: video() && video().UploadDate">
+                <i class="bi bi-calendar me-1"></i>
+                <span data-bind="text: formatDate(video().UploadDate)"></span>
+            </span>
+            <span data-bind="if: video() && video().Duration">
+                <i class="bi bi-clock me-1"></i>
+                <span data-bind="text: formatDuration(video().Duration)"></span>
+            </span>
+            <span data-bind="if: video() && video().FileSize">
+                <i class="bi bi-hdd me-1"></i>
+                <span data-bind="text: formatFileSize(video().FileSize)"></span>
+            </span>
+            <span class="badge bg-secondary">Custom</span>
+        </div>
 
-            <!-- Playlists Section -->
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="bi bi-collection-play"></i> Playlists</h5>
-                </div>
-                <div class="card-body">
-                    <!-- Channel Playlists -->
-                    <div data-bind="visible: channelPlaylists().length > 0" class="mb-3">
-                        <h6 class="text-muted small text-uppercase fw-semibold mb-2">Channel Playlists</h6>
-                        <ul class="list-group list-group-flush">
-                            <!-- ko foreach: channelPlaylists -->
-                            <li class="list-group-item d-flex align-items-center gap-2 px-0">
-                                <input type="checkbox" class="form-check-input mt-0"
-                                       data-bind="checked: $parent.editPlaylistIds, checkedValue: id, attr: { id: 'cpl-' + id }" />
+        <!-- Description -->
+        <div class="description-box p-3 bg-light rounded mb-3" data-bind="if: video() && video().Description">
+            <p class="mb-0 small" data-bind="text: video().Description" style="white-space: pre-wrap;"></p>
+        </div>
 
-                                <label><a data-bind="attr: { href: '/playlists/' + id }, text: name" class="text-decoration-none fw-semibold"></a> </label>
-                                @* <label class="form-check-label flex-grow-1" data-bind="text: name, attr: { for: 'cpl-' + id }"></label> *@
-                            </li>
-                            <!-- /ko -->
-                        </ul>
-                        <button class="btn btn-sm btn-outline-primary mt-2"
-                                data-bind="click: saveChannelPlaylistMemberships">
-                            <i class="bi bi-save"></i> Save
+        <!-- Two-column section -->
+        <div class="row g-4">
+            <div class="col-12 col-lg-8">
+
+                <!-- Tags -->
+                <div class="card mb-3">
+                    <div class="card-header py-2">
+                        <h6 class="mb-0"><i class="bi bi-tags"></i> Tags</h6>
+                    </div>
+                    <div class="card-body py-2">
+                        <input id="videoTagsInput" class="form-control form-control-sm" placeholder="Add tags..." />
+                        <div class="form-text">Press Enter or comma to add a tag. Changes are saved automatically.</div>
+                    </div>
+                </div>
+
+                <!-- Edit Metadata (collapsible) -->
+                <div class="card" data-bind="visible: showEditForm">
+                    <div class="card-header py-2 d-flex align-items-center justify-content-between">
+                        <h6 class="mb-0"><i class="bi bi-pencil-square"></i> Edit Metadata</h6>
+                        <button class="btn btn-sm btn-link p-0 text-muted" data-bind="click: toggleEditForm">
+                            <i class="bi bi-x-lg"></i>
                         </button>
                     </div>
-
-                    <!-- My Playlists -->
-                    <div>
-                        <h6 class="text-muted small text-uppercase fw-semibold mb-2">My Playlists</h6>
-                        <!-- ko if: videoInPlaylists().length > 0 -->
-                        <ul class="list-group list-group-flush mb-2">
-                            <!-- ko foreach: videoInPlaylists -->
-                            <li class="list-group-item d-flex align-items-center justify-content-between px-0">
-                                <a data-bind="attr: { href: '/my-playlists/' + id }, text: name"
-                                   class="text-decoration-none fw-semibold"></a>
-                                <button class="btn btn-sm btn-outline-danger" title="Remove from this playlist"
-                                        data-bind="click: $parent.removeFromPlaylist">
-                                    <i class="bi bi-x"></i>
-                                </button>
-                            </li>
-                            <!-- /ko -->
-                        </ul>
-                        <!-- /ko -->
-                        <!-- ko if: customPlaylists().length > 0 -->
-                        <div class="d-flex gap-2">
-                            <select class="form-select form-select-sm" data-bind="value: selectedPlaylistId,
-                                options: customPlaylists,
-                                optionsText: 'name',
-                                optionsValue: 'id',
-                                optionsCaption: 'Add to playlist...'">
-                            </select>
-                            <button class="btn btn-sm btn-outline-primary"
-                                    data-bind="click: addToPlaylist, enable: selectedPlaylistId() && !addingToPlaylist()">
-                                <span data-bind="visible: !addingToPlaylist()"><i class="bi bi-plus"></i></span>
-                                <span data-bind="visible: addingToPlaylist()">
-                                    <span class="spinner-border spinner-border-sm"></span>
-                                </span>
-                            </button>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" data-bind="value: editTitle" />
                         </div>
-                        <!-- /ko -->
-                        <!-- ko if: customPlaylists().length === 0 -->
-                        <p class="text-muted small mb-0">
-                            <a href="/my-playlists">Create a playlist</a> to start organising your videos.
-                        </p>
-                        <!-- /ko -->
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="4" data-bind="value: editDescription"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Upload Date</label>
+                                <input type="date" class="form-control" data-bind="value: editUploadDate" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Duration (HH:MM:SS)</label>
+                                <input type="text" class="form-control" data-bind="value: editDuration" placeholder="00:00:00" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Thumbnail</label>
+                            <div class="d-flex align-items-start gap-3 flex-wrap">
+                                <img data-bind="visible: video() && video().ThumbnailUrl,
+                                                attr: { src: video() && video().ThumbnailUrl ? video().ThumbnailUrl + '?t=' + thumbnailCacheBust() : '' }"
+                                     style="width: 120px; height: 68px; object-fit: cover; border-radius: 4px; flex-shrink: 0;" />
+                                <div style="flex: 1; min-width: 160px;">
+                                    <div id="videoThumbnailDropZone"
+                                         class="border rounded p-3 text-center"
+                                         style="border-style: dashed !important; cursor: pointer; min-height: 68px;"
+                                         data-bind="event: { dragover: onThumbnailDragOver, drop: onThumbnailDrop, click: triggerThumbnailInput }">
+                                        <p class="text-muted small mb-0" data-bind="visible: !thumbnailFile()">
+                                            Drop image or click to browse
+                                        </p>
+                                        <p class="text-success small mb-0" data-bind="visible: thumbnailFile()">
+                                            <i class="bi bi-check-circle"></i>
+                                            <span data-bind="text: thumbnailFile() && thumbnailFile().name"></span>
+                                        </p>
+                                    </div>
+                                    <input type="file" id="videoThumbnailInput" accept="image/*" style="display:none;"
+                                           data-bind="event: { change: onThumbnailFileSelected }" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">File Path</label>
+                            <input type="text" class="form-control" data-bind="value: editFilePath"
+                                   placeholder="C:\Videos\my-video.mp4" />
+                            <div class="form-text">Absolute path to the video file on disk.</div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" data-bind="click: saveMetadata, enable: editTitle().length > 0">
+                                <i class="bi bi-save"></i> Save
+                            </button>
+                            <button class="btn btn-outline-secondary" data-bind="click: resetEditForm">Cancel</button>
+                        </div>
                     </div>
                 </div>
+
+            </div>
+
+            <div class="col-12 col-lg-4">
+
+                <!-- Video info -->
+                <div class="card mb-3">
+                    <div class="card-header py-2 d-flex align-items-center justify-content-between">
+                        <h6 class="mb-0">Video Information</h6>
+                        <button class="btn btn-sm btn-outline-danger"
+                                data-bind="click: deleteVideoFile, enable: !deleting() && hasFile()"
+                                title="Delete linked file">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                <tr data-bind="if: video() && video().Duration">
+                                    <th class="ps-3">Duration</th>
+                                    <td class="pe-3" data-bind="text: formatDuration(video().Duration)"></td>
+                                </tr>
+                                <tr>
+                                    <th class="ps-3">Platform</th>
+                                    <td class="pe-3">Custom</td>
+                                </tr>
+                                <tr data-bind="if: video() && video().DownloadedAt">
+                                    <th class="ps-3">Imported</th>
+                                    <td class="pe-3" data-bind="text: formatDate(video().DownloadedAt)"></td>
+                                </tr>
+                                <tr data-bind="if: video() && video().FileSize">
+                                    <th class="ps-3">File Size</th>
+                                    <td class="pe-3" data-bind="text: formatFileSize(video().FileSize)"></td>
+                                </tr>
+                                <tr data-bind="if: video() && video().FilePath">
+                                    <th class="ps-3">File</th>
+                                    <td class="pe-3"><small class="text-muted text-break" data-bind="text: video().FilePath"></small></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Playlists -->
+                <div class="card">
+                    <div class="card-header py-2">
+                        <h6 class="mb-0"><i class="bi bi-collection-play"></i> Playlists</h6>
+                    </div>
+                    <div class="card-body">
+                        <!-- Channel Playlists -->
+                        <div data-bind="visible: channelPlaylists().length > 0" class="mb-3">
+                            <p class="text-muted small text-uppercase fw-semibold mb-2">Channel Playlists</p>
+                            <ul class="list-group list-group-flush">
+                                <!-- ko foreach: channelPlaylists -->
+                                <li class="list-group-item d-flex align-items-center gap-2 px-0 py-1">
+                                    <input type="checkbox" class="form-check-input mt-0"
+                                           data-bind="checked: $parent.editPlaylistIds, checkedValue: id, attr: { id: 'cpl-' + id }" />
+                                    <label>
+                                        <a data-bind="attr: { href: '/playlists/' + id }, text: name" class="text-decoration-none fw-semibold"></a>
+                                    </label>
+                                </li>
+                                <!-- /ko -->
+                            </ul>
+                            <button class="btn btn-sm btn-outline-primary mt-2"
+                                    data-bind="click: saveChannelPlaylistMemberships">
+                                <i class="bi bi-save"></i> Save
+                            </button>
+                        </div>
+
+                        <!-- My Playlists -->
+                        <div>
+                            <p class="text-muted small text-uppercase fw-semibold mb-2">My Playlists</p>
+                            <!-- ko if: videoInPlaylists().length > 0 -->
+                            <ul class="list-group list-group-flush mb-2">
+                                <!-- ko foreach: videoInPlaylists -->
+                                <li class="list-group-item d-flex align-items-center justify-content-between px-0 py-1">
+                                    <a data-bind="attr: { href: '/my-playlists/' + id }, text: name"
+                                       class="text-decoration-none fw-semibold"></a>
+                                    <button class="btn btn-sm btn-outline-danger" title="Remove from this playlist"
+                                            data-bind="click: $parent.removeFromPlaylist">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </li>
+                                <!-- /ko -->
+                            </ul>
+                            <!-- /ko -->
+                            <!-- ko if: customPlaylists().length > 0 -->
+                            <div class="d-flex gap-2">
+                                <select class="form-select form-select-sm" data-bind="value: selectedPlaylistId,
+                                    options: customPlaylists,
+                                    optionsText: 'name',
+                                    optionsValue: 'id',
+                                    optionsCaption: 'Add to playlist...'">
+                                </select>
+                                <button class="btn btn-sm btn-outline-primary"
+                                        data-bind="click: addToPlaylist, enable: selectedPlaylistId() && !addingToPlaylist()">
+                                    <span data-bind="visible: !addingToPlaylist()"><i class="bi bi-plus"></i></span>
+                                    <span data-bind="visible: addingToPlaylist()">
+                                        <span class="spinner-border spinner-border-sm"></span>
+                                    </span>
+                                </button>
+                            </div>
+                            <!-- /ko -->
+                            <!-- ko if: customPlaylists().length === 0 -->
+                            <p class="text-muted small mb-0">
+                                <a href="/my-playlists">Create a playlist</a> to start organising your videos.
+                            </p>
+                            <!-- /ko -->
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>

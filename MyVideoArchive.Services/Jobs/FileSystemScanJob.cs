@@ -7,10 +7,16 @@ namespace MyVideoArchive.Services.Jobs;
 /// Non-Custom platforms use a convention-based path check (OutputPath/{ChannelId}/{VideoId}).
 /// Custom platform channels use file enumeration inside OutputPath/_Custom/{ChannelId}/.
 /// Also picks up any files in "_extras" subfolders and registers them as AdditionalContentItems.
+/// Converts any .srt subtitle files found in custom channel folders to .vtt format.
+/// Generates thumbnails for custom-platform videos that have none.
 /// </summary>
 public class FileSystemScanJob
 {
     private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".m4v", ".wmv"];
+
+    private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+
+    private static readonly string[] SubtitleExtensionsToSkip = [".vtt", ".srt"];
 
     private readonly IRepository<Channel> channelRepository;
     private readonly IConfiguration configuration;
@@ -19,6 +25,7 @@ public class FileSystemScanJob
     private readonly IRepository<AdditionalContentItem> additionalContentRepository;
     private readonly IRepository<Playlist> playlistRepository;
     private readonly IAdditionalContentService additionalContentService;
+    private readonly ThumbnailService thumbnailService;
 
     public FileSystemScanJob(
         ILogger<FileSystemScanJob> logger,
@@ -27,7 +34,8 @@ public class FileSystemScanJob
         IRepository<Video> videoRepository,
         IRepository<AdditionalContentItem> additionalContentRepository,
         IRepository<Playlist> playlistRepository,
-        IAdditionalContentService additionalContentService)
+        IAdditionalContentService additionalContentService,
+        ThumbnailService thumbnailService)
     {
         this.logger = logger;
         this.configuration = configuration;
@@ -36,6 +44,7 @@ public class FileSystemScanJob
         this.additionalContentRepository = additionalContentRepository;
         this.playlistRepository = playlistRepository;
         this.additionalContentService = additionalContentService;
+        this.thumbnailService = thumbnailService;
     }
 
     /// <summary>
@@ -90,7 +99,7 @@ public class FileSystemScanJob
             {
                 if (channel.Platform == "Custom")
                 {
-                    await ProcessCustomChannelAsync(channel, customBasePath, result, cancellationToken);
+                    await ProcessCustomChannelAsync(channel, customBasePath, downloadPath, result, cancellationToken);
                     string customChannelPath = Path.Combine(customBasePath, channel.ChannelId);
                     await ScanExtrasAsync(channel, customChannelPath, cancellationToken);
                 }
@@ -221,6 +230,7 @@ public class FileSystemScanJob
     private async Task ProcessCustomChannelAsync(
         ChannelEntry channel,
         string customBasePath,
+        string downloadBasePath,
         FileSystemScanResult result,
         CancellationToken cancellationToken)
     {
@@ -232,7 +242,7 @@ public class FileSystemScanJob
                 CancellationToken = cancellationToken,
                 Query = x => x.ChannelId == channel.Id
             },
-            x => new VideoEntry(x.Id, x.VideoId, x.FilePath, x.NeedsMetadataReview, x.IsManuallyImported, x.Title, x.DownloadedAt));
+            x => new VideoEntry(x.Id, x.VideoId, x.FilePath, x.NeedsMetadataReview, x.IsManuallyImported, x.Title, x.DownloadedAt, x.ThumbnailUrl));
 
         var trackedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var videosByVideoId = new Dictionary<string, VideoEntry>(StringComparer.OrdinalIgnoreCase);
@@ -259,6 +269,9 @@ public class FileSystemScanJob
             return;
         }
 
+        // Convert any .srt subtitle files found in the channel folder to .vtt
+        ConvertSrtFilesInDirectory(channelPath);
+
         foreach (string filePath in EnumerateVideoFiles(channelPath))
         {
             if (cancellationToken.IsCancellationRequested)
@@ -268,12 +281,18 @@ public class FileSystemScanJob
 
             if (trackedPaths.Contains(filePath))
             {
+                // For already-tracked videos with no thumbnail, try to resolve one
+                string videoId = Path.GetFileNameWithoutExtension(filePath);
+                if (videosByVideoId.TryGetValue(videoId, out var existingEntry) && string.IsNullOrEmpty(existingEntry.ThumbnailUrl))
+                {
+                    await TryResolveThumbnailAsync(existingEntry.Id, filePath, downloadBasePath, cancellationToken);
+                }
                 continue;
             }
 
             try
             {
-                await ProcessCustomFileAsync(filePath, channel, videosByVideoId, result, cancellationToken);
+                await ProcessCustomFileAsync(filePath, channel, videosByVideoId, downloadBasePath, result, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -289,6 +308,7 @@ public class FileSystemScanJob
         string filePath,
         ChannelEntry channel,
         Dictionary<string, VideoEntry> videosByVideoId,
+        string downloadBasePath,
         FileSystemScanResult result,
         CancellationToken cancellationToken)
     {
@@ -296,13 +316,13 @@ public class FileSystemScanJob
 
         if (videosByVideoId.TryGetValue(videoId, out var existingEntry))
         {
-            // Video already in DB but FilePath not set or wrong
             await LinkFoundFileAsync(existingEntry, filePath, result, cancellationToken);
             return;
         }
 
-        // Entirely new file - create a video record
         var fileInfo = new FileInfo(filePath);
+        string? thumbnailUrl = FindSidecardThumbnail(filePath, downloadBasePath);
+
         var video = new Video
         {
             VideoId = videoId,
@@ -315,13 +335,119 @@ public class FileSystemScanJob
             DownloadedAt = fileInfo.LastWriteTimeUtc,
             ChannelId = channel.Id,
             IsManuallyImported = true,
-            NeedsMetadataReview = false
+            NeedsMetadataReview = false,
+            ThumbnailUrl = thumbnailUrl
         };
 
         await videoRepository.InsertAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
         result.NewVideos++;
 
         logger.LogInformation("Imported custom file {FilePath}", filePath);
+
+        // Generate thumbnail via FFmpeg if no sidecar image was found
+        if (string.IsNullOrEmpty(thumbnailUrl))
+        {
+            await TryResolveThumbnailAsync(video.Id, filePath, downloadBasePath, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Looks for an image file alongside the video with the same base name.
+    /// Returns a relative /archive/… URL if one is found, otherwise null.
+    /// </summary>
+    private static string? FindSidecardThumbnail(string videoFilePath, string downloadBasePath)
+    {
+        string dir = Path.GetDirectoryName(videoFilePath) ?? string.Empty;
+        string baseName = Path.GetFileNameWithoutExtension(videoFilePath);
+
+        foreach (string ext in ImageExtensions)
+        {
+            string candidate = Path.Combine(dir, baseName + ext);
+            if (File.Exists(candidate))
+            {
+                return ThumbnailService.BuildRelativeUrl(downloadBasePath, candidate);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Attempts to generate a thumbnail from the video file and update the DB record.
+    /// </summary>
+    private async Task TryResolveThumbnailAsync(
+        int videoDbId,
+        string videoFilePath,
+        string downloadBasePath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            string saveDirectory = Path.GetDirectoryName(videoFilePath) ?? downloadBasePath;
+            string baseName = Path.GetFileNameWithoutExtension(videoFilePath);
+
+            string? thumbnailUrl = await thumbnailService.GenerateFromVideoAsync(
+                videoFilePath,
+                saveDirectory,
+                baseName,
+                downloadBasePath,
+                cancellationToken);
+
+            if (string.IsNullOrEmpty(thumbnailUrl))
+            {
+                return;
+            }
+
+            var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.Id == videoDbId
+            });
+
+            if (video is not null)
+            {
+                video.ThumbnailUrl = thumbnailUrl;
+                await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+                logger.LogInformation("Generated thumbnail for video {VideoId}", videoDbId);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Failed to generate thumbnail for video {VideoId}", videoDbId);
+        }
+    }
+
+    /// <summary>
+    /// Converts any .srt files in the given directory (and subdirectories) to .vtt.
+    /// The .srt file is kept in place; the .vtt is written alongside it.
+    /// </summary>
+    private void ConvertSrtFilesInDirectory(string directoryPath)
+    {
+        try
+        {
+            foreach (string srtPath in Directory.EnumerateFiles(directoryPath, "*.srt", SearchOption.AllDirectories))
+            {
+                string vttPath = Path.ChangeExtension(srtPath, ".vtt");
+                if (File.Exists(vttPath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    SubtitleConverter.ConvertFile(srtPath, vttPath);
+                    logger.LogInformation("Converted subtitle {SrtPath} → {VttPath}", srtPath, vttPath);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to convert subtitle file {SrtPath}", srtPath);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Error enumerating subtitle files in {Directory}", directoryPath);
+        }
     }
 
     private async Task ProcessNonCustomChannelAsync(
@@ -338,7 +464,7 @@ public class FileSystemScanJob
                 CancellationToken = cancellationToken,
                 Query = x => x.ChannelId == channel.Id
             },
-            x => new VideoEntry(x.Id, x.VideoId, x.FilePath, x.NeedsMetadataReview, x.IsManuallyImported, x.Title, x.DownloadedAt));
+            x => new VideoEntry(x.Id, x.VideoId, x.FilePath, x.NeedsMetadataReview, x.IsManuallyImported, x.Title, x.DownloadedAt, x.ThumbnailUrl));
 
         foreach (var entry in videoEntries)
         {
@@ -413,6 +539,13 @@ public class FileSystemScanJob
                 continue;
             }
 
+            // Subtitle files are not treated as additional content
+            string ext = Path.GetExtension(filePath);
+            if (SubtitleExtensionsToSkip.Contains(ext, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             try
             {
                 int? playlistDbId = null;
@@ -437,7 +570,7 @@ public class FileSystemScanJob
     }
 
     private record ChannelEntry(int Id, string ChannelId, string Name, string Platform);
-    private record VideoEntry(int Id, string VideoId, string? FilePath, bool NeedsMetadataReview, bool IsManuallyImported, string Title, DateTime? DownloadedAt);
+    private record VideoEntry(int Id, string VideoId, string? FilePath, bool NeedsMetadataReview, bool IsManuallyImported, string Title, DateTime? DownloadedAt, string? ThumbnailUrl);
 }
 
 public class FileSystemScanResult

@@ -18,6 +18,16 @@ class CustomChannelViewModel {
         this.videosSearchInput = ko.observable('');
         this.videoViewMode = ko.observable('list'); // 'list' | 'grid'
 
+        // ── Videos bulk actions ───────────────────────────────────────────────
+        this.videosSelectAll = ko.observable(false);
+        this.videosBulkDeleting = ko.observable(false);
+        this.videosBulkAddingToPlaylist = ko.observable(false);
+        this.videosBulkTargetPlaylistId = ko.observable('');
+
+        this.selectedVideos = ko.computed(() => this.videos().filter(v => v._selected && v._selected()));
+
+        this.videosSelectAll.subscribe(val => this.videos().forEach(v => v._selected && v._selected(val)));
+
         // ── Playlists tab ─────────────────────────────────────────────────────
         this.playlists = ko.observableArray([]);
         this.playlistsLoading = ko.observable(false);
@@ -25,6 +35,19 @@ class CustomChannelViewModel {
         this.playlistsPageSize = 24;
         this.playlistsTotalPages = ko.observable(1);
         this.playlistsTotalCount = ko.observable(0);
+
+        // ── Series tab ────────────────────────────────────────────────────────
+        this.seriesList = ko.observableArray([]);
+        this.seriesLoading = ko.observable(false);
+        this.seriesLoaded = false;
+        this.seriesCount = ko.observable(0);
+        this.seriesEditId = ko.observable(null);
+        this.seriesEditIsNew = ko.observable(true);
+        this.seriesEditName = ko.observable('');
+        this.seriesEditPlaylistIds = ko.observableArray([]);
+        this.seriesAvailablePlaylists = ko.observableArray([]);
+        this.seriesPlaylistsLoading = ko.observable(false);
+        this.seriesSaving = ko.observable(false);
 
         // ── Additional Content tab ─────────────────────────────────────────────
         this.extrasItems = ko.observableArray([]);
@@ -170,7 +193,8 @@ class CustomChannelViewModel {
             const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
-                this.videos(data.value || []);
+                this.videos((data.value || []).map(v => ({ ...v, _selected: ko.observable(false) })));
+                this.videosSelectAll(false);
                 const total = data['@odata.count'] ?? 0;
                 this.videosTotalCount(total);
                 this.videosTotalPages(Math.max(1, Math.ceil(total / this.videosPageSize)));
@@ -198,6 +222,58 @@ class CustomChannelViewModel {
     setVideoViewMode = async (mode) => {
         this.videoViewMode(mode);
         await this._saveViewModeSettings();
+    };
+
+    // ── Bulk video actions ────────────────────────────────────────────────────
+
+    deleteSelectedVideos = async () => {
+        const selected = this.selectedVideos();
+        if (selected.length === 0) return;
+        if (!confirm(`Delete ${selected.length} video file(s)? This cannot be undone.`)) return;
+
+        this.videosBulkDeleting(true);
+        let deleted = 0;
+        try {
+            for (const video of selected) {
+                try {
+                    const res = await fetch(`/api/channels/${this.channelId}/videos/${video.Id}/file`, { method: 'DELETE' });
+                    if (res.ok) deleted++;
+                } catch { /* continue */ }
+            }
+            toast.success(`Deleted ${deleted} of ${selected.length} video file(s).`);
+            await this.loadVideos();
+        } finally {
+            this.videosBulkDeleting(false);
+        }
+    };
+
+    addSelectedToPlaylist = async () => {
+        const playlistId = this.videosBulkTargetPlaylistId();
+        if (!playlistId) { toast.warning('Please select a playlist first.'); return; }
+        const selected = this.selectedVideos();
+        if (selected.length === 0) { toast.warning('No videos selected.'); return; }
+
+        this.videosBulkAddingToPlaylist(true);
+        try {
+            const res = await fetch(`/api/custom/playlists/${playlistId}/videos/bulk`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoIds: selected.map(v => v.Id) })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                toast.success(`Added ${data.added} video(s) to playlist.`);
+                selected.forEach(v => v._selected(false));
+                this.videosSelectAll(false);
+            } else {
+                toast.error('Failed to add videos to playlist.');
+            }
+        } catch (error) {
+            console.error('Bulk add error:', error);
+            toast.error('An error occurred.');
+        } finally {
+            this.videosBulkAddingToPlaylist(false);
+        }
     };
 
     loadUserSettings = async () => {
@@ -606,6 +682,33 @@ class CustomChannelViewModel {
         }
     };
 
+    // ── Delete video file ─────────────────────────────────────────────────────
+
+    deleteVideoFile = async (video) => {
+        if (!confirm(`Delete the file for "${video.Title}"? This cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/videos/${video.Id}/file`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                this.videos.remove(video);
+                this.videosTotalCount(this.videosTotalCount() - 1);
+                toast.success('Video file deleted.');
+            } else {
+                toast.error(data.message || 'Failed to delete video file.');
+            }
+        } catch (error) {
+            console.error('Error deleting video file:', error);
+            toast.error('Error deleting video file. Please try again.');
+        }
+    };
+
     // ── Delete playlist ───────────────────────────────────────────────────────
 
     deletePlaylist = async (playlist) => {
@@ -697,6 +800,147 @@ class CustomChannelViewModel {
             this.uploadingThumbnail(false);
         }
     };
+
+    // ── Series tab ────────────────────────────────────────────────────────────
+
+    loadSeriesCount = async () => {
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/series`);
+            if (response.ok) {
+                const data = await response.json();
+                this.seriesCount((data.series || []).length);
+            }
+        } catch (error) {
+            console.error('Error loading series count:', error);
+        }
+    };
+
+    loadSeries = async () => {
+        if (this.seriesLoaded) return;
+        this.seriesLoading(true);
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/series`);
+            if (response.ok) {
+                const data = await response.json();
+                this.seriesList((data.series || []).map(s => this._normalizeSeries(s)));
+                this.seriesCount(this.seriesList().length);
+                this.seriesLoaded = true;
+            }
+        } catch (error) {
+            console.error('Error loading series:', error);
+        } finally {
+            this.seriesLoading(false);
+        }
+    };
+
+    _normalizeSeries = (s) => {
+        const urls = (s.playlists || []).slice(0, 4).map(p => p.thumbnailUrl || null);
+        while (urls.length < 4) urls.push(null);
+        return { ...s, collageImages: urls };
+    };
+
+    _loadSeriesAvailablePlaylists = async () => {
+        this.seriesPlaylistsLoading(true);
+        try {
+            const url = `/odata/PlaylistOData?$filter=ChannelId eq ${this.channelId}&$orderby=Name&$top=200&$select=Id,Name,ThumbnailUrl`;
+            const response = await fetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                this.seriesAvailablePlaylists((data.value || []).map(p => ({
+                    id: p.Id,
+                    name: p.Name,
+                    thumbnailUrl: p.ThumbnailUrl
+                })));
+            }
+        } catch (error) {
+            console.error('Error loading playlists for series:', error);
+        } finally {
+            this.seriesPlaylistsLoading(false);
+        }
+    };
+
+    openCreateSeries = async () => {
+        this.seriesEditId(null);
+        this.seriesEditIsNew(true);
+        this.seriesEditName('');
+        this.seriesEditPlaylistIds([]);
+        await this._loadSeriesAvailablePlaylists();
+        new bootstrap.Modal(document.getElementById('seriesEditModal')).show();
+    };
+
+    openEditSeries = async (series) => {
+        this.seriesEditId(series.id);
+        this.seriesEditIsNew(false);
+        this.seriesEditName(series.name);
+        this.seriesEditPlaylistIds((series.playlists || []).map(p => p.id));
+        await this._loadSeriesAvailablePlaylists();
+        new bootstrap.Modal(document.getElementById('seriesEditModal')).show();
+    };
+
+    confirmSaveSeriesEdit = async () => {
+        const name = this.seriesEditName().trim();
+        if (!name) return;
+
+        this.seriesSaving(true);
+        try {
+            if (this.seriesEditIsNew()) {
+                const response = await fetch(`/api/channels/${this.channelId}/series`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (!response.ok) { toast.error('Failed to create series.'); return; }
+                const data = await response.json();
+                await fetch(`/api/series/${data.series.id}/playlists`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playlistIds: this.seriesEditPlaylistIds().slice() })
+                });
+                toast.success('Series created.');
+            } else {
+                const seriesId = this.seriesEditId();
+                const [nameRes, playlistsRes] = await Promise.all([
+                    fetch(`/api/series/${seriesId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name })
+                    }),
+                    fetch(`/api/series/${seriesId}/playlists`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ playlistIds: this.seriesEditPlaylistIds().slice() })
+                    })
+                ]);
+                if (!nameRes.ok || !playlistsRes.ok) { toast.error('Failed to update series.'); return; }
+                toast.success('Series updated.');
+            }
+            bootstrap.Modal.getInstance(document.getElementById('seriesEditModal')).hide();
+            this.seriesLoaded = false;
+            await this.loadSeries();
+        } catch (error) {
+            console.error('Error saving series:', error);
+            toast.error('An error occurred while saving.');
+        } finally {
+            this.seriesSaving(false);
+        }
+    };
+
+    deleteSeries = async (series) => {
+        if (!confirm(`Delete series "${series.name}"? The playlists themselves will not be deleted.`)) return;
+        try {
+            const response = await fetch(`/api/series/${series.id}`, { method: 'DELETE' });
+            if (response.ok) {
+                this.seriesList.remove(s => s.id === series.id);
+                this.seriesCount(this.seriesList().length);
+                toast.success('Series deleted.');
+            } else {
+                toast.error('Failed to delete series.');
+            }
+        } catch (error) {
+            console.error('Error deleting series:', error);
+            toast.error('An error occurred while deleting.');
+        }
+    };
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -705,6 +949,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await viewModel.loadUserSettings();
     await viewModel.load();
     await viewModel.initTags();
+    await viewModel.loadSeriesCount();
 
     // Allow pressing Enter in the search box
     document.getElementById('videosSearchInput')?.addEventListener('keydown', (e) => {

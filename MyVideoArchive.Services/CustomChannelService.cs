@@ -529,6 +529,52 @@ public class CustomChannelService : ICustomChannelService
         }
     }
 
+    public async Task<Result<int>> BulkAddVideosToPlaylistAsync(
+        int playlistId,
+        IReadOnlyList<int> videoIds,
+        CancellationToken cancellationToken = default)
+    {
+        var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.Id == playlistId
+        });
+
+        if (playlist is null)
+        {
+            return Result.NotFound("Playlist not found.");
+        }
+
+        var (canAccess, _) = await CanAccessChannelAsync(playlist.ChannelId);
+        if (!canAccess)
+        {
+            return Result.Forbidden();
+        }
+
+        var existing = (await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.PlaylistId == playlistId && videoIds.Contains(x.VideoId)
+        }, x => x.VideoId)).ToHashSet();
+
+        int maxOrder = (await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.PlaylistId == playlistId
+        }, x => (int?)x.Order)).Max() ?? -1;
+
+        int added = 0;
+        foreach (int videoId in videoIds.Where(id => !existing.Contains(id)))
+        {
+            await playlistVideoRepository.InsertAsync(
+                new PlaylistVideo { PlaylistId = playlistId, VideoId = videoId, Order = ++maxOrder },
+                ContextOptions.ForCancellationToken(cancellationToken));
+            added++;
+        }
+
+        return Result.Success(added);
+    }
+
     private async Task TryDeletePlaylistThumbnailFileAsync(Playlist playlist)
     {
         try

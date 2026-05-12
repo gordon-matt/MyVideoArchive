@@ -297,3 +297,23 @@ a:has(.video-item) {
     overflow: hidden;
     min-height: 2.6em;
 }
+
+/* ── Series collage thumbnail ────────────────────────────────────────────── */
+
+.series-collage {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 6px 6px 0 0;
+    background: #1a1a2e;
+}
+
+.series-collage-img,
+.series-collage-placeholder {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}

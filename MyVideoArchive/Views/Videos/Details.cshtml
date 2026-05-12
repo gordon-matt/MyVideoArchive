@@ -8,225 +8,232 @@
 }
 
 <div class="container-fluid px-0">
-    <div class="row g-0">
-        <div class="col-12">
-            <div id="video-player-container" class="bg-dark">
-                <div class="text-center text-white py-5" data-bind="visible: loading">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-3">Loading video...</p>
-                </div>
-                
-                <div data-bind="visible: !loading() && video()">
-                    <video id="videoPlayer"
-                           class="video-js vjs-default-skin vjs-big-play-centered"
-                           controls
-                           preload="auto">
-                    </video>
-                </div>
-                
-                <div data-bind="visible: !loading() && !video()" class="text-center text-white py-5">
-                    <h3>Video not found or not yet downloaded</h3>
-                    <p>This video may not be available yet.</p>
-                    <a href="/channels" class="btn btn-outline-light">Back to Channels</a>
-                </div>
+
+    <!-- ── Player ────────────────────────────────────────────────────────── -->
+    <div id="video-player-container" class="bg-dark">
+        <div class="text-center text-white py-5" data-bind="visible: loading">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
             </div>
+            <p class="mt-3">Loading video...</p>
+        </div>
+
+        <div data-bind="visible: !loading() && video()">
+            <video id="videoPlayer"
+                   class="video-js vjs-default-skin vjs-big-play-centered"
+                   controls
+                   preload="auto">
+            </video>
+        </div>
+
+        <div data-bind="visible: !loading() && !video()" class="text-center text-white py-5">
+            <h3>Video not found or not yet downloaded</h3>
+            <p>This video may not be available yet.</p>
+            <a href="/channels" class="btn btn-outline-light">Back to Channels</a>
         </div>
     </div>
-    
-    <div class="row mt-4" data-bind="visible: video()">
-        <div class="col-12 col-lg-8">
-            <!-- Standalone video banner -->
-            <!-- ko if: isStandalone() && !standaloneInfo().isSubscribed -->
-            <div class="alert alert-info d-flex align-items-center justify-content-between mb-3">
-                <div>
-                    <i class="bi bi-collection-play me-2"></i>
-                    You have archived <strong data-bind="text: standaloneInfo().channelVideoCount"></strong>
-                    video<span data-bind="visible: standaloneInfo().channelVideoCount !== 1">s</span>
-                    from this channel.
-                </div>
-                <button class="btn btn-sm btn-primary ms-3"
-                        data-bind="click: subscribeToChannel, enable: !subscribing()">
-                    <span data-bind="visible: !subscribing()">
-                        <i class="bi bi-person-plus"></i> Subscribe
-                    </span>
-                    <span data-bind="visible: subscribing()">
-                        <span class="spinner-border spinner-border-sm"></span>
-                    </span>
-                </button>
-            </div>
-            <!-- /ko -->
 
-            <!-- Manual import warning -->
-            <!-- ko if: video() && ko.unwrap(video().NeedsMetadataReview) -->
-            <div class="alert alert-danger d-flex align-items-center justify-content-between mb-3">
-                <div>
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    <strong>Manually imported.</strong> Unable to find metadata from the source platform.
-                    The title and other details may be incomplete.
-                </div>
-                <button class="btn btn-sm btn-outline-danger ms-3"
-                        data-bind="click: retryMetadata, enable: !retrying()">
-                    <span data-bind="visible: !retrying()"><i class="bi bi-arrow-repeat"></i> Retry</span>
-                    <span data-bind="visible: retrying()">
-                        <span class="spinner-border spinner-border-sm" role="status"></span>
-                    </span>
-                </button>
-            </div>
-            <!-- /ko -->
+    <!-- ── Content ───────────────────────────────────────────────────────── -->
+    <div class="mt-3 px-3 px-lg-4" data-bind="visible: video()">
 
-            <div class="card">
-                <div class="card-body">
-                    <h2 class="card-title" data-bind="text: video() && video().Title"></h2>
-                    
-                    <div class="d-flex align-items-center mb-3 text-muted">
-                        <span data-bind="if: video() && video().ViewCount">
-                            <i class="bi bi-eye"></i> <span data-bind="text: formatNumber(video().ViewCount)"></span> views
-                        </span>
-                        <span data-bind="if: video() && video().LikeCount" class="ms-3">
-                            <i class="bi bi-hand-thumbs-up"></i> <span data-bind="text: formatNumber(video().LikeCount)"></span> likes
-                        </span>
-                        <span data-bind="if: video() && video().UploadDate" class="ms-3">
-                            <i class="bi bi-calendar"></i> <span data-bind="text: formatDate(video().UploadDate)"></span>
-                        </span>
-                    </div>
-                    
-                    <hr>
-                    
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <a data-bind="attr: { href: '/channels/' + (video() && video().ChannelId) }" class="text-decoration-none">
-                            <strong><i class="bi bi-person-circle"></i> <span data-bind="text: video() && video().Channel && video().Channel.Name"></span></strong>
-                        </a>
-                        <button class="btn btn-sm" data-bind="click: toggleWatched, css: watched() ? 'btn-success' : 'btn-outline-secondary'">
-                            <i class="bi bi-eye"></i>
-                            <span data-bind="text: watched() ? 'Watched' : 'Mark as Watched'"></span>
-                        </button>
-                    </div>
-                    
-                    <div class="description-box p-3 bg-light rounded">
-                        <p class="mb-0" data-bind="text: video() && video().Description" style="white-space: pre-wrap;"></p>
-                    </div>
-                </div>
+        <!-- Standalone / subscribe banner -->
+        <!-- ko if: isStandalone() && !standaloneInfo().isSubscribed -->
+        <div class="alert alert-info d-flex align-items-center justify-content-between mb-3">
+            <div>
+                <i class="bi bi-collection-play me-2"></i>
+                You have archived <strong data-bind="text: standaloneInfo().channelVideoCount"></strong>
+                video<span data-bind="visible: standaloneInfo().channelVideoCount !== 1">s</span>
+                from this channel.
             </div>
-
-            <!-- Tags -->
-            <div class="card mt-3">
-                <div class="card-header d-flex align-items-center justify-content-between">
-                    <h6 class="mb-0"><i class="bi bi-tags"></i> Tags</h6>
-                </div>
-                <div class="card-body">
-                    <input id="videoTagsInput" class="form-control" placeholder="Add tags..." />
-                    <div class="form-text">Press Enter or comma to add a tag. Changes are saved automatically.</div>
-                </div>
-            </div>
-
+            <button class="btn btn-sm btn-primary ms-3"
+                    data-bind="click: subscribeToChannel, enable: !subscribing()">
+                <span data-bind="visible: !subscribing()">
+                    <i class="bi bi-person-plus"></i> Subscribe
+                </span>
+                <span data-bind="visible: subscribing()">
+                    <span class="spinner-border spinner-border-sm"></span>
+                </span>
+            </button>
         </div>
-        
-        <div class="col-12 col-lg-4 mt-4 mt-lg-0">
-            <div class="card">
-                <div class="card-header">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <h5 class="mb-0">Video Information</h5>
+        <!-- /ko -->
+
+        <!-- Metadata review alert -->
+        <!-- ko if: video() && ko.unwrap(video().NeedsMetadataReview) -->
+        <div class="alert alert-danger d-flex align-items-center justify-content-between mb-3">
+            <div>
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>Manually imported.</strong> Unable to find metadata from the source platform.
+            </div>
+            <button class="btn btn-sm btn-outline-danger ms-3"
+                    data-bind="click: retryMetadata, enable: !retrying()">
+                <span data-bind="visible: !retrying()"><i class="bi bi-arrow-repeat"></i> Retry</span>
+                <span data-bind="visible: retrying()">
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                </span>
+            </button>
+        </div>
+        <!-- /ko -->
+
+        <!-- Title row -->
+        <div class="d-flex align-items-start justify-content-between gap-3 mb-1">
+            <h2 class="mb-0 fw-semibold" data-bind="text: video() && video().Title"></h2>
+            <button class="btn btn-sm flex-shrink-0"
+                    data-bind="click: toggleWatched, css: watched() ? 'btn-success' : 'btn-outline-secondary'">
+                <i class="bi bi-eye"></i>
+                <span class="d-none d-sm-inline" data-bind="text: watched() ? 'Watched' : 'Mark watched'"></span>
+            </button>
+        </div>
+
+        <!-- Subtitle: channel + stats -->
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-3 text-muted small">
+            <a data-bind="attr: { href: '/channels/' + (video() && video().ChannelId) }" class="text-decoration-none fw-semibold">
+                <i class="bi bi-person-circle me-1"></i>
+                <span data-bind="text: video() && video().Channel && video().Channel.Name"></span>
+            </a>
+            <span data-bind="if: video() && video().ViewCount">
+                <i class="bi bi-eye me-1"></i>
+                <span data-bind="text: formatNumber(video().ViewCount)"></span> views
+            </span>
+            <span data-bind="if: video() && video().LikeCount">
+                <i class="bi bi-hand-thumbs-up me-1"></i>
+                <span data-bind="text: formatNumber(video().LikeCount)"></span> likes
+            </span>
+            <span data-bind="if: video() && video().UploadDate">
+                <i class="bi bi-calendar me-1"></i>
+                <span data-bind="text: formatDate(video().UploadDate)"></span>
+            </span>
+        </div>
+
+        <!-- Description -->
+        <div class="description-box p-3 bg-light rounded mb-3" data-bind="if: video() && video().Description">
+            <p class="mb-0 small" data-bind="text: video() && video().Description" style="white-space: pre-wrap;"></p>
+        </div>
+
+        <!-- Two-column section -->
+        <div class="row g-4">
+            <div class="col-12 col-lg-8">
+
+                <!-- Tags -->
+                <div class="card">
+                    <div class="card-header py-2">
+                        <h6 class="mb-0"><i class="bi bi-tags"></i> Tags</h6>
+                    </div>
+                    <div class="card-body py-2">
+                        <input id="videoTagsInput" class="form-control form-control-sm" placeholder="Add tags..." />
+                        <div class="form-text">Press Enter or comma to add a tag. Changes are saved automatically.</div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="col-12 col-lg-4">
+
+                <!-- Video info -->
+                <div class="card mb-3">
+                    <div class="card-header py-2 d-flex align-items-center justify-content-between">
+                        <h6 class="mb-0">Video Information</h6>
                         <button class="btn btn-sm btn-outline-danger"
                                 data-bind="click: deleteVideoFile, enable: !deleting() && video() && video().DownloadedAt"
                                 title="Delete downloaded file">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm">
-                        <tbody>
-                            <tr data-bind="if: video() && video().Duration">
-                                <th>Duration</th>
-                                <td data-bind="text: formatDuration(video().Duration)"></td>
-                            </tr>
-                            <tr data-bind="if: video() && video().Platform">
-                                <th>Platform</th>
-                                <td data-bind="text: video().Platform"></td>
-                            </tr>
-                            <tr data-bind="if: video() && video().DownloadedAt">
-                                <th>Downloaded</th>
-                                <td data-bind="text: formatDate(video().DownloadedAt)"></td>
-                            </tr>
-                            <tr data-bind="if: video() && video().FileSize">
-                                <th>File Size</th>
-                                <td data-bind="text: formatFileSize(video().FileSize)"></td>
-                            </tr>
-                            <tr data-bind="if: video() && video().Url">
-                                <th>Original URL</th>
-                                <td><a data-bind="attr: { href: video().Url }" target="_blank" class="text-truncate d-block" style="max-width: 200px;">Open Original</a></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Channel playlists -->
-            <!-- ko if: playlists().length > 0 -->
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="bi bi-collection"></i> Channel Playlists</h5>
-                </div>
-                <div class="card-body p-0">
-                    <ul class="list-group list-group-flush">
-                        <!-- ko foreach: playlists -->
-                        <li class="list-group-item d-flex align-items-center justify-content-between">
-                            <a data-bind="attr: { href: '/playlists/' + id }, text: name" class="text-decoration-none fw-semibold"></a>
-                            <a data-bind="attr: { href: url }, visible: url" target="_blank" class="btn btn-sm btn-outline-secondary" title="View on platform">
-                                <i class="bi bi-box-arrow-up-right"></i>
-                            </a>
-                        </li>
-                        <!-- /ko -->
-                    </ul>
-                </div>
-            </div>
-            <!-- /ko -->
-
-            <!-- My Playlists -->
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="bi bi-collection-play"></i> My Playlists</h5>
-                </div>
-                <div class="card-body">
-                    <!-- ko if: videoInPlaylists().length > 0 -->
-                    <ul class="list-group list-group-flush mb-3">
-                        <!-- ko foreach: videoInPlaylists -->
-                        <li class="list-group-item d-flex align-items-center justify-content-between px-0">
-                            <a data-bind="attr: { href: '/my-playlists/' + id }, text: name"
-                               class="text-decoration-none fw-semibold"></a>
-                            <button class="btn btn-sm btn-outline-danger" title="Remove from this playlist"
-                                    data-bind="click: $parent.removeFromPlaylist">
-                                <i class="bi bi-x"></i>
-                            </button>
-                        </li>
-                        <!-- /ko -->
-                    </ul>
-                    <!-- /ko -->
-                    <!-- ko if: customPlaylists().length > 0 -->
-                    <div class="d-flex gap-2">
-                        <select class="form-select form-select-sm" data-bind="value: selectedPlaylistId,
-                            options: customPlaylists,
-                            optionsText: 'name',
-                            optionsValue: 'id',
-                            optionsCaption: 'Add to playlist...'">
-                        </select>
-                        <button class="btn btn-sm btn-outline-primary"
-                                data-bind="click: addToPlaylist, enable: selectedPlaylistId() && !addingToPlaylist()">
-                            <span data-bind="visible: !addingToPlaylist()"><i class="bi bi-plus"></i></span>
-                            <span data-bind="visible: addingToPlaylist()">
-                                <span class="spinner-border spinner-border-sm"></span>
-                            </span>
-                        </button>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                <tr data-bind="if: video() && video().Duration">
+                                    <th class="ps-3">Duration</th>
+                                    <td class="pe-3" data-bind="text: formatDuration(video().Duration)"></td>
+                                </tr>
+                                <tr data-bind="if: video() && video().Platform">
+                                    <th class="ps-3">Platform</th>
+                                    <td class="pe-3" data-bind="text: video().Platform"></td>
+                                </tr>
+                                <tr data-bind="if: video() && video().DownloadedAt">
+                                    <th class="ps-3">Downloaded</th>
+                                    <td class="pe-3" data-bind="text: formatDate(video().DownloadedAt)"></td>
+                                </tr>
+                                <tr data-bind="if: video() && video().FileSize">
+                                    <th class="ps-3">File Size</th>
+                                    <td class="pe-3" data-bind="text: formatFileSize(video().FileSize)"></td>
+                                </tr>
+                                <tr data-bind="if: video() && video().Url">
+                                    <th class="ps-3">Source</th>
+                                    <td class="pe-3">
+                                        <a data-bind="attr: { href: video().Url }" target="_blank" class="text-truncate d-block" style="max-width: 160px;">Open original</a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
-                    <!-- /ko -->
-                    <!-- ko if: customPlaylists().length === 0 -->
-                    <p class="text-muted small mb-0">
-                        <a href="/my-playlists">Create a playlist</a> to start organising your videos.
-                    </p>
-                    <!-- /ko -->
                 </div>
+
+                <!-- Channel playlists -->
+                <!-- ko if: playlists().length > 0 -->
+                <div class="card mb-3">
+                    <div class="card-header py-2">
+                        <h6 class="mb-0"><i class="bi bi-collection"></i> Channel Playlists</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush">
+                            <!-- ko foreach: playlists -->
+                            <li class="list-group-item d-flex align-items-center justify-content-between py-1">
+                                <a data-bind="attr: { href: '/playlists/' + id }, text: name" class="text-decoration-none fw-semibold"></a>
+                                <a data-bind="attr: { href: url }, visible: url" target="_blank" class="btn btn-sm btn-outline-secondary" title="View on platform">
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                </a>
+                            </li>
+                            <!-- /ko -->
+                        </ul>
+                    </div>
+                </div>
+                <!-- /ko -->
+
+                <!-- My Playlists -->
+                <div class="card">
+                    <div class="card-header py-2">
+                        <h6 class="mb-0"><i class="bi bi-collection-play"></i> My Playlists</h6>
+                    </div>
+                    <div class="card-body">
+                        <!-- ko if: videoInPlaylists().length > 0 -->
+                        <ul class="list-group list-group-flush mb-3">
+                            <!-- ko foreach: videoInPlaylists -->
+                            <li class="list-group-item d-flex align-items-center justify-content-between px-0 py-1">
+                                <a data-bind="attr: { href: '/my-playlists/' + id }, text: name"
+                                   class="text-decoration-none fw-semibold"></a>
+                                <button class="btn btn-sm btn-outline-danger" title="Remove from this playlist"
+                                        data-bind="click: $parent.removeFromPlaylist">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </li>
+                            <!-- /ko -->
+                        </ul>
+                        <!-- /ko -->
+                        <!-- ko if: customPlaylists().length > 0 -->
+                        <div class="d-flex gap-2">
+                            <select class="form-select form-select-sm" data-bind="value: selectedPlaylistId,
+                                options: customPlaylists,
+                                optionsText: 'name',
+                                optionsValue: 'id',
+                                optionsCaption: 'Add to playlist...'">
+                            </select>
+                            <button class="btn btn-sm btn-outline-primary"
+                                    data-bind="click: addToPlaylist, enable: selectedPlaylistId() && !addingToPlaylist()">
+                                <span data-bind="visible: !addingToPlaylist()"><i class="bi bi-plus"></i></span>
+                                <span data-bind="visible: addingToPlaylist()">
+                                    <span class="spinner-border spinner-border-sm"></span>
+                                </span>
+                            </button>
+                        </div>
+                        <!-- /ko -->
+                        <!-- ko if: customPlaylists().length === 0 -->
+                        <p class="text-muted small mb-0">
+                            <a href="/my-playlists">Create a playlist</a> to start organising your videos.
+                        </p>
+                        <!-- /ko -->
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>

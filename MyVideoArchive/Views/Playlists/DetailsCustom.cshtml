@@ -125,7 +125,12 @@
                         <p class="text-muted small mb-2" data-bind="text: playlist() && playlist().Description"></p>
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <span><strong><span data-bind="text: visibleVideoCount()"></span></strong> videos</span>
-                            <a data-bind="attr: { href: '/channels/' + (playlist() && playlist().ChannelId) }" class="btn btn-sm btn-outline-secondary">View Channel</a>
+                            <div class="d-flex gap-2">
+                                <a data-bind="attr: { href: '/channels/' + (playlist() && playlist().ChannelId) }" class="btn btn-sm btn-outline-secondary">View Channel</a>
+                                <button class="btn btn-sm btn-outline-secondary" data-bind="click: openAddToSeries">
+                                    <i class="bi bi-collection me-1"></i> Add to&hellip;
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Order Toggle -->
@@ -211,6 +216,8 @@
         <a href="/channels" class="btn btn-primary">Back to Channels</a>
     </div>
 </div>
+
+@await Html.PartialAsync("_AddToSeriesModal")
 
 <!-- Associate extras to current video -->
 <div class="modal fade" id="videoExtrasPickerModal" tabindex="-1" aria-hidden="true">

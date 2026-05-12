@@ -1,0 +1,58 @@
+<!-- Create/Edit Series Modal -->
+<div class="modal fade" id="seriesEditModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" data-bind="text: seriesEditIsNew() ? 'Create Series' : 'Edit Series'"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" data-bind="value: seriesEditName" placeholder="e.g. Introduction to Machine Learning" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Playlists</label>
+                    <p class="text-muted small">Select playlists from this channel to include in the series.</p>
+                </div>
+                <div data-bind="visible: seriesPlaylistsLoading" class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                </div>
+                <div data-bind="visible: !seriesPlaylistsLoading()" class="list-group" style="max-height: 320px; overflow-y: auto;">
+                    <!-- ko foreach: seriesAvailablePlaylists -->
+                    <label class="list-group-item d-flex align-items-center gap-2 py-2">
+                        <input type="checkbox" class="form-check-input flex-shrink-0 mt-0"
+                               data-bind="checkedValue: id, checked: $parent.seriesEditPlaylistIds" />
+                        <!-- ko if: thumbnailUrl -->
+                        <img data-bind="attr: { src: thumbnailUrl }" style="width: 48px; height: 27px; object-fit: cover; border-radius: 3px; flex-shrink: 0;" />
+                        <!-- /ko -->
+                        <!-- ko ifnot: thumbnailUrl -->
+                        <div class="bg-secondary d-flex align-items-center justify-content-center flex-shrink-0" style="width: 48px; height: 27px; border-radius: 3px;">
+                            <i class="bi bi-collection-play text-white small"></i>
+                        </div>
+                        <!-- /ko -->
+                        <span data-bind="text: name" class="text-truncate"></span>
+                    </label>
+                    <!-- /ko -->
+                    <div data-bind="visible: seriesAvailablePlaylists().length === 0" class="list-group-item text-muted small">
+                        No playlists available. Create playlists first.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        data-bind="click: confirmSaveSeriesEdit, enable: seriesEditName().trim().length > 0 && !seriesSaving()">
+                    <span data-bind="visible: !seriesSaving()">
+                        <i class="bi bi-save"></i>
+                        <span data-bind="text: seriesEditIsNew() ? 'Create' : 'Save'"></span>
+                    </span>
+                    <span data-bind="visible: seriesSaving()">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+

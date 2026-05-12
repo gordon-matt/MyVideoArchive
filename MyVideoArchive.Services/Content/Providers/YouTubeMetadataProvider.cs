@@ -87,11 +87,16 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
             // The trick is to use the channel's playlists URL
             string playlistsUrl = channelUrl.TrimEnd('/') + "/playlists";
             string releasesUrl = channelUrl.TrimEnd('/') + "/releases";
+            string coursesUrl = channelUrl.TrimEnd('/') + "/courses";
 
             var regularPlaylists = await GetChannelPlaylistsInternalAsync(channelUrl, playlistsUrl, cancellationToken);
             var releasePlaylists = await GetChannelPlaylistsInternalAsync(channelUrl, releasesUrl, cancellationToken);
+            var coursePlaylists = await GetChannelPlaylistsInternalAsync(channelUrl, coursesUrl, cancellationToken);
 
-            var playlists = regularPlaylists.Concat(releasePlaylists).ToList();
+            var playlists = regularPlaylists
+                .Concat(releasePlaylists)
+                .Concat(coursePlaylists)
+                .ToList();
 
             if (logger.IsEnabled(LogLevel.Information))
             {

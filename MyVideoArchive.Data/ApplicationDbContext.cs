@@ -42,6 +42,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<VideoTag> VideoTags { get; set; }
 
+    public DbSet<Series> Series { get; set; }
+
+    public DbSet<SeriesPlaylist> SeriesPlaylists { get; set; }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

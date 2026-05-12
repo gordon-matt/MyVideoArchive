@@ -124,6 +124,13 @@
             Playlists
         </button>
     </li>
+    <li class="nav-item" role="presentation" data-bind="visible: seriesCount() > 0">
+        <button class="nav-link" id="series-tab" data-bs-toggle="tab" data-bs-target="#series" type="button" role="tab"
+                data-bind="click: loadSeries">
+            Series
+            <span class="badge bg-secondary rounded-pill ms-1" data-bind="text: seriesCount(), visible: seriesCount() > 0"></span>
+        </button>
+    </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="additional-content-tab" data-bs-toggle="tab" data-bs-target="#additional-content" type="button" role="tab"
                 data-bind="click: loadAdditionalContent">
@@ -661,12 +668,19 @@
         </div>
     </div>
 
+    <!-- ── Series tab ──────────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="series" role="tabpanel">
+        @await Html.PartialAsync("_SeriesTab", isAdminUser)
+    </div>
+
     <!-- ── Additional Content tab ────────────────────────────────────────── -->
     <div class="tab-pane fade" id="additional-content" role="tabpanel">
         @await Html.PartialAsync("_AdditionalContentTab", isAdminUser)
     </div>
 
 </div>
+
+@await Html.PartialAsync("_SeriesModals")
 
 <!-- Hidden file input used for playlist thumbnail upload (only for missing thumbnails) -->
 <input type="file"
