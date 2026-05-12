@@ -280,7 +280,9 @@ public class AdditionalContentService : IAdditionalContentService
         string contentType = item.ContentType ?? "application/octet-stream";
         string displayName = item.FileName;
         string storedExt = Path.GetExtension(item.FilePath);
-        if (!string.IsNullOrEmpty(storedExt) && !item.FileName.EndsWith(storedExt, StringComparison.OrdinalIgnoreCase))
+
+        if (!string.IsNullOrEmpty(storedExt) &&
+            !item.FileName.EndsWith(storedExt, StringComparison.OrdinalIgnoreCase))
         {
             displayName += storedExt;
         }

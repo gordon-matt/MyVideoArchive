@@ -862,6 +862,23 @@ public class FileSystemScanJob
             return;
         }
 
+        // Build the set of sidecar thumbnail paths (same directory and base name as a video
+        // file, image extension) so they are not imported as additional content.
+        var sidecarThumbnailPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string videoPath in videoFilePaths)
+        {
+            string videoDir = Path.GetDirectoryName(videoPath) ?? string.Empty;
+            string baseName = Path.GetFileNameWithoutExtension(videoPath);
+            foreach (string imgExt in ImageExtensions)
+            {
+                string candidate = Path.Combine(videoDir, baseName + imgExt);
+                if (File.Exists(candidate))
+                {
+                    sidecarThumbnailPaths.Add(candidate);
+                }
+            }
+        }
+
         var trackedPaths = (await additionalContentRepository.FindAsync(
             new SearchOptions<AdditionalContentItem>
             {
@@ -884,6 +901,11 @@ public class FileSystemScanJob
             }
 
             if (videoFilePaths.Contains(filePath))
+            {
+                continue;
+            }
+
+            if (sidecarThumbnailPaths.Contains(filePath))
             {
                 continue;
             }

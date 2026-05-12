@@ -1,3 +1,5 @@
+using Ardalis.Result;
+using Extenso;
 using MyVideoArchive.Models.Requests.AdditionalContent;
 using MyVideoArchive.Services;
 
@@ -53,13 +55,17 @@ public class AdditionalContentApiController : ControllerBase
         var result = await service.GetDownloadInfoAsync(id);
         if (!result.IsSuccess)
         {
-            return result.Status == Ardalis.Result.ResultStatus.NotFound
+            return result.Status == ResultStatus.NotFound
                 ? NotFound(new { message = "File not found." })
                 : StatusCode(StatusCodes.Status500InternalServerError);
         }
 
+        var canOpenInline =
+            result.Value.ContentType.StartsWith("image/") ||
+            result.Value.ContentType.In("application/pdf", "text/plain");
+
         var info = result.Value;
-        return isForDownload
+        return isForDownload || !canOpenInline
             ? PhysicalFile(info.PhysicalPath, info.ContentType, info.DownloadFileName)
             : PhysicalFile(info.PhysicalPath, info.ContentType);
     }
