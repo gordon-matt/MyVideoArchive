@@ -29,6 +29,7 @@ class CustomChannelViewModel {
         // ── Videos tab ───────────────────────────────────────────────────────
         this.videos = ko.observableArray([]);
         this.loading = ko.observable(true);
+        this.videosRefreshing = ko.observable(false);
         this.videosCurrentPage = ko.observable(1);
         this.videosPageSize = 24;
         this.videosTotalPages = ko.observable(1);
@@ -50,6 +51,7 @@ class CustomChannelViewModel {
         // ── Playlists tab ─────────────────────────────────────────────────────
         this.playlists = ko.observableArray([]);
         this.playlistsLoading = ko.observable(false);
+        this.playlistsRefreshing = ko.observable(false);
         this.playlistsCurrentPage = ko.observable(1);
         this.playlistsPageSize = 24;
         this.playlistsTotalPages = ko.observable(1);
@@ -175,7 +177,12 @@ class CustomChannelViewModel {
     // ── Videos tab ───────────────────────────────────────────────────────────
 
     loadVideos = async () => {
-        this.loading(true);
+        const hadRows = this.videos().length > 0;
+        if (hadRows) {
+            this.videosRefreshing(true);
+        } else {
+            this.loading(true);
+        }
         try {
             const skip = (this.videosCurrentPage() - 1) * this.videosPageSize;
             let filter = `ChannelId eq ${this.channelId} and IsIgnored ne true`;
@@ -203,6 +210,7 @@ class CustomChannelViewModel {
             console.error('Error loading videos:', error);
         } finally {
             this.loading(false);
+            this.videosRefreshing(false);
         }
     };
 
@@ -325,7 +333,12 @@ class CustomChannelViewModel {
     // ── Playlists tab ─────────────────────────────────────────────────────────
 
     loadPlaylists = async () => {
-        this.playlistsLoading(true);
+        const hadRows = this.playlists().length > 0;
+        if (hadRows) {
+            this.playlistsRefreshing(true);
+        } else {
+            this.playlistsLoading(true);
+        }
         try {
             const skip = (this.playlistsCurrentPage() - 1) * this.playlistsPageSize;
             const url = `/odata/PlaylistOData?$filter=ChannelId eq ${this.channelId}&$orderby=Name&$top=${this.playlistsPageSize}&$skip=${skip}&$count=true`;
@@ -345,6 +358,7 @@ class CustomChannelViewModel {
             console.error('Error loading playlists:', error);
         } finally {
             this.playlistsLoading(false);
+            this.playlistsRefreshing(false);
         }
     };
 

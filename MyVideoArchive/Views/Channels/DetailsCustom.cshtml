@@ -163,12 +163,16 @@
             <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
 
-        <div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+        <div data-bind="visible: !loading() && !videosRefreshing() && videos().length === 0" class="alert alert-info">
             <p>No videos yet. Copy video files into the channel's download folder and use <a href="/admin">Admin &rsaquo; Scan File System</a> to import them, or add them manually.</p>
         </div>
 
+        <div data-bind="visible: videos().length > 0" class="position-relative">
+            <div class="channel-tab-refresh-overlay" data-bind="visible: videosRefreshing" aria-hidden="true">
+                <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Updating…</span></div>
+            </div>
         <!-- List view -->
-        <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'list', foreach: videos">
+        <div data-bind="visible: videoViewMode() === 'list', foreach: videos">
             <div class="video-item">
                 <input type="checkbox" class="form-check-input me-2 flex-shrink-0"
                        data-bind="checked: _selected" />
@@ -190,7 +194,7 @@
                     <button type="button"
                             class="channel-card-menu-trigger channel-card-menu-trigger--row"
                             data-bs-toggle="dropdown"
-                            data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                            data-bs-boundary="viewport" data-bs-popper-config='{"strategy":"fixed"}'
                             aria-expanded="false"
                             aria-label="Video actions">
                         <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
@@ -208,7 +212,7 @@
         </div>
 
         <!-- Grid view -->
-        <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'grid'" class="row">
+        <div data-bind="visible: videoViewMode() === 'grid'" class="row">
             <!-- ko foreach: videos -->
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
                 <div class="video-grid-card card h-100 position-relative" data-bind="css: { 'border-primary': _selected() }">
@@ -234,7 +238,7 @@
                             <button type="button"
                                     class="channel-card-menu-trigger"
                                     data-bs-toggle="dropdown"
-                                    data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                    data-bs-boundary="viewport" data-bs-popper-config='{"strategy":"fixed"}'
                                     aria-expanded="false"
                                     aria-label="Video actions"
                                     onclick="event.stopPropagation();">
@@ -266,6 +270,7 @@
             NextPageFn: "videosNextPage",
             GoToPageFn: "videosGoToPage",
             ItemLabel: "videos"))
+        </div>
     </div>
 
     <!-- ── Playlists tab ──────────────────────────────────────────────────── -->
@@ -278,10 +283,14 @@
         <div data-bind="visible: playlistsLoading" class="text-center">
             <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
-        <div data-bind="visible: !playlistsLoading() && playlists().length === 0" class="alert alert-info">
+        <div data-bind="visible: !playlistsLoading() && !playlistsRefreshing() && playlists().length === 0" class="alert alert-info">
             <p>No playlists yet. Click "Create Playlist" to get started.</p>
         </div>
-        <div data-bind="visible: !playlistsLoading() && playlists().length > 0" class="row">
+        <div data-bind="visible: playlists().length > 0" class="position-relative">
+            <div class="channel-tab-refresh-overlay" data-bind="visible: playlistsRefreshing" aria-hidden="true">
+                <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Updating…</span></div>
+            </div>
+        <div class="row">
             <!-- ko foreach: playlists -->
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
                 <div class="card h-100 channel-detail-media-card position-relative">
@@ -308,7 +317,7 @@
                             <button type="button"
                                     class="channel-card-menu-trigger"
                                     data-bs-toggle="dropdown"
-                                    data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                    data-bs-boundary="viewport" data-bs-popper-config='{"strategy":"fixed"}'
                                     aria-expanded="false"
                                     aria-label="Playlist actions"
                                     onclick="event.stopPropagation();">
@@ -348,6 +357,7 @@
             NextPageFn: "playlistsNextPage",
             GoToPageFn: "playlistsGoToPage",
             ItemLabel: "playlists"))
+        </div>
     </div>
 
     <!-- ── Series tab ──────────────────────────────────────────────────── -->

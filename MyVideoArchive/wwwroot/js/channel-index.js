@@ -1,5 +1,5 @@
 import { formatDate } from './utils.js';
-import { bindCloseDropdownsWhenModalOpens } from './channel-details-shared.js';
+import { bindCloseDropdownsWhenModalOpens, initDropdownMenuViewportClamp } from './channel-details-shared.js';
 
 class ChannelsViewModel {
     constructor() {
@@ -703,7 +703,7 @@ function initChannelIndexCardMenus() {
         const dropdownRoot = e.target;
         if (!(dropdownRoot instanceof HTMLElement) || !dropdownRoot.closest('.channel-index-card-menu-wrap')) return;
         root.querySelectorAll('.channel-index-card-menu-wrap .dropdown').forEach((dd) => {
-            if (dd === dropdownRoot) return;
+            if (dd.contains(dropdownRoot)) return;
             const toggle = dd.querySelector('[data-bs-toggle="dropdown"]');
             bootstrap.Dropdown.getInstance(toggle)?.hide();
         });
@@ -724,6 +724,7 @@ function initChannelIndexCardMenus() {
     });
 
     bindCloseDropdownsWhenModalOpens();
+    initDropdownMenuViewportClamp();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

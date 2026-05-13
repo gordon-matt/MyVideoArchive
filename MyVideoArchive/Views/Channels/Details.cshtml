@@ -205,12 +205,18 @@
             </div>
         </div>
 
-        <div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+        <div data-bind="visible: !loading() && !videosRefreshing() && videos().length === 0" class="alert alert-info">
             <p>No downloaded videos found. Check the "Available" tab to download videos.</p>
         </div>
 
-        <!-- List view -->
-        <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'list', foreach: videos">
+        <div data-bind="visible: videos().length > 0" class="position-relative">
+            <div class="channel-tab-refresh-overlay" data-bind="visible: videosRefreshing" aria-hidden="true">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Updating…</span>
+                </div>
+            </div>
+            <!-- List view -->
+            <div data-bind="visible: videoViewMode() === 'list', foreach: videos">
             <div class="video-item">
                 <a data-bind="attr: { href: '/videos/' + id }" class="text-decoration-none d-flex align-items-center" style="flex: 1; min-width: 0;">
                     <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/120x68?text=No+Thumbnail', alt: title }" class="video-thumbnail-small" />
@@ -234,7 +240,7 @@
                     <button type="button"
                             class="channel-card-menu-trigger channel-card-menu-trigger--row"
                             data-bs-toggle="dropdown"
-                            data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                            data-bs-boundary="viewport" data-bs-popper-config='{"strategy":"fixed"}'
                             aria-expanded="false"
                             aria-label="Video actions">
                         <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
@@ -252,7 +258,7 @@
         </div>
 
         <!-- Grid view -->
-        <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'grid'" class="row">
+        <div data-bind="visible: videoViewMode() === 'grid'" class="row">
             <!-- ko foreach: videos -->
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
                 <div class="video-grid-card card h-100 position-relative">
@@ -276,7 +282,7 @@
                             <button type="button"
                                     class="channel-card-menu-trigger"
                                     data-bs-toggle="dropdown"
-                                    data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                    data-bs-boundary="viewport" data-bs-popper-config='{"strategy":"fixed"}'
                                     aria-expanded="false"
                                     aria-label="Video actions"
                                     onclick="event.stopPropagation();">
@@ -307,6 +313,7 @@
             NextPageFn: "videosNextPage",
             GoToPageFn: "videosGoToPage",
             ItemLabel: "videos"))
+        </div>
     </div>
 
     <!-- ── Available tab ──────────────────────────────────────────────────── -->
@@ -381,11 +388,16 @@
                 </div>
             </div>
             
-            <div data-bind="visible: !availableLoading() && availableVideos().length === 0" class="alert alert-info">
+            <div data-bind="visible: !availableLoading() && !availableRefreshing() && availableVideos().length === 0" class="alert alert-info">
                 <p>No available videos found.</p>
             </div>
             
-            <div data-bind="visible: !availableLoading() && availableVideos().length > 0">
+            <div data-bind="visible: availableVideos().length > 0" class="position-relative">
+                <div class="channel-tab-refresh-overlay" data-bind="visible: availableRefreshing" aria-hidden="true">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Updating…</span>
+                    </div>
+                </div>
                 <div class="card mb-3">
                     <div class="card-header d-flex align-items-center">
                         <input type="checkbox" class="form-check-input me-2" data-bind="checked: selectAll">
@@ -433,7 +445,7 @@
                                             <button type="button"
                                                     class="channel-card-menu-trigger channel-card-menu-trigger--row"
                                                     data-bs-toggle="dropdown"
-                                                    data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                                    data-bs-boundary="viewport" data-bs-popper-config='{"strategy":"fixed"}'
                                                     aria-expanded="false"
                                                     aria-label="Video actions">
                                                 <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
@@ -489,7 +501,7 @@
                                     <button type="button"
                                             class="channel-card-menu-trigger"
                                             data-bs-toggle="dropdown"
-                                            data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                            data-bs-boundary="viewport" data-bs-popper-config='{"strategy":"fixed"}'
                                             aria-expanded="false"
                                             aria-label="Video actions"
                                             onclick="event.stopPropagation();">
@@ -595,11 +607,16 @@
                 </div>
             </div>
             
-            <div data-bind="visible: !playlistsLoading() && playlists().length === 0" class="alert alert-info">
+            <div data-bind="visible: !playlistsLoading() && !playlistsRefreshing() && playlists().length === 0" class="alert alert-info">
                 <p>No playlists found for this channel.</p>
             </div>
             
-            <div data-bind="visible: !playlistsLoading() && playlists().length > 0">
+            <div data-bind="visible: playlists().length > 0" class="position-relative">
+                <div class="channel-tab-refresh-overlay" data-bind="visible: playlistsRefreshing" aria-hidden="true">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Updating…</span>
+                    </div>
+                </div>
                 <div class="card mb-3">
                     <div class="card-header d-flex align-items-center">
                         <input type="checkbox" class="form-check-input me-2" data-bind="checked: selectAllPlaylists">
@@ -640,7 +657,7 @@
                                     <button type="button"
                                             class="channel-card-menu-trigger"
                                             data-bs-toggle="dropdown"
-                                            data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                            data-bs-boundary="viewport" data-bs-popper-config='{"strategy":"fixed"}'
                                             aria-expanded="false"
                                             aria-label="Playlist actions"
                                             onclick="event.stopPropagation();">

@@ -368,12 +368,107 @@ export function bindCloseDropdownsWhenModalOpens() {
     });
 }
 
+let channelTabsScrollBound = false;
+
+let dropdownViewportClampBound = false;
+
+function clampDropdownMenuToViewport(menu, edgePadding = 10) {
+    menu.style.marginLeft = '';
+    const r = menu.getBoundingClientRect();
+    let shift = 0;
+    const vw = window.innerWidth;
+    if (r.right > vw - edgePadding) {
+        shift += vw - edgePadding - r.right;
+    }
+    if (r.left + shift < edgePadding) {
+        shift = edgePadding - r.left;
+    }
+    if (Math.abs(shift) >= 0.5) {
+        menu.style.marginLeft = `${shift}px`;
+    }
+}
+
+/**
+ * Card ⋮ menus use strategy:fixed; Popper can still leave them past the window edge when the
+ * clippingParents boundary is large. Bootstrap merges a custom modifiers array by replacing the
+ * whole list, so we only pass strategy via data attributes and nudge here after layout.
+ */
+export function initDropdownMenuViewportClamp() {
+    if (dropdownViewportClampBound) {
+        return;
+    }
+    dropdownViewportClampBound = true;
+
+    document.addEventListener('shown.bs.dropdown', (e) => {
+        const toggle = e.target;
+        if (!(toggle instanceof HTMLElement) || !toggle.matches('[data-bs-toggle="dropdown"]')) {
+            return;
+        }
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const menu = toggle.closest('.dropdown')?.querySelector('.dropdown-menu');
+                if (!menu?.classList.contains('show')) {
+                    return;
+                }
+                clampDropdownMenuToViewport(menu);
+            });
+        });
+    });
+
+    document.addEventListener('hidden.bs.dropdown', (e) => {
+        const toggle = e.target;
+        if (!(toggle instanceof HTMLElement) || !toggle.matches('[data-bs-toggle="dropdown"]')) {
+            return;
+        }
+        const menu = toggle.closest('.dropdown')?.querySelector('.dropdown-menu');
+        if (menu) {
+            menu.style.marginLeft = '';
+        }
+    });
+}
+
+/**
+ * Bootstrap tab buttons can receive focus and scroll the window. Preserve scroll Y from
+ * mousedown so switching tabs (especially between very different heights) does not jump the page.
+ */
+export function initChannelTabsScrollPreservation() {
+    if (channelTabsScrollBound) return;
+    const tablist = document.getElementById('channelTabs');
+    if (!tablist) return;
+    channelTabsScrollBound = true;
+
+    let preservedY = 0;
+
+    tablist.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest('[data-bs-toggle="tab"]')) {
+            preservedY = window.scrollY;
+        }
+    }, true);
+
+    document.addEventListener('shown.bs.tab', (e) => {
+        if (!(e.target instanceof Element)) return;
+        const target = e.target;
+        const fromTabButton = tablist.contains(target);
+        const fromTabPane = !!target.id && !!tablist.querySelector(`[data-bs-target="#${target.id}"]`);
+        if (!fromTabButton && !fromTabPane) return;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                window.scrollTo(0, Math.min(preservedY, maxY));
+            });
+        });
+    });
+}
+
 /**
  * Dropend ⋮ menus use fixed Popper positioning; lift the Bootstrap grid column while open so the
  * menu paints above sibling cards. Uses explicit classes (not :has) so switching between menus does
  * not briefly lose stacking when the previous dropdown is still closing.
  */
 export function initChannelCardDropdownStacking() {
+    initDropdownMenuViewportClamp();
+
     const root = document.getElementById('channelTabsContent');
     if (!root) return;
 
@@ -383,7 +478,7 @@ export function initChannelCardDropdownStacking() {
         if (!openingDropdown.closest('.channel-card-menu-wrap')) return;
 
         root.querySelectorAll('.channel-card-menu-wrap .dropdown').forEach((dd) => {
-            if (dd === openingDropdown) return;
+            if (dd.contains(openingDropdown)) return;
             const toggle = dd.querySelector('[data-bs-toggle="dropdown"]');
             if (!toggle) return;
             const instance = bootstrap.Dropdown.getInstance(toggle);
@@ -418,4 +513,5 @@ export function initChannelCardDropdownStacking() {
     });
 
     bindCloseDropdownsWhenModalOpens();
+    initChannelTabsScrollPreservation();
 }

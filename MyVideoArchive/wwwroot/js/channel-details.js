@@ -28,6 +28,7 @@ class ChannelDetailsViewModel {
         // ── Videos tab ───────────────────────────────────────────────────────
         this.videos = ko.observableArray([]);
         this.loading = ko.observable(true);
+        this.videosRefreshing = ko.observable(false);
         this.videosCurrentPage = ko.observable(1);
         this.videosPageSize = 24;
         this.videosTotalPages = ko.observable(1);
@@ -42,6 +43,8 @@ class ChannelDetailsViewModel {
         // ── Available videos tab ──────────────────────────────────────────────
         this.availableVideos = ko.observableArray([]);
         this.availableLoading = ko.observable(false);
+        /** True while refetching when the list already has rows (keeps layout stable; overlay only). */
+        this.availableRefreshing = ko.observable(false);
         this.currentPage = ko.observable(1);
         this.pageSize = 24;
         this.totalPages = ko.observable(1);
@@ -77,6 +80,7 @@ class ChannelDetailsViewModel {
         // ── Playlists tab ─────────────────────────────────────────────────────
         this.playlists = ko.observableArray([]);
         this.playlistsLoading = ko.observable(false);
+        this.playlistsRefreshing = ko.observable(false);
         this.refreshingPlaylists = ko.observable(false);
         this.showIgnoredPlaylists = ko.observable(false);
         this.selectAllPlaylists = ko.observable(false);
@@ -255,7 +259,12 @@ class ChannelDetailsViewModel {
     // ── Videos tab ───────────────────────────────────────────────────────────
 
     loadVideos = async () => {
-        this.loading(true);
+        const hadRows = this.videos().length > 0;
+        if (hadRows) {
+            this.videosRefreshing(true);
+        } else {
+            this.loading(true);
+        }
         const params = new URLSearchParams({
             page: this.videosCurrentPage(),
             pageSize: this.videosPageSize
@@ -292,6 +301,7 @@ class ChannelDetailsViewModel {
             console.error('Error loading downloaded videos:', error);
         } finally {
             this.loading(false);
+            this.videosRefreshing(false);
         }
     };
 
@@ -459,7 +469,12 @@ class ChannelDetailsViewModel {
     // ── Available videos tab ──────────────────────────────────────────────────
 
     loadAvailableVideos = async () => {
-        this.availableLoading(true);
+        const hadRows = this.availableVideos().length > 0;
+        if (hadRows) {
+            this.availableRefreshing(true);
+        } else {
+            this.availableLoading(true);
+        }
         try {
             const params = new URLSearchParams({
                 page: this.currentPage(),
@@ -483,6 +498,7 @@ class ChannelDetailsViewModel {
             console.error('Error loading available videos:', error);
         } finally {
             this.availableLoading(false);
+            this.availableRefreshing(false);
         }
     };
 
@@ -651,7 +667,12 @@ class ChannelDetailsViewModel {
     // ── Playlists tab ─────────────────────────────────────────────────────────
 
     loadPlaylists = async () => {
-        this.playlistsLoading(true);
+        const hadRows = this.playlists().length > 0;
+        if (hadRows) {
+            this.playlistsRefreshing(true);
+        } else {
+            this.playlistsLoading(true);
+        }
         try {
             const response = await fetch(
                 `/api/channels/${this.channelId}/playlists/available?showIgnored=${this.showIgnoredPlaylists()}&page=${this.playlistsCurrentPage()}&pageSize=${this.playlistsPageSize}`
@@ -669,6 +690,7 @@ class ChannelDetailsViewModel {
             console.error('Error loading playlists:', error);
         } finally {
             this.playlistsLoading(false);
+            this.playlistsRefreshing(false);
         }
     };
 
