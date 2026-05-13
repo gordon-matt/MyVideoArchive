@@ -47,11 +47,14 @@ public class CustomChannelService : ICustomChannelService
                 return Result.Unauthorized();
             }
 
-            string channelId = Guid.NewGuid().ToString("N");
+            string channelId = await AllocateUniqueChannelIdFromDisplayNameAsync(request.Name);
+            string customChannelDir = Path.Combine(GetDownloadPath(), "_Custom", channelId);
+            Directory.CreateDirectory(customChannelDir);
+
             var channel = new Channel
             {
                 ChannelId = channelId,
-                Name = request.Name,
+                Name = request.Name.Trim(),
                 Description = request.Description,
                 Url = $"custom://{channelId}",
                 Platform = "Custom",
@@ -184,7 +187,7 @@ public class CustomChannelService : ICustomChannelService
         }
 
         string dir = GetPlaylistThumbnailDirectory(playlist);
-        var info = ResolveThumbnail(dir, playlist.PlaylistId);
+        var info = ResolveThumbnail(dir, GetPlaylistThumbnailFileStem(playlist));
         return info is null ? Result.NotFound("Thumbnail not found") : Result.Success(info);
     }
 
@@ -396,7 +399,7 @@ public class CustomChannelService : ICustomChannelService
         string dir = GetPlaylistThumbnailDirectory(playlist);
         Directory.CreateDirectory(dir);
         string ext = NormaliseImageExtension(Path.GetExtension(fileName));
-        string thumbPath = Path.Combine(dir, playlist.PlaylistId + ext);
+        string thumbPath = Path.Combine(dir, GetPlaylistThumbnailFileStem(playlist) + ext);
         await using (var fs = File.Create(thumbPath))
         {
             await fileStream.CopyToAsync(fs);
@@ -481,6 +484,27 @@ public class CustomChannelService : ICustomChannelService
         return (access is not null, channel);
     }
 
+    private async Task<string> AllocateUniqueChannelIdFromDisplayNameAsync(string displayName)
+    {
+        string baseId = CustomChannelPathHelper.SanitizeFolderNameSegment(displayName);
+        if (string.IsNullOrEmpty(baseId))
+        {
+            baseId = "CustomChannel";
+        }
+
+        string candidate = baseId;
+        int suffix = 2;
+        while (await channelRepository.FindOneAsync(new SearchOptions<Channel>
+        {
+            Query = x => x.ChannelId.ToUpper() == candidate.ToUpper()
+        }) is not null)
+        {
+            candidate = $"{baseId}-{suffix++}";
+        }
+
+        return candidate;
+    }
+
     private string GetCustomChannelThumbnailDirectory(Channel channel) =>
         Path.Combine(GetDownloadPath(), "_Custom", channel.ChannelId);
 
@@ -489,7 +513,10 @@ public class CustomChannelService : ICustomChannelService
             ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
     private string GetPlaylistThumbnailDirectory(Playlist playlist) =>
-        Path.Combine(GetDownloadPath(), playlist.Channel.ChannelId, "Playlists");
+        Path.Combine(GetDownloadPath(), "_Custom", playlist.Channel.ChannelId, "Playlists");
+
+    /// <summary>Playlist IDs may contain '/' from filesystem layout; thumbnails use a stable file stem.</summary>
+    private static string GetPlaylistThumbnailFileStem(Playlist playlist) => $"playlist-{playlist.Id}";
 
     private async Task SyncVideoPlaylistsAsync(int videoId, int channelId, IReadOnlyList<int> desiredPlaylistIds)
     {
@@ -626,7 +653,7 @@ public class CustomChannelService : ICustomChannelService
             string dir = GetPlaylistThumbnailDirectory(playlistWithChannel);
             foreach (string ext in AllowedImageExtensions)
             {
-                string path = Path.Combine(dir, playlist.PlaylistId + ext);
+                string path = Path.Combine(dir, GetPlaylistThumbnailFileStem(playlistWithChannel) + ext);
                 if (File.Exists(path))
                 {
                     File.Delete(path);

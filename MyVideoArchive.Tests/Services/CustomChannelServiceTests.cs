@@ -6,12 +6,13 @@ public class CustomChannelServiceTests
 {
     private static CustomChannelService CreateService(
         InMemoryDatabaseFixture db,
-        IUserContextService? userContext = null)
+        IUserContextService? userContext = null,
+        IConfiguration? configuration = null)
     {
         var user = userContext ?? CreateUserContext("user1");
         return new CustomChannelService(
             NullLogger<CustomChannelService>.Instance,
-            new ConfigurationBuilder().Build(),
+            configuration ?? new ConfigurationBuilder().Build(),
             user,
             db.ChannelRepository,
             db.PlaylistRepository,
@@ -45,6 +46,64 @@ public class CustomChannelServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal("My Channel", result.Value.Name);
         Assert.Equal("Custom", result.Value.Platform);
+        var stored = await db.ChannelRepository.FindOneAsync(result.Value.Id);
+        Assert.NotNull(stored);
+        Assert.Equal("My Channel", stored.ChannelId);
+    }
+
+    [Fact]
+    public async Task CreateChannelAsync_StripsInvalidPathCharacters_FromChannelId()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        string tempRoot = Path.Combine(Path.GetTempPath(), "mva-cc-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["VideoDownload:OutputPath"] = tempRoot })
+                .Build();
+            var service = CreateService(db, configuration: config);
+            var result = await service.CreateChannelAsync(new CreateCustomChannelRequest("A:B|C*D", null));
+            Assert.True(result.IsSuccess);
+            var stored = await db.ChannelRepository.FindOneAsync(result.Value.Id);
+            Assert.NotNull(stored);
+            Assert.Equal("ABCD", stored.ChannelId);
+            Assert.Equal("A:B|C*D", stored.Name);
+            Assert.True(Directory.Exists(Path.Combine(tempRoot, "_Custom", "ABCD")));
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, recursive: true);
+                }
+            }
+            catch
+            {
+                // best-effort cleanup on temp
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CreateChannelAsync_WhenChannelIdTaken_AppendsNumericSuffix()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        await db.ChannelRepository.InsertAsync(new Channel
+        {
+            ChannelId = "My Channel",
+            Name = "Existing",
+            Url = "custom://My Channel",
+            Platform = "Custom",
+            SubscribedAt = DateTime.UtcNow
+        });
+        var service = CreateService(db);
+        var result = await service.CreateChannelAsync(new CreateCustomChannelRequest("My Channel", null));
+        Assert.True(result.IsSuccess);
+        var stored = await db.ChannelRepository.FindOneAsync(result.Value.Id);
+        Assert.NotNull(stored);
+        Assert.Equal("My Channel-2", stored.ChannelId);
     }
 
     [Fact]

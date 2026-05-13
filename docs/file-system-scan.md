@@ -44,7 +44,10 @@ Use this when you manually place a file obtained elsewhere: name it with the cor
 ### Custom channels
 
 - Root folder: **`{OutputPath}/_Custom/{ChannelId}/`**
-  - `ChannelId` here is the **custom channel’s ID string** (same segment used in paths), not necessarily the numeric database primary key.
+  - For channels created in the app, **`ChannelId`** is derived from the **channel name**: invalid path characters are removed, and if that id is already taken the app appends `-2`, `-3`, and so on. The **`_Custom/{ChannelId}`** folder is created as soon as the channel is saved.
+  - Older channels may still use a legacy opaque id (for example a GUID); their folder name matches that stored `ChannelId`.
+- **Full scan only** (Admin → Tools, scan all channels): each **immediate subfolder** of `_Custom` that is **not** already a custom channel’s `ChannelId` becomes a new Custom channel (folder name is used as both `ChannelId` and **Name**). Folders whose names start with **`_`** are ignored; names longer than **128** characters are skipped (database limit).
+  - Those **auto-imported** channels are created **without any user subscription**, so they do not show up in the usual Channels list (subscriber count is zero). **Administrators** should turn on **Include Unsubbed** on the **Channels** index page to reveal them, then open each channel and **subscribe** (or otherwise assign subscriptions) so they behave like channels you added manually.
 - The scan **recursively enumerates** all video files under that folder. Any file not already tied to a tracked path is **imported**: a new video row is created with `VideoId` and default title set to the **filename without extension**.
 - **Sidecar thumbnails**: an image next to the video with the same base name (`jpg`, `jpeg`, `png`, `webp`, `gif`) is stored as the video thumbnail URL.
 - **Subtitles**: `.srt` files under the custom channel tree are converted to `.vtt` alongside the source (existing `.vtt` is left as-is).

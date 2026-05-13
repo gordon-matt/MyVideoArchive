@@ -6,6 +6,8 @@ namespace MyVideoArchive.Services.Jobs;
 /// Scans the configured downloads folder for video files not yet tracked in the database.
 /// Non-Custom platforms use a convention-based path check (OutputPath/{ChannelId}/{VideoId}).
 /// Custom platform channels use file enumeration inside OutputPath/_Custom/{ChannelId}/.
+/// When scanning all channels, immediate subfolders of OutputPath/_Custom that are not yet
+/// registered create new Custom <c>Channel</c> rows (folder name = channel id and name).
 /// Also picks up any files in "_extras" subfolders and registers them as AdditionalContentItems.
 /// Converts any .srt subtitle files found in custom channel folders to .vtt format.
 /// Generates thumbnails for custom-platform videos that have none.
@@ -107,6 +109,11 @@ public class FileSystemScanJob
 
         logger.LogInformation("Starting file system scan in: {Path}", downloadPath);
 
+        if (!filterChannelId.HasValue && Directory.Exists(customBasePath))
+        {
+            await DiscoverCustomChannelsFromFilesystemAsync(customBasePath, cancellationToken);
+        }
+
         var channelOptions = new SearchOptions<Channel> { CancellationToken = cancellationToken };
         if (filterChannelId.HasValue)
         {
@@ -167,6 +174,64 @@ public class FileSystemScanJob
             result.NewVideos, result.UpdatedVideos, result.FlaggedForReview, result.MissingFiles);
 
         return result;
+    }
+
+    /// <summary>
+    /// Creates Channel rows for immediate subfolders of <paramref name="customBasePath"/>
+    /// that are not yet registered (Custom platform only). Folder name becomes both
+    /// channel id and display name.
+    /// </summary>
+    private async Task DiscoverCustomChannelsFromFilesystemAsync(string customBasePath, CancellationToken cancellationToken)
+    {
+        var existingIds = (await channelRepository.FindAsync(
+            new SearchOptions<Channel>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.Platform == "Custom"
+            },
+            x => x.ChannelId)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string dir in Directory.EnumerateDirectories(customBasePath).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            string folderName = Path.GetFileName(dir);
+            if (string.IsNullOrWhiteSpace(folderName) || folderName.StartsWith("_", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (folderName.Length > 128)
+            {
+                logger.LogWarning(
+                    "Skipping _Custom folder: name exceeds 128 characters (ChannelId limit): {Folder}",
+                    folderName);
+                continue;
+            }
+
+            if (existingIds.Contains(folderName))
+            {
+                continue;
+            }
+
+            var channel = new Channel
+            {
+                ChannelId = folderName,
+                Name = folderName,
+                Url = $"custom://{folderName}",
+                Platform = "Custom",
+                SubscribedAt = DateTime.UtcNow
+            };
+
+            await channelRepository.InsertAsync(channel, ContextOptions.ForCancellationToken(cancellationToken));
+            existingIds.Add(folderName);
+            logger.LogInformation(
+                "Discovered custom channel from folder '{FolderName}'",
+                folderName);
+        }
     }
 
     // ── Non-Custom channels ───────────────────────────────────────────────────
