@@ -1,7 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
-using MyVideoArchive.Services.Content;
-using MyVideoArchive.Services.Content.Providers;
-
 namespace MyVideoArchive.Tests;
 
 public class VideoMetadataProviderFactoryTests

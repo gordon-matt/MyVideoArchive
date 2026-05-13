@@ -24,4 +24,8 @@
 		<ProjectReference Include="..\MyVideoArchive.Models\MyVideoArchive.Models.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<InternalsVisibleTo Include="MyVideoArchive.Tests" />
+	</ItemGroup>
+
 </Project>

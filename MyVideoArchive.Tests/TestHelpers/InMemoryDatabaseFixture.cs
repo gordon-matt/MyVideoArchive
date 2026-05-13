@@ -19,6 +19,7 @@ public sealed class InMemoryDatabaseFixture : IDisposable
             .UseInMemoryDatabase(_databaseName)
             .Options;
         _factory = new TestDbContextFactory(_options);
+        DbContextFactory = _factory;
         ChannelRepository = new EntityFrameworkRepository<Channel>(_factory);
         ChannelTagRepository = new EntityFrameworkRepository<ChannelTag>(_factory);
         CustomPlaylistRepository = new EntityFrameworkRepository<CustomPlaylist>(_factory);
@@ -35,7 +36,15 @@ public sealed class InMemoryDatabaseFixture : IDisposable
         UserVideoRepository = new EntityFrameworkRepository<UserVideo>(_factory);
         VideoRepository = new EntityFrameworkRepository<Video>(_factory);
         VideoTagRepository = new EntityFrameworkRepository<VideoTag>(_factory);
+        AdditionalContentRepository = new EntityFrameworkRepository<AdditionalContentItem>(_factory);
+        PlaylistAdditionalContentRepository = new EntityFrameworkRepository<PlaylistAdditionalContentItem>(_factory);
+        VideoAdditionalContentRepository = new EntityFrameworkRepository<VideoAdditionalContentItem>(_factory);
+        SeriesRepository = new EntityFrameworkRepository<Series>(_factory);
+        SeriesPlaylistRepository = new EntityFrameworkRepository<SeriesPlaylist>(_factory);
     }
+
+    /// <summary>Same database as repositories; use for <see cref="AspNetIdentityUserInfoService"/> tests.</summary>
+    public IDbContextFactory DbContextFactory { get; }
 
     public IRepository<Channel> ChannelRepository { get; }
     public IRepository<ChannelTag> ChannelTagRepository { get; }
@@ -53,6 +62,11 @@ public sealed class InMemoryDatabaseFixture : IDisposable
     public IRepository<UserVideo> UserVideoRepository { get; }
     public IRepository<Video> VideoRepository { get; }
     public IRepository<VideoTag> VideoTagRepository { get; }
+    public IRepository<AdditionalContentItem> AdditionalContentRepository { get; }
+    public IRepository<PlaylistAdditionalContentItem> PlaylistAdditionalContentRepository { get; }
+    public IRepository<VideoAdditionalContentItem> VideoAdditionalContentRepository { get; }
+    public IRepository<Series> SeriesRepository { get; }
+    public IRepository<SeriesPlaylist> SeriesPlaylistRepository { get; }
 
     /// <summary>
     /// Get a context instance for seeding data or assertions. Call SaveChangesAsync after changes.

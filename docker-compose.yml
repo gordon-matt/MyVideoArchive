@@ -31,6 +31,7 @@ services:
       VideoDownload__Throttle__BatchSize: 25
       VideoDownload__Throttle__BatchWindowMinutes: 30
       YoutubeDL__ExecutablePath: /usr/local/bin/yt-dlp
+      # Distro ffmpeg + ffprobe both live in /usr/bin (Ubuntu noble). Xabe needs both in the same folder.
       YoutubeDL__FFmpegPath: /usr/bin/ffmpeg
       # ── Subtitles (optional) ─────────────────────────────────────────────────
       # When Enabled=true, yt-dlp writes sidecar .vtt subtitle files alongside
