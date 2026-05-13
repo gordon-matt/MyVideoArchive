@@ -46,37 +46,6 @@
                         <!-- /ko -->
                     </div>
                 </a>
-                @if (isAdmin)
-                {
-                    <div class="channel-card-menu-wrap">
-                        <div class="dropdown dropend">
-                            <button type="button"
-                                    class="channel-card-menu-trigger"
-                                    data-bs-toggle="dropdown"
-                                    data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
-                                    aria-expanded="false"
-                                    aria-label="Series actions"
-                                    onclick="event.preventDefault(); event.stopPropagation();">
-                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end shadow">
-                                <li>
-                                    <button type="button" class="dropdown-item"
-                                            data-bind="click: $parent.openEditSeries">
-                                        <i class="bi bi-pencil me-2"></i>Edit series
-                                    </button>
-                                </li>
-                                <li><hr class="dropdown-divider" /></li>
-                                <li>
-                                    <button type="button" class="dropdown-item text-danger"
-                                            data-bind="click: $parent.deleteSeries">
-                                        <i class="bi bi-trash me-2"></i>Delete series
-                                    </button>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                }
             </div>
 
             <div class="card-body p-2">
@@ -87,6 +56,37 @@
                     <span data-bind="text: playlists.length === 1 ? ' playlist' : ' playlists'"></span>
                 </small>
             </div>
+            @if (isAdmin)
+            {
+                <div class="channel-card-menu-wrap">
+                    <div class="dropdown dropend">
+                        <button type="button"
+                                class="channel-card-menu-trigger"
+                                data-bs-toggle="dropdown"
+                                data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                aria-expanded="false"
+                                aria-label="Series actions"
+                                onclick="event.preventDefault(); event.stopPropagation();">
+                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                            <li>
+                                <button type="button" class="dropdown-item"
+                                        data-bind="click: $parent.openEditSeries">
+                                    <i class="bi bi-pencil me-2"></i>Edit series
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li>
+                                <button type="button" class="dropdown-item text-danger"
+                                        data-bind="click: $parent.deleteSeries">
+                                    <i class="bi bi-trash me-2"></i>Delete series
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            }
         </div>
     </div>
     <!-- /ko -->

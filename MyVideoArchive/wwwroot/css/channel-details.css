@@ -332,6 +332,15 @@ a:has(.video-item) {
     z-index: 20;
 }
 
+/* ⋮ anchored to the card corner; keep body text from sitting under the button */
+.video-grid-card:has(> .channel-card-menu-wrap) .card-body,
+.playlist-card:has(> .channel-card-menu-wrap) .card-body,
+.series-tab-card:has(> .channel-card-menu-wrap) .card-body,
+.channel-detail-media-card:has(> .channel-card-menu-wrap) .card-body {
+    padding-right: 2.35rem;
+    padding-bottom: 1.75rem;
+}
+
 /* Dropend on cards: pull menu ~20px inward (left); avoid transform here — Popper owns translate3d */
 .channel-card-menu-wrap > .dropdown.dropend > .dropdown-menu {
     margin-top: 0 !important;

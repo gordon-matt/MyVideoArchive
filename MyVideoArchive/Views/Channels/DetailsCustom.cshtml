@@ -221,28 +221,6 @@
                             <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }"
                                  class="card-img-top video-grid-thumbnail" />
                         </a>
-                        <div class="channel-card-menu-wrap">
-                            <div class="dropdown dropend">
-                                <button type="button"
-                                        class="channel-card-menu-trigger"
-                                        data-bs-toggle="dropdown"
-                                        data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
-                                        aria-expanded="false"
-                                        aria-label="Video actions"
-                                        onclick="event.stopPropagation();">
-                                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow">
-                                    <li>
-                                        <button type="button" class="dropdown-item text-danger"
-                                                data-bind="click: $parent.deleteVideoFile"
-                                                onclick="event.stopPropagation();">
-                                            <i class="bi bi-trash me-2"></i>Delete file
-                                        </button>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
                     </div>
                     <div class="card-body p-2">
                         <h6 class="video-grid-title mb-1" data-bind="text: Title, attr: { title: Title }"></h6>
@@ -250,6 +228,28 @@
                             <span data-bind="if: UploadDate"><span data-bind="text: $parent.formatDate(UploadDate)"></span></span>
                         </small>
                         <span data-bind="if: NeedsMetadataReview" class="badge bg-danger mt-1">Needs Review</span>
+                    </div>
+                    <div class="channel-card-menu-wrap">
+                        <div class="dropdown dropend">
+                            <button type="button"
+                                    class="channel-card-menu-trigger"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                    aria-expanded="false"
+                                    aria-label="Video actions"
+                                    onclick="event.stopPropagation();">
+                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow">
+                                <li>
+                                    <button type="button" class="dropdown-item text-danger"
+                                            data-bind="click: $parent.deleteVideoFile"
+                                            onclick="event.stopPropagation();">
+                                        <i class="bi bi-trash me-2"></i>Delete file
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -299,39 +299,39 @@
                             </div>
                             <!-- /ko -->
                         </a>
-                        <div class="channel-card-menu-wrap">
-                            <div class="dropdown dropend">
-                                <button type="button"
-                                        class="channel-card-menu-trigger"
-                                        data-bs-toggle="dropdown"
-                                        data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
-                                        aria-expanded="false"
-                                        aria-label="Playlist actions"
-                                        onclick="event.stopPropagation();">
-                                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow">
-                                    <li>
-                                        <button type="button" class="dropdown-item"
-                                                data-bind="click: $parent.openThumbnailModal"
-                                                onclick="event.stopPropagation();">
-                                            <i class="bi bi-image me-2"></i>Change thumbnail
-                                        </button>
-                                    </li>
-                                    <li><hr class="dropdown-divider" /></li>
-                                    <li>
-                                        <button type="button" class="dropdown-item text-danger"
-                                                data-bind="click: $parent.deletePlaylist"
-                                                onclick="event.stopPropagation();">
-                                            <i class="bi bi-trash me-2"></i>Delete playlist
-                                        </button>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
                     </div>
                     <div class="card-body p-2">
                         <h6 class="card-title mb-1" data-bind="text: Name"></h6>
+                    </div>
+                    <div class="channel-card-menu-wrap">
+                        <div class="dropdown dropend">
+                            <button type="button"
+                                    class="channel-card-menu-trigger"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                    aria-expanded="false"
+                                    aria-label="Playlist actions"
+                                    onclick="event.stopPropagation();">
+                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow">
+                                <li>
+                                    <button type="button" class="dropdown-item"
+                                            data-bind="click: $parent.openThumbnailModal"
+                                            onclick="event.stopPropagation();">
+                                        <i class="bi bi-image me-2"></i>Change thumbnail
+                                    </button>
+                                </li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <button type="button" class="dropdown-item text-danger"
+                                            data-bind="click: $parent.deletePlaylist"
+                                            onclick="event.stopPropagation();">
+                                        <i class="bi bi-trash me-2"></i>Delete playlist
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
