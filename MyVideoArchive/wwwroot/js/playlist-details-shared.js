@@ -77,19 +77,19 @@ export async function loadVideoExtrasForPlaylist(vm, videoId) {
     }
 }
 
-export async function openVideoExtrasPickerForPlaylist(vm) {
+async function loadExtrasPickerItemsForCurrentVideo(vm) {
     const video = vm.currentVideo();
-    if (!video?.id || globalThis.isAdmin !== true) return;
+    if (!video?.id || globalThis.isAdmin !== true) {
+        return;
+    }
 
-    vm.extrasPickerSelectedIds([]);
-    vm.extrasPickerItems([]);
     vm.extrasPickerLoading(true);
-    const modal = new bootstrap.Modal(document.getElementById('videoExtrasPickerModal'));
-    modal.show();
-
     try {
+        const onlyUnassigned =
+            typeof vm.extrasPickerOnlyUnassigned === 'function' && vm.extrasPickerOnlyUnassigned();
+        const query = onlyUnassigned ? '?onlyUnassignedInPlaylist=true' : '';
         const response = await fetch(
-            `/api/playlists/${vm.playlistId}/videos/${video.id}/additional-content/available`
+            `/api/playlists/${vm.playlistId}/videos/${video.id}/additional-content/available${query}`
         );
         if (response.ok) {
             const data = await response.json();
@@ -103,6 +103,31 @@ export async function openVideoExtrasPickerForPlaylist(vm) {
     } finally {
         vm.extrasPickerLoading(false);
     }
+}
+
+export async function openVideoExtrasPickerForPlaylist(vm) {
+    const video = vm.currentVideo();
+    if (!video?.id || globalThis.isAdmin !== true) return;
+
+    if (typeof vm.extrasPickerOnlyUnassigned === 'function') {
+        vm.extrasPickerOnlyUnassigned(false);
+    }
+
+    vm.extrasPickerSelectedIds([]);
+    vm.extrasPickerItems([]);
+    const modal = new bootstrap.Modal(document.getElementById('videoExtrasPickerModal'));
+    modal.show();
+
+    await loadExtrasPickerItemsForCurrentVideo(vm);
+}
+
+/** Refetch picker list (e.g. after toggling "Only show unassigned"). Clears checkbox selections. */
+export async function reloadVideoExtrasPickerForPlaylist(vm) {
+    const video = vm.currentVideo();
+    if (!video?.id || globalThis.isAdmin !== true) return;
+
+    vm.extrasPickerSelectedIds([]);
+    await loadExtrasPickerItemsForCurrentVideo(vm);
 }
 
 export async function confirmVideoExtrasPickerForPlaylist(vm) {

@@ -194,7 +194,7 @@
 
 <!-- Associate extras to current video -->
 <div class="modal fade" id="videoExtrasPickerModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-scrollable" style="width: 50vw; max-width: 50vw;">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-paperclip me-2"></i>Associate additional files</h5>
@@ -202,6 +202,11 @@
             </div>
             <div class="modal-body">
                 <p class="text-muted small">Select files that are available for this playlist (channel-wide or linked to this playlist). They will be linked to the current video only.</p>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="extrasPickerOnlyUnassigned"
+                           data-bind="checked: extrasPickerOnlyUnassigned, disable: extrasPickerLoading, event: { change: reloadExtrasPickerAfterFilterChange }" />
+                    <label class="form-check-label" for="extrasPickerOnlyUnassigned">Only show unassigned</label>
+                </div>
                 <div data-bind="visible: extrasPickerLoading" class="text-center py-3">
                     <div class="spinner-border spinner-border-sm" role="status"></div>
                 </div>

@@ -7,6 +7,7 @@
     <File Path="README.md" />
   </Folder>
   <Folder Name="/Solution Items/docs/">
+    <File Path="docs/file-system-scan.md" />
     <File Path="docs/KEYCLOAK_SETUP.md" />
   </Folder>
   <Project Path="docker-compose.dcproj">

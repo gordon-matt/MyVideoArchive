@@ -260,6 +260,92 @@ public class AdditionalContentServiceTests
     }
 
     [Fact]
+    public async Task GetAvailableItemsForVideoOnPlaylistAsync_WhenOnlyUnassignedInPlaylist_ExcludesItemsLinkedToOtherPlaylistVideo()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        var channel = await db.ChannelRepository.InsertAsync(new Channel
+        {
+            ChannelId = "ch1",
+            Name = "C",
+            Url = "https://c",
+            Platform = "YT",
+            SubscribedAt = DateTime.UtcNow
+        });
+        var playlist = await db.PlaylistRepository.InsertAsync(new Playlist
+        {
+            PlaylistId = "pl",
+            Name = "Pl",
+            Url = "https://pl",
+            Platform = "YT",
+            ChannelId = channel.Id,
+            SubscribedAt = DateTime.UtcNow
+        });
+        var video1 = await db.VideoRepository.InsertAsync(new Video
+        {
+            VideoId = "v1",
+            Title = "V1",
+            Url = "https://v1",
+            Platform = "YT",
+            ChannelId = channel.Id
+        });
+        var video2 = await db.VideoRepository.InsertAsync(new Video
+        {
+            VideoId = "v2",
+            Title = "V2",
+            Url = "https://v2",
+            Platform = "YT",
+            ChannelId = channel.Id
+        });
+        await db.PlaylistVideoRepository.InsertAsync(new PlaylistVideo
+        {
+            PlaylistId = playlist.Id,
+            VideoId = video1.Id,
+            Order = 0
+        });
+        await db.PlaylistVideoRepository.InsertAsync(new PlaylistVideo
+        {
+            PlaylistId = playlist.Id,
+            VideoId = video2.Id,
+            Order = 1
+        });
+
+        var unlinked = await db.AdditionalContentRepository.InsertAsync(new AdditionalContentItem
+        {
+            FileName = "free.zip",
+            FilePath = @"C:\fake\free.zip",
+            ChannelId = channel.Id,
+            FileSize = 1,
+            UploadedAt = DateTime.UtcNow
+        });
+        var linkedToV2 = await db.AdditionalContentRepository.InsertAsync(new AdditionalContentItem
+        {
+            FileName = "v2-only.pdf",
+            FilePath = @"C:\fake\v2.pdf",
+            ChannelId = channel.Id,
+            FileSize = 2,
+            UploadedAt = DateTime.UtcNow
+        });
+        await db.VideoAdditionalContentRepository.InsertAsync(new VideoAdditionalContentItem
+        {
+            VideoId = video2.Id,
+            AdditionalContentItemId = linkedToV2.Id
+        });
+
+        var svc = CreateService(db);
+
+        var allAvailable = await svc.GetAvailableItemsForVideoOnPlaylistAsync(playlist.Id, video1.Id, onlyUnassignedInPlaylist: false);
+        Assert.True(allAvailable.IsSuccess);
+        Assert.Equal(2, allAvailable.Value.Count);
+        Assert.Contains(allAvailable.Value, i => i.Id == unlinked.Id);
+        Assert.Contains(allAvailable.Value, i => i.Id == linkedToV2.Id);
+
+        var filtered = await svc.GetAvailableItemsForVideoOnPlaylistAsync(playlist.Id, video1.Id, onlyUnassignedInPlaylist: true);
+        Assert.True(filtered.IsSuccess);
+        Assert.Single(filtered.Value);
+        Assert.Equal(unlinked.Id, filtered.Value[0].Id);
+    }
+
+    [Fact]
     public async Task UploadAsync_WhenChannelMissing_ReturnsNotFound()
     {
         using var db = new InMemoryDatabaseFixture();

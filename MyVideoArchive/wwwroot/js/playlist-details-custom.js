@@ -9,6 +9,7 @@ import {
     registerPlaylistButtons,
     loadVideoExtrasForPlaylist,
     openVideoExtrasPickerForPlaylist,
+    reloadVideoExtrasPickerForPlaylist,
     confirmVideoExtrasPickerForPlaylist,
     removeVideoExtraForPlaylist
 } from './playlist-details-shared.js';
@@ -59,6 +60,8 @@ class CustomPlaylistDetailsViewModel {
         this.extrasPickerLoading = ko.observable(false);
         this.extrasPickerSelectedIds = ko.observableArray([]);
         this.extrasPickerSaving = ko.observable(false);
+        this.extrasPickerOnlyUnassigned = ko.observable(false);
+        this.reloadExtrasPickerAfterFilterChange = async () => reloadVideoExtrasPickerForPlaylist(this);
 
         // ── Add to Series ─────────────────────────────────────────────────
         this.addToSeriesLoading = ko.observable(false);

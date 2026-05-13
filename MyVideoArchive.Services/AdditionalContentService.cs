@@ -79,7 +79,10 @@ public class AdditionalContentService : IAdditionalContentService
         return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(i => ToDto(i, archiveRoot)).ToList());
     }
 
-    public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetAvailableItemsForVideoOnPlaylistAsync(int playlistId, int videoId)
+    public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetAvailableItemsForVideoOnPlaylistAsync(
+        int playlistId,
+        int videoId,
+        bool onlyUnassignedInPlaylist = false)
     {
         var playlist = await playlistRepository.FindOneAsync(playlistId);
         if (playlist is null)
@@ -112,11 +115,21 @@ public class AdditionalContentService : IAdditionalContentService
         var channel = await channelRepository.FindOneAsync(channelId);
         string? archiveRoot = channel is null ? null : GetChannelArchiveRoot(channel);
 
+        var playlistMemberVideoIds = await playlistVideoRepository.FindAsync(
+            new SearchOptions<PlaylistVideo>
+            {
+                Query = pv => pv.PlaylistId == playlistId
+            },
+            pv => pv.VideoId);
+
+        var distinctPlaylistVideoIds = playlistMemberVideoIds.Distinct().ToList();
+
         var items = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = x => x.ChannelId == channelId &&
                 (!x.PlaylistLinks.Any() || x.PlaylistLinks.Any(l => l.PlaylistId == playlistId)) &&
-                !x.VideoLinks.Any(v => v.VideoId == videoId),
+                !x.VideoLinks.Any(v => v.VideoId == videoId) &&
+                (!onlyUnassignedInPlaylist || !x.VideoLinks.Any(v => distinctPlaylistVideoIds.Contains(v.VideoId))),
             Include = query => query
                 .Include(x => x.PlaylistLinks)
                 .ThenInclude(l => l.Playlist)

@@ -39,9 +39,12 @@ public class AdditionalContentApiController : ControllerBase
     }
 
     [HttpGet("playlists/{playlistId:int}/videos/{videoId:int}/additional-content/available")]
-    public async Task<IActionResult> GetAvailableForVideoOnPlaylist(int playlistId, int videoId)
+    public async Task<IActionResult> GetAvailableForVideoOnPlaylist(
+        int playlistId,
+        int videoId,
+        [FromQuery] bool onlyUnassignedInPlaylist = false)
     {
-        var result = await service.GetAvailableItemsForVideoOnPlaylistAsync(playlistId, videoId);
+        var result = await service.GetAvailableItemsForVideoOnPlaylistAsync(playlistId, videoId, onlyUnassignedInPlaylist);
         return result.ToActionResult(this, items => Ok(new { items }));
     }
 

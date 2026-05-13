@@ -15,7 +15,13 @@ public interface IAdditionalContentService
     /// Items on the same channel that are either not tied to any playlist, or tied to this playlist.
     /// Used to pick extras to associate with a video on the playlist page.
     /// </summary>
-    Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetAvailableItemsForVideoOnPlaylistAsync(int playlistId, int videoId);
+    /// <param name="onlyUnassignedInPlaylist">
+    /// When true, excludes items already linked to any video that appears in this playlist.
+    /// </param>
+    Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetAvailableItemsForVideoOnPlaylistAsync(
+        int playlistId,
+        int videoId,
+        bool onlyUnassignedInPlaylist = false);
 
     Task<Result<AdditionalContentItemDto>> UploadAsync(int channelId, IFormFile file, IReadOnlyList<int>? playlistIds);
 
