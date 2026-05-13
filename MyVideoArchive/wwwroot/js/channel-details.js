@@ -1450,8 +1450,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await viewModel.loadSeriesCount();
     viewModel.startSyncPolling();
 
-    // Activate Series tab if any series exist, otherwise fall back to Playlists
-    const initialTabId = viewModel.seriesCount() > 0 ? 'series-tab' : 'playlists-tab';
+    // Activate Series tab if any series exist, otherwise fall back to Playlists.
+    // Programmatic Tab.show() does not run the tab button's click: loadSeries binding,
+    // so load series data explicitly before showing that tab.
+    const hasSeries = viewModel.seriesCount() > 0;
+    if (hasSeries) {
+        await viewModel.loadSeries();
+    }
+    const initialTabId = hasSeries ? 'series-tab' : 'playlists-tab';
     bootstrap.Tab.getOrCreateInstance(document.getElementById(initialTabId)).show();
 
     // Load available videos when the tab is clicked
