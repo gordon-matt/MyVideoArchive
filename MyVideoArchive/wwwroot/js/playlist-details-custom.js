@@ -1,50 +1,24 @@
 import { formatDate, formatDuration, encodeArchiveUrlForHtml } from './utils.js';
+import { formatExtrasPlaylistNames as formatExtrasPlaylistNamesFn } from './channel-details-shared.js';
+import {
+    setPlaylistVideoJsPlayerGetter,
+    STORAGE_KEY_RATE,
+    STORAGE_KEY_AUTO_ADVANCE,
+    savePosition,
+    loadSavedPosition,
+    clearPosition,
+    registerPlaylistButtons,
+    loadVideoExtrasForPlaylist,
+    openVideoExtrasPickerForPlaylist,
+    confirmVideoExtrasPickerForPlaylist,
+    removeVideoExtraForPlaylist
+} from './playlist-details-shared.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
 
 /** Filtered subset: downloaded + not hidden, synced with the Video.js playlist. */
 let _availableVideos = [];
-
-const STORAGE_KEY_RATE = 'mva-playback-rate';
-const STORAGE_KEY_AUTO_ADVANCE = 'mva-auto-advance';
-
-// ─── Playback position persistence ────────────────────────────────────────────
-function savePosition(videoId, time) {
-    if (time > 5) localStorage.setItem(`mva-pos-${videoId}`, Math.floor(time));
-}
-function loadSavedPosition(videoId) {
-    return parseInt(localStorage.getItem(`mva-pos-${videoId}`) || '0', 10);
-}
-function clearPosition(videoId) {
-    localStorage.removeItem(`mva-pos-${videoId}`);
-}
-
-// ─── Custom control bar buttons ────────────────────────────────────────────────
-function registerPlaylistButtons() {
-    if (videojs.getComponent('PlaylistPrevButton')) return;
-
-    class PlaylistPrevButton extends videojs.getComponent('Button') {
-        constructor(player, options) {
-            super(player, options);
-            this.controlText('Previous Video');
-        }
-        buildCSSClass() { return 'vjs-playlist-prev-btn ' + super.buildCSSClass(); }
-        handleClick(e) { super.handleClick(e); player?.playlist?.previous(); }
-    }
-
-    class PlaylistNextButton extends videojs.getComponent('Button') {
-        constructor(player, options) {
-            super(player, options);
-            this.controlText('Next Video');
-        }
-        buildCSSClass() { return 'vjs-playlist-next-btn ' + super.buildCSSClass(); }
-        handleClick(e) { super.handleClick(e); player?.playlist?.next(); }
-    }
-
-    videojs.registerComponent('PlaylistPrevButton', PlaylistPrevButton);
-    videojs.registerComponent('PlaylistNextButton', PlaylistNextButton);
-}
 
 // ─── ViewModel ────────────────────────────────────────────────────────────────
 class CustomPlaylistDetailsViewModel {
@@ -78,6 +52,7 @@ class CustomPlaylistDetailsViewModel {
 
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
+        this.formatExtrasPlaylistNames = formatExtrasPlaylistNamesFn;
 
         // ── Extras (per current video) ─────────────────────────────────────
         this.extrasItems = ko.observableArray([]);
@@ -103,12 +78,6 @@ class CustomPlaylistDetailsViewModel {
         this.savingVideoMetadata = ko.observable(false);
 
         this.currentVideo.subscribe(() => this.showMetadataEdit(false));
-    }
-
-    formatExtrasPlaylistNames(item) {
-        const names = item?.playlistNames;
-        if (names && names.length) return names.join(', ');
-        return '—';
     }
 
     loadPlaylist = async () => {
@@ -314,112 +283,10 @@ class CustomPlaylistDetailsViewModel {
     };
 
     // ── Extras (files linked to the current video) ───────────────────────────
-
-    loadVideoExtras = async (videoId) => {
-        if (!videoId) {
-            this.extrasItems([]);
-            return;
-        }
-        this.extrasLoading(true);
-        try {
-            const response = await fetch(`/api/videos/${videoId}/additional-content`);
-            if (response.ok) {
-                const data = await response.json();
-                this.extrasItems(data.items || []);
-            } else {
-                this.extrasItems([]);
-            }
-        } catch (error) {
-            console.error('Error loading video extras:', error);
-            this.extrasItems([]);
-        } finally {
-            this.extrasLoading(false);
-        }
-    };
-
-    openVideoExtrasPicker = async () => {
-        const video = this.currentVideo();
-        if (!video?.id || globalThis.isAdmin !== true) return;
-
-        this.extrasPickerSelectedIds([]);
-        this.extrasPickerItems([]);
-        this.extrasPickerLoading(true);
-        const modal = new bootstrap.Modal(document.getElementById('videoExtrasPickerModal'));
-        modal.show();
-
-        try {
-            const response = await fetch(
-                `/api/playlists/${this.playlistId}/videos/${video.id}/additional-content/available`
-            );
-            if (response.ok) {
-                const data = await response.json();
-                this.extrasPickerItems(data.items || []);
-            } else {
-                toast.error('Could not load available files.');
-            }
-        } catch (error) {
-            console.error('Error loading extras picker:', error);
-            toast.error('Could not load available files.');
-        } finally {
-            this.extrasPickerLoading(false);
-        }
-    };
-
-    confirmVideoExtrasPicker = async () => {
-        const video = this.currentVideo();
-        const ids = this.extrasPickerSelectedIds().slice();
-        if (!video?.id || ids.length === 0) return;
-
-        this.extrasPickerSaving(true);
-        try {
-            const response = await fetch(
-                `/api/playlists/${this.playlistId}/videos/${video.id}/additional-content`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ itemIds: ids })
-                }
-            );
-            if (response.ok) {
-                bootstrap.Modal.getInstance(document.getElementById('videoExtrasPickerModal'))?.hide();
-                this.extrasPickerSelectedIds([]);
-                await this.loadVideoExtras(video.id);
-                toast.success('Files associated with this video.');
-            } else {
-                const data = await response.json().catch(() => ({}));
-                toast.error(data.message || 'Failed to associate files.');
-            }
-        } catch (error) {
-            console.error('Error associating extras:', error);
-            toast.error('Failed to associate files.');
-        } finally {
-            this.extrasPickerSaving(false);
-        }
-    };
-
-    removeVideoExtra = async (item) => {
-        if (globalThis.isAdmin !== true) return;
-        const video = this.currentVideo();
-        if (!video?.id) return;
-        if (!confirm(`Remove "${item.fileName}" from this video? The file will remain on the channel.`)) return;
-
-        try {
-            const response = await fetch(
-                `/api/videos/${video.id}/additional-content/${item.id}`,
-                { method: 'DELETE' }
-            );
-            if (response.ok) {
-                this.extrasItems.remove(item);
-                toast.success('Removed from this video.');
-            } else {
-                const data = await response.json().catch(() => ({}));
-                toast.error(data.message || 'Failed to remove association.');
-            }
-        } catch (error) {
-            console.error('Error removing video extra:', error);
-            toast.error('Failed to remove association.');
-        }
-    };
+    loadVideoExtras = async (videoId) => loadVideoExtrasForPlaylist(this, videoId);
+    openVideoExtrasPicker = async () => openVideoExtrasPickerForPlaylist(this);
+    confirmVideoExtrasPicker = async () => confirmVideoExtrasPickerForPlaylist(this);
+    removeVideoExtra = async (item) => removeVideoExtraForPlaylist(this, item);
 
     // ── Inline metadata editing ────────────────────────────────────────────────
 
@@ -597,6 +464,7 @@ class CustomPlaylistDetailsViewModel {
 var viewModel;
 
 document.addEventListener('DOMContentLoaded', async () => {
+    setPlaylistVideoJsPlayerGetter(() => player);
     registerPlaylistButtons();
 
     viewModel = new CustomPlaylistDetailsViewModel(playlistId);

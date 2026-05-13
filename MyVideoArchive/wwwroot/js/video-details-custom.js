@@ -1,5 +1,5 @@
 import { formatDate, formatDuration, formatFileSize, encodeArchiveUrlForHtml } from './utils.js';
-import { getTagifyOptions } from './tagify-options.js';
+import { initVideoPageTags, saveVideoPageTags } from './video-details-shared.js';
 
 class CustomVideoViewModel {
     constructor(videoId) {
@@ -91,50 +91,9 @@ class CustomVideoViewModel {
         }
     };
 
-    initTags = async () => {
-        try {
-            const [tagsRes, videoTagsRes] = await Promise.all([
-                fetch('/api/tags'),
-                fetch(`/api/videos/${this.videoId}/tags`)
-            ]);
+    initTags = async () => initVideoPageTags(this);
 
-            const allTagNames = tagsRes.ok
-                ? (await tagsRes.json()).tags?.map(t => t.name) ?? []
-                : [];
-            const currentTags = videoTagsRes.ok
-                ? (await videoTagsRes.json()).tags?.map(t => t.name) ?? []
-                : [];
-
-            const input = document.getElementById('videoTagsInput');
-            if (!input) return;
-
-            this._tagifyInstance = new Tagify(input, getTagifyOptions(allTagNames));
-
-            if (currentTags.length > 0) this._tagifyInstance.addTags(currentTags);
-
-            let saveTimeout = null;
-            this._tagifyInstance.on('change', () => {
-                clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(() => this.saveTags(), 600);
-            });
-        } catch (error) {
-            console.error('Error initialising tags:', error);
-        }
-    };
-
-    saveTags = async () => {
-        if (!this._tagifyInstance) return;
-        const tagNames = this._tagifyInstance.value.map(t => t.value);
-        try {
-            await fetch(`/api/videos/${this.videoId}/tags`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tagNames })
-            });
-        } catch (error) {
-            console.error('Error saving tags:', error);
-        }
-    };
+    saveTags = async () => saveVideoPageTags(this);
 
     populateEditForm = (video) => {
         this.editTitle(video.Title || '');

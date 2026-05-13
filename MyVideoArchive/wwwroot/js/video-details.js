@@ -1,5 +1,5 @@
 import { formatDate, formatDuration, formatFileSize, formatNumber } from './utils.js';
-import { getTagifyOptions } from './tagify-options.js';
+import { initVideoPageTags, saveVideoPageTags } from './video-details-shared.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
@@ -136,51 +136,9 @@ class VideoPlayerViewModel {
         }
     };
 
-    initTags = async () => {
-        try {
-            const tagsResponse = await fetch('/api/tags');
-            const tagsData = await tagsResponse.json();
-            const allTagNames = (tagsData.tags || []).map(t => t.Name ?? t.name);
+    initTags = async () => initVideoPageTags(this);
 
-            const videoTagsResponse = await fetch(`/api/videos/${this.videoId}/tags`);
-            const videoTagsData = await videoTagsResponse.json();
-            const currentTags = (videoTagsData.tags || []).map(t => t.name ?? t.Name);
-
-            const input = document.getElementById('videoTagsInput');
-            if (!input) return;
-
-            this._tagifyInstance = new Tagify(input, getTagifyOptions(allTagNames));
-
-            if (currentTags.length > 0) {
-                this._tagifyInstance.addTags(currentTags);
-            }
-
-            let saveTimeout = null;
-            this._tagifyInstance.on('change', () => {
-                clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(() => this.saveTags(), 600);
-            });
-        } catch (error) {
-            console.error('Error initialising tags:', error);
-        }
-    };
-
-    saveTags = async () => {
-        if (!this._tagifyInstance) return;
-        const tagNames = this._tagifyInstance.value.map(t => t.value);
-
-        try {
-            await fetch(`/api/videos/${this.videoId}/tags`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tagNames })
-            });
-
-            await this.loadStandaloneInfo();
-        } catch (error) {
-            console.error('Error saving tags:', error);
-        }
-    };
+    saveTags = async () => saveVideoPageTags(this, { afterSave: () => this.loadStandaloneInfo() });
 
     subscribeToChannel = async () => {
         const info = this.standaloneInfo();

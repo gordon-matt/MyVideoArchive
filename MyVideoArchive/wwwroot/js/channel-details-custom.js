@@ -1,5 +1,23 @@
 import { formatDate, formatFileSize, encodeArchiveUrlForHtml } from './utils.js';
-import { getTagifyOptions } from './tagify-options.js';
+import {
+    initChannelTags,
+    saveChannelTags,
+    loadSubscribersForChannel,
+    formatExtrasPlaylistNames as formatExtrasPlaylistNamesFn,
+    loadAdditionalContentForChannel,
+    openUploadExtrasForChannel,
+    onExtrasFileSelectedForChannel,
+    confirmUploadExtrasForChannel,
+    openEditExtrasForChannel,
+    confirmEditExtrasForChannel,
+    deleteExtrasForChannel,
+    loadSeriesCountForChannel,
+    loadSeriesForChannel,
+    openCreateSeriesForChannel,
+    openEditSeriesForChannel,
+    confirmSaveSeriesEditForChannel,
+    deleteSeriesForChannel
+} from './channel-details-shared.js';
 
 class CustomChannelViewModel {
     constructor(channelId) {
@@ -107,6 +125,7 @@ class CustomChannelViewModel {
 
         this.formatDate = formatDate;
         this.formatFileSize = formatFileSize;
+        this.formatExtrasPlaylistNames = formatExtrasPlaylistNamesFn;
     }
 
     _buildPageNumbers(current, total) {
@@ -148,49 +167,9 @@ class CustomChannelViewModel {
         }
     };
 
-    initTags = async () => {
-        try {
-            const tagsResponse = await fetch('/api/tags');
-            const tagsData = await tagsResponse.json();
-            const allTagNames = (tagsData.tags || []).map(t => t.Name ?? t.name);
+    initTags = async () => initChannelTags(this);
 
-            const channelTagsResponse = await fetch(`/api/channels/${this.channelId}/tags`);
-            const channelTagsData = await channelTagsResponse.json();
-            const currentTags = (channelTagsData.tags || []).map(t => t.Name ?? t.name);
-
-            const input = document.getElementById('channelTagsInput');
-            if (!input) return;
-
-            this._tagifyInstance = new Tagify(input, getTagifyOptions(allTagNames));
-
-            if (currentTags.length > 0) {
-                this._tagifyInstance.addTags(currentTags);
-            }
-
-            let saveTimeout = null;
-            this._tagifyInstance.on('change', () => {
-                clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(() => this.saveTags(), 600);
-            });
-        } catch (error) {
-            console.error('Error initialising channel tags:', error);
-        }
-    };
-
-    saveTags = async () => {
-        if (!this._tagifyInstance) return;
-        const tagNames = this._tagifyInstance.value.map(t => t.value);
-
-        try {
-            await fetch(`/api/channels/${this.channelId}/tags`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tagNames })
-            });
-        } catch (error) {
-            console.error('Error saving channel tags:', error);
-        }
-    };
+    saveTags = async () => saveChannelTags(this);
 
     // ── Videos tab ───────────────────────────────────────────────────────────
 
@@ -573,155 +552,16 @@ class CustomChannelViewModel {
 
     // ── Subscribers tab ───────────────────────────────────────────────────────
 
-    loadSubscribers = async () => {
-        this.subscribersLoading(true);
-        try {
-            const response = await fetch(`/api/channels/${this.channelId}/subscribers`);
-            if (response.ok) {
-                const data = await response.json();
-                this.subscribers(data.subscribers || []);
-            }
-        } catch (error) {
-            console.error('Error loading subscribers:', error);
-        } finally {
-            this.subscribersLoading(false);
-        }
-    };
+    loadSubscribers = async () => loadSubscribersForChannel(this);
 
     // ── Additional Content tab ────────────────────────────────────────────────
-
-    formatExtrasPlaylistNames = (item) => {
-        const names = item?.playlistNames;
-        if (names && names.length) return names.join(', ');
-        return '—';
-    };
-
-    loadAdditionalContent = async () => {
-        if (this.extrasLoaded) return;
-        this.extrasLoading(true);
-        try {
-            const response = await fetch(`/api/channels/${this.channelId}/additional-content`);
-            if (response.ok) {
-                const data = await response.json();
-                this.extrasItems(data.items || []);
-                this.extrasLoaded = true;
-            }
-        } catch (error) {
-            console.error('Error loading additional content:', error);
-        } finally {
-            this.extrasLoading(false);
-        }
-    };
-
-    openUploadExtras = async () => {
-        this.extrasUploadFiles([]);
-        this.extrasUploadPlaylistIds([]);
-        document.getElementById('extrasUploadInput').value = '';
-        if (this.playlists().length === 0) {
-            await this.loadPlaylists();
-        }
-        new bootstrap.Modal(document.getElementById('uploadExtrasModal')).show();
-    };
-
-    onExtrasFileSelected = (data, event) => {
-        const files = Array.from(event.target.files || []);
-        this.extrasUploadFiles(files);
-    };
-
-    confirmUploadExtras = async () => {
-        const files = this.extrasUploadFiles();
-        if (!files.length) return;
-
-        this.extrasUploading(true);
-        let anyFailed = false;
-        try {
-            for (const file of files) {
-                const form = new FormData();
-                form.append('file', file);
-                for (const pid of this.extrasUploadPlaylistIds()) {
-                    form.append('playlistIds', String(pid));
-                }
-
-                const response = await fetch(`/api/channels/${this.channelId}/additional-content`, {
-                    method: 'POST',
-                    body: form
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    this.extrasItems.push(data.item);
-                } else {
-                    anyFailed = true;
-                    const data = await response.json().catch(() => ({}));
-                    toast.error(data.message || `Failed to upload "${file.name}".`);
-                }
-            }
-
-            if (!anyFailed) {
-                bootstrap.Modal.getInstance(document.getElementById('uploadExtrasModal')).hide();
-                toast.success(`${files.length} file(s) uploaded successfully.`);
-            }
-        } catch (error) {
-            console.error('Error uploading additional content:', error);
-            toast.error('An error occurred while uploading files.');
-        } finally {
-            this.extrasUploading(false);
-        }
-    };
-
-    openEditExtras = async (item) => {
-        this.extrasEditId(item.id);
-        this.extrasEditFileName(item.fileName);
-        this.extrasEditPlaylistIds((item.playlistIds || []).slice());
-        if (this.playlists().length === 0) {
-            await this.loadPlaylists();
-        }
-        new bootstrap.Modal(document.getElementById('editExtrasModal')).show();
-    };
-
-    confirmEditExtras = async () => {
-        const id = this.extrasEditId();
-        if (!id) return;
-        try {
-            const response = await fetch(`/api/additional-content/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    fileName: this.extrasEditFileName(),
-                    playlistIds: this.extrasEditPlaylistIds().slice()
-                })
-            });
-
-            if (response.ok) {
-                // Reload the list to reflect changes
-                this.extrasLoaded = false;
-                await this.loadAdditionalContent();
-                bootstrap.Modal.getInstance(document.getElementById('editExtrasModal')).hide();
-            } else {
-                const data = await response.json().catch(() => ({}));
-                toast.error(data.message || 'Failed to update item.');
-            }
-        } catch (error) {
-            console.error('Error updating additional content:', error);
-            toast.error('An error occurred while updating the item.');
-        }
-    };
-
-    deleteExtras = async (item) => {
-        if (!confirm(`Delete "${item.fileName}"? This cannot be undone.`)) return;
-        try {
-            const response = await fetch(`/api/additional-content/${item.id}`, { method: 'DELETE' });
-            if (response.ok) {
-                this.extrasItems.remove(item);
-                toast.success('Item deleted.');
-            } else {
-                toast.error('Failed to delete item.');
-            }
-        } catch (error) {
-            console.error('Error deleting additional content:', error);
-            toast.error('An error occurred while deleting the item.');
-        }
-    };
+    loadAdditionalContent = async () => loadAdditionalContentForChannel(this);
+    openUploadExtras = async () => openUploadExtrasForChannel(this);
+    onExtrasFileSelected = (data, event) => onExtrasFileSelectedForChannel(this, data, event);
+    confirmUploadExtras = async () => confirmUploadExtrasForChannel(this);
+    openEditExtras = async (item) => openEditExtrasForChannel(this, item);
+    confirmEditExtras = async () => confirmEditExtrasForChannel(this);
+    deleteExtras = async (item) => deleteExtrasForChannel(this, item);
 
     // ── Delete video file ─────────────────────────────────────────────────────
 
@@ -846,152 +686,12 @@ class CustomChannelViewModel {
     };
 
     // ── Series tab ────────────────────────────────────────────────────────────
-
-    loadSeriesCount = async () => {
-        try {
-            const response = await fetch(`/api/channels/${this.channelId}/series`);
-            if (response.ok) {
-                const data = await response.json();
-                this.seriesCount((data.series || []).length);
-            }
-        } catch (error) {
-            console.error('Error loading series count:', error);
-        }
-    };
-
-    loadSeries = async () => {
-        if (this.seriesLoaded) return;
-        this.seriesLoading(true);
-        try {
-            const response = await fetch(`/api/channels/${this.channelId}/series`);
-            if (response.ok) {
-                const data = await response.json();
-                this.seriesList((data.series || []).map(s => this._normalizeSeries(s)));
-                this.seriesCount(this.seriesList().length);
-                this.seriesLoaded = true;
-            }
-        } catch (error) {
-            console.error('Error loading series:', error);
-        } finally {
-            this.seriesLoading(false);
-        }
-    };
-
-    _normalizeSeries = (s) => {
-        const urls = (s.playlists || []).slice(0, 4).map(p => {
-            const raw = p.thumbnailUrl ?? p.ThumbnailUrl;
-            return raw ? encodeArchiveUrlForHtml(raw) : null;
-        });
-        while (urls.length < 4) urls.push(null);
-        return { ...s, collageImages: urls };
-    };
-
-    _loadSeriesAvailablePlaylists = async () => {
-        this.seriesPlaylistsLoading(true);
-        try {
-            const url = `/odata/PlaylistOData?$filter=ChannelId eq ${this.channelId}&$orderby=Name&$top=200&$select=Id,Name,ThumbnailUrl`;
-            const response = await fetch(url);
-            if (response.ok) {
-                const data = await response.json();
-                this.seriesAvailablePlaylists((data.value || []).map(p => {
-                    const raw = p.ThumbnailUrl ?? p.thumbnailUrl;
-                    const thumb = raw ? encodeArchiveUrlForHtml(raw) : raw;
-                    return {
-                        id: p.Id,
-                        name: p.Name,
-                        thumbnailUrl: thumb
-                    };
-                }));
-            }
-        } catch (error) {
-            console.error('Error loading playlists for series:', error);
-        } finally {
-            this.seriesPlaylistsLoading(false);
-        }
-    };
-
-    openCreateSeries = async () => {
-        this.seriesEditId(null);
-        this.seriesEditIsNew(true);
-        this.seriesEditName('');
-        this.seriesEditPlaylistIds([]);
-        await this._loadSeriesAvailablePlaylists();
-        new bootstrap.Modal(document.getElementById('seriesEditModal')).show();
-    };
-
-    openEditSeries = async (series) => {
-        this.seriesEditId(series.id);
-        this.seriesEditIsNew(false);
-        this.seriesEditName(series.name);
-        this.seriesEditPlaylistIds((series.playlists || []).map(p => p.id));
-        await this._loadSeriesAvailablePlaylists();
-        new bootstrap.Modal(document.getElementById('seriesEditModal')).show();
-    };
-
-    confirmSaveSeriesEdit = async () => {
-        const name = this.seriesEditName().trim();
-        if (!name) return;
-
-        this.seriesSaving(true);
-        try {
-            if (this.seriesEditIsNew()) {
-                const response = await fetch(`/api/channels/${this.channelId}/series`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name })
-                });
-                if (!response.ok) { toast.error('Failed to create series.'); return; }
-                const data = await response.json();
-                await fetch(`/api/series/${data.series.id}/playlists`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ playlistIds: this.seriesEditPlaylistIds().slice() })
-                });
-                toast.success('Series created.');
-            } else {
-                const seriesId = this.seriesEditId();
-                const [nameRes, playlistsRes] = await Promise.all([
-                    fetch(`/api/series/${seriesId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name })
-                    }),
-                    fetch(`/api/series/${seriesId}/playlists`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ playlistIds: this.seriesEditPlaylistIds().slice() })
-                    })
-                ]);
-                if (!nameRes.ok || !playlistsRes.ok) { toast.error('Failed to update series.'); return; }
-                toast.success('Series updated.');
-            }
-            bootstrap.Modal.getInstance(document.getElementById('seriesEditModal')).hide();
-            this.seriesLoaded = false;
-            await this.loadSeries();
-        } catch (error) {
-            console.error('Error saving series:', error);
-            toast.error('An error occurred while saving.');
-        } finally {
-            this.seriesSaving(false);
-        }
-    };
-
-    deleteSeries = async (series) => {
-        if (!confirm(`Delete series "${series.name}"? The playlists themselves will not be deleted.`)) return;
-        try {
-            const response = await fetch(`/api/series/${series.id}`, { method: 'DELETE' });
-            if (response.ok) {
-                this.seriesList.remove(s => s.id === series.id);
-                this.seriesCount(this.seriesList().length);
-                toast.success('Series deleted.');
-            } else {
-                toast.error('Failed to delete series.');
-            }
-        } catch (error) {
-            console.error('Error deleting series:', error);
-            toast.error('An error occurred while deleting.');
-        }
-    };
+    loadSeriesCount = async () => loadSeriesCountForChannel(this);
+    loadSeries = async () => loadSeriesForChannel(this);
+    openCreateSeries = async () => openCreateSeriesForChannel(this);
+    openEditSeries = async (series) => openEditSeriesForChannel(this, series);
+    confirmSaveSeriesEdit = async () => confirmSaveSeriesEditForChannel(this);
+    deleteSeries = async (series) => deleteSeriesForChannel(this, series);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
