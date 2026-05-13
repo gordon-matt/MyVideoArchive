@@ -28,17 +28,50 @@
             <!-- Current Video Info -->
             <div class="card mt-3" data-bind="visible: currentVideo()">
                 <div class="card-body">
-                    <h3 class="card-title" data-bind="text: currentVideo() && currentVideo().title"></h3>
-                    <div class="d-flex align-items-center mb-3 text-muted">
-                        <span data-bind="if: currentVideo() && currentVideo().uploadDate" class="ms-3">
-                            <i class="bi bi-calendar"></i> <span data-bind="text: formatDate(currentVideo().uploadDate)"></span>
-                        </span>
-                        <a data-bind="attr: { href: '/videos/' + (currentVideo() && currentVideo().id) }" class="ms-auto btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-pencil"></i> Edit Metadata
-                        </a>
+                    <!-- View mode -->
+                    <div data-bind="visible: !showMetadataEdit()">
+                        <h3 class="card-title" data-bind="text: currentVideo() && currentVideo().title"></h3>
+                        <div class="d-flex align-items-center mb-3 text-muted">
+                            <span data-bind="if: currentVideo() && currentVideo().uploadDate" class="ms-3">
+                                <i class="bi bi-calendar"></i> <span data-bind="text: formatDate(currentVideo().uploadDate)"></span>
+                            </span>
+                            @if (isAdminUser)
+                            {
+                                <button type="button" data-bind="click: openVideoMetadataEdit" class="ms-auto btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-pencil"></i> Edit Metadata
+                                </button>
+                            }
+                        </div>
+                        <div class="description-box p-3 bg-light rounded" data-bind="if: currentVideo() && currentVideo().description">
+                            <p class="mb-0" data-bind="text: currentVideo().description" style="white-space: pre-wrap;"></p>
+                        </div>
                     </div>
-                    <div class="description-box p-3 bg-light rounded" data-bind="if: currentVideo() && currentVideo().description">
-                        <p class="mb-0" data-bind="text: currentVideo().description" style="white-space: pre-wrap;"></p>
+
+                    <!-- Edit mode -->
+                    <div data-bind="visible: showMetadataEdit()">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Title</label>
+                            <input type="text" class="form-control" data-bind="value: editVideoTitle" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Date</label>
+                            <input type="date" class="form-control" data-bind="value: editVideoUploadDate" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea class="form-control" rows="4" data-bind="value: editVideoDescription"></textarea>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary btn-sm"
+                                    data-bind="click: saveVideoMetadata, enable: !savingVideoMetadata() && editVideoTitle().trim().length > 0">
+                                <span data-bind="visible: !savingVideoMetadata()"><i class="bi bi-check-lg me-1"></i>Save</span>
+                                <span data-bind="visible: savingVideoMetadata()">
+                                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                                </span>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                    data-bind="click: cancelVideoMetadataEdit">Cancel</button>
+                        </div>
                     </div>
                 </div>
             </div>

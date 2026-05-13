@@ -157,8 +157,29 @@ public class ChannelApiController : ControllerBase
 
         if (userChannel is null)
         {
-            return NotFound();
+            // Admins can manage channels they haven't personally subscribed to;
+            // create the subscription record on-the-fly so the category can be persisted.
+            if (!userContextService.IsAdministrator())
+            {
+                return NotFound();
+            }
+
+            bool channelExists = await channelRepository.ExistsAsync(x => x.Id == id);
+            if (!channelExists)
+            {
+                return NotFound();
+            }
+
+            userChannel = new UserChannel
+            {
+                UserId = userId,
+                ChannelId = id,
+                SubscribedAt = DateTime.UtcNow
+            };
+
+            await userChannelRepository.InsertAsync(userChannel);
         }
+
         if (request.CategoryId is not null)
         {
             bool categoryExists = await categoryRepository.ExistsAsync(x =>

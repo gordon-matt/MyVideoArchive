@@ -109,14 +109,11 @@
 <!-- /ko -->
 
 <ul class="nav nav-tabs mb-4" id="channelTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos" type="button" role="tab">
-            Videos
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="available-tab" data-bs-toggle="tab" data-bs-target="#available" type="button" role="tab">
-            Available
+    <li class="nav-item" role="presentation" data-bind="visible: seriesCount() > 0">
+        <button class="nav-link" id="series-tab" data-bs-toggle="tab" data-bs-target="#series" type="button" role="tab"
+                data-bind="click: loadSeries">
+            Series
+            <span class="badge bg-secondary rounded-pill ms-1" data-bind="text: seriesCount(), visible: seriesCount() > 0"></span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -124,11 +121,14 @@
             Playlists
         </button>
     </li>
-    <li class="nav-item" role="presentation" data-bind="visible: seriesCount() > 0">
-        <button class="nav-link" id="series-tab" data-bs-toggle="tab" data-bs-target="#series" type="button" role="tab"
-                data-bind="click: loadSeries">
-            Series
-            <span class="badge bg-secondary rounded-pill ms-1" data-bind="text: seriesCount(), visible: seriesCount() > 0"></span>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos" type="button" role="tab">
+            Videos
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="available-tab" data-bs-toggle="tab" data-bs-target="#available" type="button" role="tab">
+            Available
         </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -153,7 +153,7 @@
 <div class="tab-content" id="channelTabsContent">
 
     <!-- ── Videos tab ─────────────────────────────────────────────────────── -->
-    <div class="tab-pane fade show active" id="videos" role="tabpanel">
+    <div class="tab-pane fade" id="videos" role="tabpanel">
 
         <!-- Toolbar: search + playlist filter + view mode -->
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">

@@ -1450,6 +1450,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     await viewModel.loadSeriesCount();
     viewModel.startSyncPolling();
 
+    // Activate Series tab if any series exist, otherwise fall back to Playlists
+    const initialTabId = viewModel.seriesCount() > 0 ? 'series-tab' : 'playlists-tab';
+    bootstrap.Tab.getOrCreateInstance(document.getElementById(initialTabId)).show();
+
     // Load available videos when the tab is clicked
     $('#available-tab').on('shown.bs.tab', function () {
         if (viewModel.availableVideos().length === 0) {

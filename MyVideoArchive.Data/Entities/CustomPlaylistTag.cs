@@ -28,7 +28,7 @@ public class CustomPlaylistTagMap : IEntityTypeConfiguration<CustomPlaylistTag>
         builder.Property(m => m.TagId).IsRequired();
 
         builder.HasOne(m => m.CustomPlaylist)
-            .WithMany()
+            .WithMany(cp => cp.CustomPlaylistTags)
             .HasForeignKey(m => m.CustomPlaylistId)
             .OnDelete(DeleteBehavior.Cascade);
 

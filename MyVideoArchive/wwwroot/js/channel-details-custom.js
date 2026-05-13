@@ -49,6 +49,11 @@ class CustomChannelViewModel {
         this.seriesPlaylistsLoading = ko.observable(false);
         this.seriesSaving = ko.observable(false);
 
+        // ── Subscribers tab (admin only) ──────────────────────────────────────
+        this.subscribers = ko.observableArray([]);
+        this.subscribersLoading = ko.observable(false);
+        this.subscribersCount = ko.computed(() => this.subscribers().length);
+
         // ── Additional Content tab ─────────────────────────────────────────────
         this.extrasItems = ko.observableArray([]);
         this.extrasLoading = ko.observable(false);
@@ -566,6 +571,23 @@ class CustomChannelViewModel {
         }
     };
 
+    // ── Subscribers tab ───────────────────────────────────────────────────────
+
+    loadSubscribers = async () => {
+        this.subscribersLoading(true);
+        try {
+            const response = await fetch(`/api/channels/${this.channelId}/subscribers`);
+            if (response.ok) {
+                const data = await response.json();
+                this.subscribers(data.subscribers || []);
+            }
+        } catch (error) {
+            console.error('Error loading subscribers:', error);
+        } finally {
+            this.subscribersLoading(false);
+        }
+    };
+
     // ── Additional Content tab ────────────────────────────────────────────────
 
     formatExtrasPlaylistNames = (item) => {
@@ -980,8 +1002,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     await viewModel.initTags();
     await viewModel.loadSeriesCount();
 
+    // Activate Series tab if any series exist, otherwise fall back to Playlists
+    const initialTabId = viewModel.seriesCount() > 0 ? 'series-tab' : 'playlists-tab';
+    bootstrap.Tab.getOrCreateInstance(document.getElementById(initialTabId)).show();
+
     // Allow pressing Enter in the search box
     document.getElementById('videosSearchInput')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') viewModel.searchVideos();
     });
+
+    // Load subscribers when the tab is clicked (admin only)
+    if (isAdmin) {
+        $('#subscribers-tab').on('shown.bs.tab', function () {
+            if (viewModel.subscribers().length === 0) {
+                viewModel.loadSubscribers();
+            }
+        });
+    }
 });

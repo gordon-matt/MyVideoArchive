@@ -94,6 +94,15 @@ class CustomPlaylistDetailsViewModel {
         this.addToSeriesShowNewForm = ko.observable(false);
         this.addToSeriesNewName = ko.observable('');
         this.addToSeriesCreating = ko.observable(false);
+
+        // ── Inline metadata editing ───────────────────────────────────────────
+        this.showMetadataEdit = ko.observable(false);
+        this.editVideoTitle = ko.observable('');
+        this.editVideoUploadDate = ko.observable('');
+        this.editVideoDescription = ko.observable('');
+        this.savingVideoMetadata = ko.observable(false);
+
+        this.currentVideo.subscribe(() => this.showMetadataEdit(false));
     }
 
     formatExtrasPlaylistNames(item) {
@@ -409,6 +418,73 @@ class CustomPlaylistDetailsViewModel {
         } catch (error) {
             console.error('Error removing video extra:', error);
             toast.error('Failed to remove association.');
+        }
+    };
+
+    // ── Inline metadata editing ────────────────────────────────────────────────
+
+    openVideoMetadataEdit = () => {
+        const video = this.currentVideo();
+        if (!video) return;
+        this.editVideoTitle(video.title || '');
+        this.editVideoDescription(video.description || '');
+        if (video.uploadDate) {
+            const d = new Date(video.uploadDate);
+            this.editVideoUploadDate(d.toISOString().split('T')[0]);
+        } else {
+            this.editVideoUploadDate('');
+        }
+        this.showMetadataEdit(true);
+    };
+
+    cancelVideoMetadataEdit = () => this.showMetadataEdit(false);
+
+    saveVideoMetadata = async () => {
+        const video = this.currentVideo();
+        if (!video?.id) return;
+        this.savingVideoMetadata(true);
+        try {
+            const response = await fetch(`/api/custom/videos/${video.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: this.editVideoTitle().trim(),
+                    description: this.editVideoDescription() || null,
+                    thumbnailUrl: video.thumbnailUrl ?? null,
+                    uploadDate: this.editVideoUploadDate()
+                        ? new Date(this.editVideoUploadDate()).toISOString()
+                        : null,
+                    duration: video.duration || null,
+                    filePath: video.filePath || null,
+                    playlistIds: null
+                })
+            });
+            if (response.ok) {
+                const updated = {
+                    ...video,
+                    title: this.editVideoTitle().trim(),
+                    description: this.editVideoDescription() || null,
+                    uploadDate: this.editVideoUploadDate()
+                        ? new Date(this.editVideoUploadDate()).toISOString()
+                        : video.uploadDate
+                };
+                this.currentVideo(updated);
+                const idx = this.playlistVideos().findIndex(v => v.id === video.id);
+                if (idx >= 0) {
+                    const vids = [...this.playlistVideos()];
+                    vids[idx] = updated;
+                    this.playlistVideos(vids);
+                }
+                this.showMetadataEdit(false);
+                toast.success('Metadata saved.');
+            } else {
+                toast.error('Failed to save metadata. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error saving video metadata:', error);
+            toast.error('Failed to save metadata.');
+        } finally {
+            this.savingVideoMetadata(false);
         }
     };
 

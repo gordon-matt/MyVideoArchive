@@ -22,6 +22,14 @@ namespace MyVideoArchive.Services.Jobs;
 ///     SeriesB/            ← becomes a Series
 ///       PlaylistB1/       ← becomes a Playlist linked to SeriesB
 /// </code>
+/// If the series structure is not detected, the scan falls back to a simpler
+/// playlist-only layout where each immediate subfolder becomes a standalone Playlist:
+/// <code>
+///   _Custom/{ChannelId}/
+///     PlaylistA/          ← becomes a Playlist (no parent Series)
+///       video.mp4
+///     PlaylistB/          ← becomes a Playlist (no parent Series)
+/// </code>
 /// Non-video files found inside a playlist folder are imported as
 /// <see cref="AdditionalContentItem"/>s and linked to that playlist.
 /// Folders whose names begin with <c>_</c> are excluded from Series/Playlist detection.
@@ -182,6 +190,22 @@ public class FileSystemScanJob
             .Where(d => !Path.GetFileName(d).StartsWith("_", StringComparison.Ordinal))
             .Any(d => Directory.EnumerateDirectories(d)
                 .Any(sd => !Path.GetFileName(sd).StartsWith("_", StringComparison.Ordinal)));
+
+    /// <summary>
+    /// Returns true when a channel folder contains at least one immediate non-special
+    /// subdirectory that holds video files directly (with no further non-special
+    /// subdirectories), indicating a Playlist-only layout with no parent Series.
+    /// </summary>
+    private static bool HasPlaylistOnlyStructure(string channelPath) =>
+        Directory.Exists(channelPath) &&
+        Directory.EnumerateDirectories(channelPath)
+            .Where(d => !Path.GetFileName(d).StartsWith("_", StringComparison.Ordinal))
+            .Any(d =>
+                !Directory.EnumerateDirectories(d)
+                    .Any(sd => !Path.GetFileName(sd).StartsWith("_", StringComparison.Ordinal)) &&
+                Directory.EnumerateFiles(d)
+                    .Any(f => VideoExtensions.Contains(
+                        Path.GetExtension(f), StringComparer.OrdinalIgnoreCase)));
 
     private static string? FindFileByConvention(string channelPath, string videoId)
     {
@@ -344,12 +368,17 @@ public class FileSystemScanJob
 
         // When the folder layout follows the Series → Playlist → Video convention,
         // create/update Series, Playlist, and PlaylistVideo records accordingly.
+        // If the series structure is not detected, try the simpler Playlist-only layout.
         // The returned dictionary maps each playlist folder path to its DB playlist ID
         // so that the extras scan can assign content to the right playlist.
         IReadOnlyDictionary<string, int>? playlistFolderPaths = null;
         if (HasSeriesPlaylistStructure(channelPath))
         {
             playlistFolderPaths = await ScanCustomChannelSeriesStructureAsync(channel, channelPath, cancellationToken);
+        }
+        else if (HasPlaylistOnlyStructure(channelPath))
+        {
+            playlistFolderPaths = await ScanCustomChannelPlaylistOnlyStructureAsync(channel, channelPath, cancellationToken);
         }
 
         // Scan non-video files in the channel root as additional content
@@ -613,6 +642,137 @@ public class FileSystemScanJob
                         existingPlaylistVideoKeys.Add(pvKey);
                         playlistVideoOrder[playlistDbId] = order + 1;
                     }
+                }
+            }
+        }
+
+        return playlistFolderPaths;
+    }
+
+    /// <summary>
+    /// Inspects the one-level subfolder hierarchy beneath <paramref name="channelPath"/>
+    /// and ensures that Playlist and PlaylistVideo records exist for it (no Series).
+    /// <para>
+    /// Layout convention:
+    /// <code>
+    ///   channelPath/
+    ///     PlaylistA/     ← Playlist (no parent Series)
+    ///       video.mp4
+    ///     PlaylistB/     ← Playlist (no parent Series)
+    /// </code>
+    /// </para>
+    /// </summary>
+    /// <returns>
+    /// A dictionary mapping each playlist folder path to the playlist DB primary key,
+    /// used by the extras scan to assign additional content to the correct playlist.
+    /// </returns>
+    private async Task<IReadOnlyDictionary<string, int>> ScanCustomChannelPlaylistOnlyStructureAsync(
+        ChannelEntry channel,
+        string channelPath,
+        CancellationToken cancellationToken)
+    {
+        var playlistFolderPaths = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        var existingPlaylists = await playlistRepository.FindAsync(
+            new SearchOptions<Playlist> { CancellationToken = cancellationToken, Query = x => x.ChannelId == channel.Id },
+            x => new PlaylistEntry(x.Id, x.PlaylistId));
+
+        var playlistByPlaylistId = existingPlaylists.ToDictionary(p => p.PlaylistId, p => p.Id, StringComparer.OrdinalIgnoreCase);
+
+        var allPlaylistIds = playlistByPlaylistId.Values.ToHashSet();
+
+        var existingPlaylistVideoKeys = allPlaylistIds.Count > 0
+            ? (await playlistVideoRepository.FindAsync(
+                new SearchOptions<PlaylistVideo>
+                {
+                    CancellationToken = cancellationToken,
+                    Query = x => allPlaylistIds.Contains(x.PlaylistId)
+                },
+                x => new { x.PlaylistId, x.VideoId }))
+                .Select(pv => (pv.PlaylistId, pv.VideoId))
+                .ToHashSet()
+            : [];
+
+        var videosByFilePath = (await videoRepository.FindAsync(
+            new SearchOptions<Video> { CancellationToken = cancellationToken, Query = x => x.ChannelId == channel.Id },
+            x => new { x.Id, x.FilePath }))
+            .Where(v => v.FilePath != null)
+            .ToDictionary(v => v.FilePath!, v => v.Id, StringComparer.OrdinalIgnoreCase);
+
+        var playlistVideoOrder = existingPlaylistVideoKeys
+            .GroupBy(k => k.PlaylistId)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        foreach (string playlistDir in Directory.EnumerateDirectories(channelPath).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            string folderName = Path.GetFileName(playlistDir);
+
+            if (folderName.StartsWith("_", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            // Skip folders that themselves contain non-special subdirectories (series structure)
+            var subDirs = Directory.EnumerateDirectories(playlistDir)
+                .Where(d => !Path.GetFileName(d).StartsWith("_", StringComparison.Ordinal))
+                .ToList();
+
+            if (subDirs.Count > 0)
+            {
+                continue;
+            }
+
+            string playlistId = $"{channel.ChannelId}/{folderName}";
+
+            if (!playlistByPlaylistId.TryGetValue(playlistId, out int playlistDbId))
+            {
+                var newPlaylist = new Playlist
+                {
+                    PlaylistId = playlistId,
+                    Name = folderName,
+                    Url = playlistDir,
+                    Platform = "Custom",
+                    ChannelId = channel.Id,
+                    SubscribedAt = DateTime.UtcNow
+                };
+                await playlistRepository.InsertAsync(newPlaylist, ContextOptions.ForCancellationToken(cancellationToken));
+                playlistDbId = newPlaylist.Id;
+                playlistByPlaylistId[playlistId] = playlistDbId;
+                allPlaylistIds.Add(playlistDbId);
+                playlistVideoOrder[playlistDbId] = 0;
+                logger.LogInformation(
+                    "Created playlist '{PlaylistName}' for channel {ChannelId}",
+                    folderName, channel.ChannelId);
+            }
+
+            playlistFolderPaths[playlistDir] = playlistDbId;
+
+            foreach (string videoFilePath in EnumerateVideoFiles(playlistDir))
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                if (!videosByFilePath.TryGetValue(videoFilePath, out int videoDbId))
+                {
+                    continue;
+                }
+
+                var pvKey = (PlaylistId: playlistDbId, VideoId: videoDbId);
+                if (!existingPlaylistVideoKeys.Contains(pvKey))
+                {
+                    int order = playlistVideoOrder.GetValueOrDefault(playlistDbId, 0);
+                    await playlistVideoRepository.InsertAsync(
+                        new PlaylistVideo { PlaylistId = playlistDbId, VideoId = videoDbId, Order = order },
+                        ContextOptions.ForCancellationToken(cancellationToken));
+                    existingPlaylistVideoKeys.Add(pvKey);
+                    playlistVideoOrder[playlistDbId] = order + 1;
                 }
             }
         }
