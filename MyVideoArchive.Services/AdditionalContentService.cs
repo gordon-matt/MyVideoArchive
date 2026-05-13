@@ -123,10 +123,15 @@ public class AdditionalContentService : IAdditionalContentService
             }
 
             var distinctPlaylistIds = (playlistIds ?? []).Distinct().ToList();
-            foreach (int pid in distinctPlaylistIds)
+            if (distinctPlaylistIds.Count > 0)
             {
-                var pl = await playlistRepository.FindOneAsync(pid);
-                if (pl is null || pl.ChannelId != channelId)
+                var playlistsFound = await playlistRepository.FindAsync(new SearchOptions<Playlist>
+                {
+                    Query = x => distinctPlaylistIds.Contains(x.Id)
+                });
+
+                if (playlistsFound.Count != distinctPlaylistIds.Count ||
+                    playlistsFound.Any(p => p.ChannelId != channelId))
                 {
                     return Result.Invalid([new ValidationError("playlistIds", "One or more playlists are invalid for this channel.")]);
                 }
@@ -156,13 +161,14 @@ public class AdditionalContentService : IAdditionalContentService
 
             await repository.InsertAsync(item);
 
-            foreach (int pid in distinctPlaylistIds)
+            if (distinctPlaylistIds.Count > 0)
             {
-                await playlistLinkRepository.InsertAsync(new PlaylistAdditionalContentItem
-                {
-                    PlaylistId = pid,
-                    AdditionalContentItemId = item.Id
-                });
+                await playlistLinkRepository.InsertAsync(
+                    distinctPlaylistIds.Select(pid => new PlaylistAdditionalContentItem
+                    {
+                        PlaylistId = pid,
+                        AdditionalContentItemId = item.Id
+                    }));
             }
 
             var reloaded = await repository.FindOneAsync(new SearchOptions<AdditionalContentItem>
@@ -200,10 +206,15 @@ public class AdditionalContentService : IAdditionalContentService
             }
 
             var distinctPlaylistIds = (request.PlaylistIds ?? []).Distinct().ToList();
-            foreach (int pid in distinctPlaylistIds)
+            if (distinctPlaylistIds.Count > 0)
             {
-                var pl = await playlistRepository.FindOneAsync(pid);
-                if (pl is null || pl.ChannelId != item.ChannelId)
+                var playlistsFound = await playlistRepository.FindAsync(new SearchOptions<Playlist>
+                {
+                    Query = x => distinctPlaylistIds.Contains(x.Id)
+                });
+
+                if (playlistsFound.Count != distinctPlaylistIds.Count ||
+                    playlistsFound.Any(p => p.ChannelId != item.ChannelId))
                 {
                     return Result.Invalid([new ValidationError(nameof(request.PlaylistIds), "One or more playlists are invalid for this channel.")]);
                 }
@@ -224,13 +235,17 @@ public class AdditionalContentService : IAdditionalContentService
                 await playlistLinkRepository.DeleteAsync(toRemove);
             }
 
-            foreach (int pid in desired.Except(existingIds))
-            {
-                await playlistLinkRepository.InsertAsync(new PlaylistAdditionalContentItem
+            var toInsertLinks = desired.Except(existingIds)
+                .Select(pid => new PlaylistAdditionalContentItem
                 {
                     PlaylistId = pid,
                     AdditionalContentItemId = item.Id
-                });
+                })
+                .ToList();
+
+            if (toInsertLinks.Count > 0)
+            {
+                await playlistLinkRepository.InsertAsync(toInsertLinks);
             }
 
             await repository.UpdateAsync(item);
@@ -314,28 +329,44 @@ public class AdditionalContentService : IAdditionalContentService
         var playlistIdsContainingVideo = await GetPlaylistIdsContainingVideoOnChannelAsync(videoId, channelId);
 
         var allowedIds = available.Value.Select(i => i.Id).ToHashSet();
-        foreach (int itemId in (request.ItemIds ?? []).Distinct())
+        var distinctItemIds = (request.ItemIds ?? []).Distinct().ToList();
+
+        foreach (int itemId in distinctItemIds)
         {
             if (!allowedIds.Contains(itemId))
             {
                 return Result.Invalid([new ValidationError(nameof(request.ItemIds), $"Item {itemId} is not available to associate for this video.")]);
             }
-
-            var exists = await videoLinkRepository.FindOneAsync(new SearchOptions<VideoAdditionalContentItem>
-            {
-                Query = x => x.VideoId == videoId && x.AdditionalContentItemId == itemId
-            });
-            if (exists is null)
-            {
-                await videoLinkRepository.InsertAsync(new VideoAdditionalContentItem
-                {
-                    VideoId = videoId,
-                    AdditionalContentItemId = itemId
-                });
-            }
-
-            await EnsurePlaylistLinksForItemAsync(itemId, playlistIdsContainingVideo);
         }
+
+        if (distinctItemIds.Count == 0)
+        {
+            return Result.Success();
+        }
+
+        var existingVideoLinks = await videoLinkRepository.FindAsync(
+            new SearchOptions<VideoAdditionalContentItem>
+            {
+                Query = x => x.VideoId == videoId && distinctItemIds.Contains(x.AdditionalContentItemId)
+            },
+            x => x.AdditionalContentItemId);
+
+        var linkedItemIds = existingVideoLinks.ToHashSet();
+        var newVideoLinks = distinctItemIds
+            .Where(itemId => !linkedItemIds.Contains(itemId))
+            .Select(itemId => new VideoAdditionalContentItem
+            {
+                VideoId = videoId,
+                AdditionalContentItemId = itemId
+            })
+            .ToList();
+
+        if (newVideoLinks.Count > 0)
+        {
+            await videoLinkRepository.InsertAsync(newVideoLinks);
+        }
+
+        await EnsurePlaylistLinksForItemsAsync(distinctItemIds, playlistIdsContainingVideo);
 
         return Result.Success();
     }
@@ -358,24 +389,33 @@ public class AdditionalContentService : IAdditionalContentService
             .ToList();
     }
 
-    private async Task EnsurePlaylistLinksForItemAsync(int itemId, IReadOnlyList<int> playlistIds)
+    private async Task EnsurePlaylistLinksForItemsAsync(IReadOnlyList<int> itemIds, IReadOnlyList<int> playlistIds)
     {
-        foreach (int playlistId in playlistIds)
+        if (itemIds.Count == 0 || playlistIds.Count == 0)
         {
-            var linkExists = await playlistLinkRepository.FindOneAsync(new SearchOptions<PlaylistAdditionalContentItem>
-            {
-                Query = x => x.PlaylistId == playlistId && x.AdditionalContentItemId == itemId
-            });
-            if (linkExists is not null)
-            {
-                continue;
-            }
+            return;
+        }
 
-            await playlistLinkRepository.InsertAsync(new PlaylistAdditionalContentItem
+        var existing = await playlistLinkRepository.FindAsync(new SearchOptions<PlaylistAdditionalContentItem>
+        {
+            Query = x => itemIds.Contains(x.AdditionalContentItemId) && playlistIds.Contains(x.PlaylistId)
+        });
+
+        var existingKeys = existing.Select(x => (x.AdditionalContentItemId, x.PlaylistId)).ToHashSet();
+
+        var inserts = (
+            from itemId in itemIds
+            from playlistId in playlistIds
+            where !existingKeys.Contains((itemId, playlistId))
+            select new PlaylistAdditionalContentItem
             {
                 PlaylistId = playlistId,
                 AdditionalContentItemId = itemId
-            });
+            }).ToList();
+
+        if (inserts.Count > 0)
+        {
+            await playlistLinkRepository.InsertAsync(inserts);
         }
     }
 

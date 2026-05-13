@@ -706,21 +706,24 @@ public class ChannelService : IChannelService
 
             // Add new subscriptions
             var toAdd = desiredIds.Except(existingIds).ToList();
-            foreach (string userId in toAdd)
+            if (toAdd.Count > 0)
             {
-                await userChannelRepository.InsertAsync(new UserChannel
-                {
-                    UserId = userId,
-                    ChannelId = channelId,
-                    SubscribedAt = DateTime.UtcNow
-                });
+                var utcNow = DateTime.UtcNow;
+                await userChannelRepository.InsertAsync(
+                    toAdd.Select(userId => new UserChannel
+                    {
+                        UserId = userId,
+                        ChannelId = channelId,
+                        SubscribedAt = utcNow
+                    }),
+                    ContextOptions.ForCancellationToken(cancellationToken));
             }
 
             // Remove subscriptions not in the desired set
             var toRemove = existing.Where(x => !desiredIds.Contains(x.UserId)).ToList();
-            foreach (var record in toRemove)
+            if (toRemove.Count > 0)
             {
-                await userChannelRepository.DeleteAsync(record);
+                await userChannelRepository.DeleteAsync(toRemove, ContextOptions.ForCancellationToken(cancellationToken));
             }
 
             if (logger.IsEnabled(LogLevel.Information))

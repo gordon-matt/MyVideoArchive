@@ -463,37 +463,37 @@ public class PlaylistService : IPlaylistService
                     .Select(x => x.VideoId)
                     .ToHashSet();
 
-                foreach (var record in existingRecords)
+                if (existingRecords.Count > 0)
                 {
-                    await userPlaylistVideoRepository.DeleteAsync(record);
+                    await userPlaylistVideoRepository.DeleteAsync(existingRecords);
                 }
 
                 var videoOrderIds = request.VideoOrders.Select(x => x.VideoId).ToHashSet();
 
-                foreach (var videoOrder in request.VideoOrders)
-                {
-                    await userPlaylistVideoRepository.InsertAsync(new UserPlaylistVideo
+                var reorderInserts = request.VideoOrders
+                    .Select(videoOrder => new UserPlaylistVideo
                     {
                         UserId = userId,
                         PlaylistId = playlistId,
                         VideoId = videoOrder.VideoId,
                         CustomOrder = videoOrder.Order,
                         IsHidden = hiddenVideoIds.Contains(videoOrder.VideoId)
-                    });
-                }
+                    })
+                    .Concat(hiddenVideoIds
+                        .Where(id => !videoOrderIds.Contains(id))
+                        .Select(hiddenVideoId => new UserPlaylistVideo
+                        {
+                            UserId = userId,
+                            PlaylistId = playlistId,
+                            VideoId = hiddenVideoId,
+                            CustomOrder = 0,
+                            IsHidden = true
+                        }))
+                    .ToList();
 
-                // Preserve hidden records even for videos not present in the custom-order payload.
-                // (Avoid duplicate-key inserts for videos that were already included above.)
-                foreach (int hiddenVideoId in hiddenVideoIds.Where(id => !videoOrderIds.Contains(id)))
+                if (reorderInserts.Count > 0)
                 {
-                    await userPlaylistVideoRepository.InsertAsync(new UserPlaylistVideo
-                    {
-                        UserId = userId,
-                        PlaylistId = playlistId,
-                        VideoId = hiddenVideoId,
-                        CustomOrder = 0,
-                        IsHidden = true
-                    });
+                    await userPlaylistVideoRepository.InsertAsync(reorderInserts);
                 }
             }
 
@@ -800,36 +800,58 @@ public class PlaylistService : IPlaylistService
             string? userId = userContextService.GetCurrentUserId();
             int subscribedCount = 0;
 
-            foreach (int playlistId in request.PlaylistIds)
+            var playlists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
             {
-                var playlist = await playlistRepository.FindOneAsync(playlistId);
-                if (playlist is not null && playlist.ChannelId == channelId)
+                Query = x => request.PlaylistIds.Contains(x.Id) && x.ChannelId == channelId
+            });
+
+            if (playlists.Count > 0)
+            {
+                var utcNow = DateTime.UtcNow;
+                var playlistUpdates = new List<Playlist>();
+                foreach (var playlist in playlists)
                 {
                     if (playlist.SubscribedAt == DateTime.MinValue)
                     {
-                        playlist.SubscribedAt = DateTime.UtcNow;
-                        await playlistRepository.UpdateAsync(playlist);
+                        playlist.SubscribedAt = utcNow;
+                        playlistUpdates.Add(playlist);
                     }
+                }
 
-                    var existingSubscription = await userPlaylistRepository.FindOneAsync(new SearchOptions<UserPlaylist>
+                if (playlistUpdates.Count > 0)
+                {
+                    await playlistRepository.UpdateAsync(playlistUpdates);
+                }
+
+                var playlistIds = playlists.Select(p => p.Id).ToList();
+                var existingSubscriptions = await userPlaylistRepository.FindAsync(new SearchOptions<UserPlaylist>
+                {
+                    Query = x => x.UserId == userId && playlistIds.Contains(x.PlaylistId)
+                });
+                var subscribedPlaylistIds = existingSubscriptions.Select(x => x.PlaylistId).ToHashSet();
+
+                var newSubscriptions = playlistIds
+                    .Where(id => !subscribedPlaylistIds.Contains(id))
+                    .Select(playlistId => new UserPlaylist
                     {
-                        Query = x => x.UserId == userId && x.PlaylistId == playlistId
-                    });
+                        UserId = userId!,
+                        PlaylistId = playlistId,
+                        SubscribedAt = utcNow
+                    })
+                    .ToList();
 
-                    if (existingSubscription is null)
-                    {
-                        await userPlaylistRepository.InsertAsync(new UserPlaylist
-                        {
-                            UserId = userId!,
-                            PlaylistId = playlistId,
-                            SubscribedAt = DateTime.UtcNow
-                        });
-                    }
+                if (newSubscriptions.Count > 0)
+                {
+                    await userPlaylistRepository.InsertAsync(newSubscriptions);
+                }
 
+                foreach (var playlist in playlists)
+                {
                     backgroundJobClient.Enqueue<PlaylistSyncJob>(job =>
                         job.ExecuteAsync(playlist.Id, CancellationToken.None));
-                    subscribedCount++;
                 }
+
+                subscribedCount = playlists.Count;
             }
 
             return Result.Success(new SubscribePlaylistsResponse(
@@ -1021,26 +1043,37 @@ public class PlaylistService : IPlaylistService
                         },
                         x => x.VideoId);
 
-                    foreach (int videoId in notDownloadedVideoIds)
+                    if (notDownloadedVideoIds.Count > 0)
                     {
-                        var existingUserVideo = await userVideoRepository.FindOneAsync(new SearchOptions<UserVideo>
+                        var existingUserVideos = await userVideoRepository.FindAsync(new SearchOptions<UserVideo>
                         {
-                            Query = x => x.UserId == userId && x.VideoId == videoId
+                            Query = x => x.UserId == userId && notDownloadedVideoIds.Contains(x.VideoId)
                         });
 
-                        if (existingUserVideo is not null)
+                        foreach (var uv in existingUserVideos)
                         {
-                            existingUserVideo.IsIgnored = true;
-                            await userVideoRepository.UpdateAsync(existingUserVideo);
+                            uv.IsIgnored = true;
                         }
-                        else
+
+                        if (existingUserVideos.Count > 0)
                         {
-                            await userVideoRepository.InsertAsync(new UserVideo
+                            await userVideoRepository.UpdateAsync(existingUserVideos);
+                        }
+
+                        var existingVideoIds = existingUserVideos.Select(x => x.VideoId).ToHashSet();
+                        var userVideoInserts = notDownloadedVideoIds
+                            .Where(videoId => !existingVideoIds.Contains(videoId))
+                            .Select(videoId => new UserVideo
                             {
                                 UserId = userId!,
                                 VideoId = videoId,
                                 IsIgnored = true
-                            });
+                            })
+                            .ToList();
+
+                        if (userVideoInserts.Count > 0)
+                        {
+                            await userVideoRepository.InsertAsync(userVideoInserts);
                         }
                     }
                 }

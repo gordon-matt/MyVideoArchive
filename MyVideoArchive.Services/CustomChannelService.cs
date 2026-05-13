@@ -513,19 +513,40 @@ public class CustomChannelService : ICustomChannelService
             await playlistVideoRepository.DeleteAsync(toRemove);
         }
 
-        foreach (int playlistId in validDesiredIds.Except(existingIds))
+        var toAddPlaylistIds = validDesiredIds.Except(existingIds).ToList();
+        if (toAddPlaylistIds.Count > 0)
         {
-            int maxOrder = (await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
-            {
-                Query = x => x.PlaylistId == playlistId
-            }, x => (int?)x.Order)).Max() ?? -1;
+            var orderRows = await playlistVideoRepository.FindAsync(
+                new SearchOptions<PlaylistVideo>
+                {
+                    Query = x => toAddPlaylistIds.Contains(x.PlaylistId)
+                },
+                x => new { x.PlaylistId, x.Order });
 
-            await playlistVideoRepository.InsertAsync(new PlaylistVideo
+            var maxOrderByPlaylist = toAddPlaylistIds.ToDictionary(pid => pid, _ => -1);
+            foreach (var row in orderRows)
             {
-                PlaylistId = playlistId,
-                VideoId = videoId,
-                Order = maxOrder + 1
-            });
+                if (maxOrderByPlaylist[row.PlaylistId] < row.Order)
+                {
+                    maxOrderByPlaylist[row.PlaylistId] = row.Order;
+                }
+            }
+
+            var inserts = toAddPlaylistIds
+                .Select(playlistId =>
+                {
+                    int nextOrder = maxOrderByPlaylist[playlistId] + 1;
+                    maxOrderByPlaylist[playlistId] = nextOrder;
+                    return new PlaylistVideo
+                    {
+                        PlaylistId = playlistId,
+                        VideoId = videoId,
+                        Order = nextOrder
+                    };
+                })
+                .ToList();
+
+            await playlistVideoRepository.InsertAsync(inserts);
         }
     }
 
@@ -563,16 +584,24 @@ public class CustomChannelService : ICustomChannelService
             Query = x => x.PlaylistId == playlistId
         }, x => (int?)x.Order)).Max() ?? -1;
 
-        int added = 0;
-        foreach (int videoId in videoIds.Where(id => !existing.Contains(id)))
+        var toAddVideoIds = videoIds.Where(id => !existing.Contains(id)).ToList();
+        if (toAddVideoIds.Count == 0)
         {
-            await playlistVideoRepository.InsertAsync(
-                new PlaylistVideo { PlaylistId = playlistId, VideoId = videoId, Order = ++maxOrder },
-                ContextOptions.ForCancellationToken(cancellationToken));
-            added++;
+            return Result.Success(0);
         }
 
-        return Result.Success(added);
+        var inserts = toAddVideoIds
+            .Select((videoId, index) => new PlaylistVideo
+            {
+                PlaylistId = playlistId,
+                VideoId = videoId,
+                Order = maxOrder + 1 + index
+            })
+            .ToList();
+
+        await playlistVideoRepository.InsertAsync(inserts, ContextOptions.ForCancellationToken(cancellationToken));
+
+        return Result.Success(inserts.Count);
     }
 
     private async Task TryDeletePlaylistThumbnailFileAsync(Playlist playlist)

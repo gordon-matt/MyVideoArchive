@@ -122,16 +122,23 @@ public class SeriesService : ISeriesService
             Query = x => x.SeriesId == seriesId
         });
 
-        foreach (var sp in existing)
+        if (existing.Count > 0)
         {
-            await seriesPlaylistRepository.DeleteAsync(sp, ContextOptions.ForCancellationToken(cancellationToken));
+            await seriesPlaylistRepository.DeleteAsync(existing, ContextOptions.ForCancellationToken(cancellationToken));
         }
 
-        for (int i = 0; i < request.PlaylistIds.Count; i++)
+        if (request.PlaylistIds.Count > 0)
         {
-            await seriesPlaylistRepository.InsertAsync(
-                new SeriesPlaylist { SeriesId = seriesId, PlaylistId = request.PlaylistIds[i], SortOrder = i },
-                ContextOptions.ForCancellationToken(cancellationToken));
+            var inserts = request.PlaylistIds
+                .Select((playlistId, index) => new SeriesPlaylist
+                {
+                    SeriesId = seriesId,
+                    PlaylistId = playlistId,
+                    SortOrder = index
+                })
+                .ToList();
+
+            await seriesPlaylistRepository.InsertAsync(inserts, ContextOptions.ForCancellationToken(cancellationToken));
         }
 
         return Result.Success();

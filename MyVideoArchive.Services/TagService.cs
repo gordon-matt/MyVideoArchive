@@ -330,6 +330,92 @@ public class TagService : ITagService
         return tag;
     }
 
+    private async Task<Dictionary<string, Tag>> EnsureGlobalTagsForNamesAsync(
+        IReadOnlyList<string> normalizedNames,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<string, Tag>(StringComparer.OrdinalIgnoreCase);
+        if (normalizedNames.Count == 0)
+        {
+            return result;
+        }
+
+        var existing = await tagRepository.FindAsync(new SearchOptions<Tag>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.UserId == Constants.GlobalUserId && normalizedNames.Contains(x.Name.ToLower())
+        });
+
+        foreach (var tag in existing)
+        {
+            result[tag.Name.ToLowerInvariant()] = tag;
+        }
+
+        var missing = normalizedNames
+            .Where(n => !result.ContainsKey(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (missing.Count > 0)
+        {
+            var newTags = missing.Select(n => new Tag { UserId = Constants.GlobalUserId, Name = n }).ToList();
+            await tagRepository.InsertAsync(newTags, ContextOptions.ForCancellationToken(cancellationToken));
+            foreach (var tag in newTags)
+            {
+                result[tag.Name.ToLowerInvariant()] = tag;
+            }
+        }
+
+        return result;
+    }
+
+    private async Task<Dictionary<string, Tag>> EnsureTagsForUserAsync(
+        string userId,
+        IReadOnlyList<string> normalizedNames,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<string, Tag>(StringComparer.OrdinalIgnoreCase);
+        if (normalizedNames.Count == 0)
+        {
+            return result;
+        }
+
+        var candidates = await tagRepository.FindAsync(new SearchOptions<Tag>
+        {
+            CancellationToken = cancellationToken,
+            Query = x =>
+                normalizedNames.Contains(x.Name.ToLower()) &&
+                (x.UserId == Constants.GlobalUserId || x.UserId == userId)
+        });
+
+        foreach (var tag in candidates.Where(t => t.UserId == userId))
+        {
+            result[tag.Name.ToLowerInvariant()] = tag;
+        }
+
+        foreach (var tag in candidates.Where(t => t.UserId == Constants.GlobalUserId))
+        {
+            result[tag.Name.ToLowerInvariant()] = tag;
+        }
+
+        var missing = normalizedNames
+            .Where(n => !result.ContainsKey(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (missing.Count > 0)
+        {
+            var newTags = missing.Select(n => new Tag { UserId = userId, Name = n }).ToList();
+            await tagRepository.InsertAsync(newTags, ContextOptions.ForCancellationToken(cancellationToken));
+            foreach (var tag in newTags)
+            {
+                result[tag.Name.ToLowerInvariant()] = tag;
+            }
+        }
+
+        return result;
+    }
+
     public async Task<Result<GetPlaylistTagsResponse>> GetPlaylistTagsAsync(int playlistId)
     {
         try
@@ -488,11 +574,9 @@ public class TagService : ITagService
                 return;
             }
 
-            foreach (string name in names)
-            {
-                var tag = await GetOrCreateGlobalTagAsync(name);
-                await channelTagRepository.InsertAsync(new ChannelTag { ChannelId = channelId, TagId = tag.Id });
-            }
+            var tagByName = await EnsureGlobalTagsForNamesAsync(names);
+            await channelTagRepository.InsertAsync(
+                names.Select(name => new ChannelTag { ChannelId = channelId, TagId = tagByName[name].Id }));
         }
         catch (Exception ex)
         {
@@ -525,11 +609,9 @@ public class TagService : ITagService
                 return;
             }
 
-            foreach (string name in names)
-            {
-                var tag = await GetOrCreateGlobalTagAsync(name);
-                await playlistTagRepository.InsertAsync(new PlaylistTag { PlaylistId = playlistId, TagId = tag.Id });
-            }
+            var tagByName = await EnsureGlobalTagsForNamesAsync(names);
+            await playlistTagRepository.InsertAsync(
+                names.Select(name => new PlaylistTag { PlaylistId = playlistId, TagId = tagByName[name].Id }));
         }
         catch (Exception ex)
         {
@@ -564,11 +646,9 @@ public class TagService : ITagService
                 return;
             }
 
-            foreach (string name in names)
-            {
-                var tag = await GetOrCreateGlobalTagAsync(name);
-                await videoTagRepository.InsertAsync(new VideoTag { VideoId = videoId, TagId = tag.Id });
-            }
+            var tagByName = await EnsureGlobalTagsForNamesAsync(names);
+            await videoTagRepository.InsertAsync(
+                names.Select(name => new VideoTag { VideoId = videoId, TagId = tagByName[name].Id }));
         }
         catch (Exception ex)
         {
@@ -650,10 +730,11 @@ public class TagService : ITagService
                 await channelTagRepository.DeleteAsync(toDelete);
             }
 
-            foreach (string tagName in toAdd)
+            if (toAdd.Count > 0)
             {
-                var tag = await GetOrCreateTagAsync(userId, tagName);
-                await channelTagRepository.InsertAsync(new ChannelTag { ChannelId = channelId, TagId = tag.Id });
+                var tagByName = await EnsureTagsForUserAsync(userId, toAdd);
+                await channelTagRepository.InsertAsync(
+                    toAdd.Select(tagName => new ChannelTag { ChannelId = channelId, TagId = tagByName[tagName].Id }));
             }
 
             return Result.Success();
@@ -711,10 +792,15 @@ public class TagService : ITagService
                 await customPlaylistTagRepository.DeleteAsync(toDelete);
             }
 
-            foreach (string tagName in toAdd)
+            if (toAdd.Count > 0)
             {
-                var tag = await GetOrCreateTagAsync(userId, tagName);
-                await customPlaylistTagRepository.InsertAsync(new CustomPlaylistTag { CustomPlaylistId = customPlaylistId, TagId = tag.Id });
+                var tagByName = await EnsureTagsForUserAsync(userId, toAdd);
+                await customPlaylistTagRepository.InsertAsync(
+                    toAdd.Select(tagName => new CustomPlaylistTag
+                    {
+                        CustomPlaylistId = customPlaylistId,
+                        TagId = tagByName[tagName].Id
+                    }));
             }
 
             return Result.Success();
@@ -764,10 +850,11 @@ public class TagService : ITagService
                 await playlistTagRepository.DeleteAsync(toDelete);
             }
 
-            foreach (string tagName in toAdd)
+            if (toAdd.Count > 0)
             {
-                var tag = await GetOrCreateTagAsync(userId, tagName);
-                await playlistTagRepository.InsertAsync(new PlaylistTag { PlaylistId = playlistId, TagId = tag.Id });
+                var tagByName = await EnsureTagsForUserAsync(userId, toAdd);
+                await playlistTagRepository.InsertAsync(
+                    toAdd.Select(tagName => new PlaylistTag { PlaylistId = playlistId, TagId = tagByName[tagName].Id }));
             }
 
             return Result.Success();
@@ -837,15 +924,13 @@ public class TagService : ITagService
 
             if (!toAdd.IsNullOrEmpty())
             {
-                foreach (string tagName in toAdd)
-                {
-                    var tag = await GetOrCreateTagAsync(userId, tagName);
-                    await videoTagRepository.InsertAsync(new VideoTag
+                var tagByName = await EnsureTagsForUserAsync(userId, toAdd);
+                await videoTagRepository.InsertAsync(
+                    toAdd.Select(tagName => new VideoTag
                     {
                         VideoId = videoId,
-                        TagId = tag.Id
-                    });
-                }
+                        TagId = tagByName[tagName].Id
+                    }));
             }
 
             return Result.Success();
