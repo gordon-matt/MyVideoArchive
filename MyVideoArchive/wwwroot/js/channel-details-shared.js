@@ -348,6 +348,26 @@ export async function deleteSeriesForChannel(vm, series) {
 
 const channelCardMenuColActiveClass = 'channel-card-menu-col-active';
 
+let closeDropdownsOnModalBound = false;
+
+/** Hide every Bootstrap dropdown and clear grid stacking when any modal opens (avoids menus/cards over modals). */
+export function bindCloseDropdownsWhenModalOpens() {
+    if (closeDropdownsOnModalBound) return;
+    closeDropdownsOnModalBound = true;
+
+    document.addEventListener('show.bs.modal', () => {
+        document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach((toggle) => {
+            bootstrap.Dropdown.getInstance(toggle)?.hide();
+        });
+        document.querySelectorAll(`.${channelCardMenuColActiveClass}`).forEach((el) => {
+            el.classList.remove(channelCardMenuColActiveClass);
+        });
+        document.querySelectorAll('.channel-index-menu-col-active').forEach((el) => {
+            el.classList.remove('channel-index-menu-col-active');
+        });
+    });
+}
+
 /**
  * Dropend ⋮ menus use fixed Popper positioning; lift the Bootstrap grid column while open so the
  * menu paints above sibling cards. Uses explicit classes (not :has) so switching between menus does
@@ -396,4 +416,6 @@ export function initChannelCardDropdownStacking() {
         const col = dropdownRoot.closest('.row > [class*="col-"]');
         col?.classList.remove(channelCardMenuColActiveClass);
     });
+
+    bindCloseDropdownsWhenModalOpens();
 }

@@ -350,11 +350,12 @@ a:has(.video-item) {
 /* Grid column lifted while its card ⋮ menu is open (see initChannelCardDropdownStacking in channel-details-shared.js) */
 #channelTabsContent .row > [class*="col-"].channel-card-menu-col-active {
     position: relative;
-    z-index: 5000;
+    /* Below Bootstrap modal backdrop (1050) so modals always cover lifted grid cells */
+    z-index: 1020;
 }
 
 #channelTabsContent .channel-card-menu-wrap .dropdown-menu.show {
-    z-index: 5010 !important;
+    z-index: 1040 !important;
 }
 
 .channel-card-menu-trigger {

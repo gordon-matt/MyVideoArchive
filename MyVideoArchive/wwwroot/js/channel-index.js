@@ -1,4 +1,5 @@
 import { formatDate } from './utils.js';
+import { bindCloseDropdownsWhenModalOpens } from './channel-details-shared.js';
 
 class ChannelsViewModel {
     constructor() {
@@ -688,8 +689,46 @@ class ChannelsViewModel {
 
 var viewModel;
 
+/** Dropend ⋮ on channel index avatar/category tiles: single open menu + column stacking */
+function initChannelIndexCardMenus() {
+    const root = document.getElementById('channelIndexContent');
+    if (!root) return;
+
+    const activeColClass = 'channel-index-menu-col-active';
+    const clearActiveCols = () => {
+        root.querySelectorAll(`.${activeColClass}`).forEach((el) => el.classList.remove(activeColClass));
+    };
+
+    root.addEventListener('show.bs.dropdown', (e) => {
+        const dropdownRoot = e.target;
+        if (!(dropdownRoot instanceof HTMLElement) || !dropdownRoot.closest('.channel-index-card-menu-wrap')) return;
+        root.querySelectorAll('.channel-index-card-menu-wrap .dropdown').forEach((dd) => {
+            if (dd === dropdownRoot) return;
+            const toggle = dd.querySelector('[data-bs-toggle="dropdown"]');
+            bootstrap.Dropdown.getInstance(toggle)?.hide();
+        });
+    });
+
+    root.addEventListener('shown.bs.dropdown', (e) => {
+        const dropdownRoot = e.target;
+        if (!(dropdownRoot instanceof HTMLElement) || !dropdownRoot.closest('.channel-index-card-menu-wrap')) return;
+        clearActiveCols();
+        const col = dropdownRoot.closest('.row > [class*="col-"]');
+        if (col) col.classList.add(activeColClass);
+    });
+
+    root.addEventListener('hidden.bs.dropdown', (e) => {
+        const dropdownRoot = e.target;
+        if (!(dropdownRoot instanceof HTMLElement) || !dropdownRoot.closest('.channel-index-card-menu-wrap')) return;
+        dropdownRoot.closest('.row > [class*="col-"]')?.classList.remove(activeColClass);
+    });
+
+    bindCloseDropdownsWhenModalOpens();
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     viewModel = new ChannelsViewModel();
+    initChannelIndexCardMenus();
     ko.applyBindings(viewModel);
     await viewModel.loadSettings();
     if (viewModel.enableChannelCategories()) {

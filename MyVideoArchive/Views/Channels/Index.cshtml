@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="~/css/channel-index.css" asp-append-version="true" />
 }
 
-<div class="container">
+<div class="container" id="channelIndexContent">
     <div class="row mb-3">
         <div class="col-8">
             <h2>@(isAdmin ? "All Channels" : "My Channels")</h2>
@@ -103,15 +103,10 @@
                     <div class="row">
                         <!-- ko foreach: channels -->
                         <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
-                            <div class="channel-avatar-card" data-bind="click: $root.viewChannel, css: { 'channel-avatar-card--unsubbed': subscriberCount === 0 }">
+                            <div class="channel-avatar-card position-relative" data-bind="click: $root.viewChannel, css: { 'channel-avatar-card--unsubbed': subscriberCount === 0 }">
                                 <div class="channel-avatar-card-img-wrap">
                                     <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/160x160?text=' + name.charAt(0), alt: name }"
                                          class="channel-avatar-card-img" />
-                                    <button class="btn btn-sm channel-avatar-card-edit-btn" title="Edit category"
-                                            data-bind="click: $root.openEditCategoryModal.bind($root, $data)"
-                                            onclick="event.stopPropagation()">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
                                 </div>
                                 <div class="channel-avatar-card-body">
                                     <div class="channel-avatar-card-name" data-bind="text: name, attr: { title: name }"></div>
@@ -125,16 +120,41 @@
                                         <!-- /ko -->
                                     </div>
                                 </div>
-                                <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">
-                                    @if (isAdmin)
-                                    {
-                                        <button class="btn btn-outline-secondary btn-sm" title="Assign to users"
-                                                data-bind="click: $root.openAssignUsersModal">
-                                            <i class="bi bi-person-plus-fill"></i>
+                                <div class="channel-index-card-menu-wrap" onclick="event.stopPropagation()">
+                                    <div class="dropdown dropend">
+                                        <button type="button"
+                                                class="channel-index-card-menu-trigger"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                                aria-expanded="false"
+                                                aria-label="Channel actions">
+                                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                         </button>
-                                    }
-                                    <button class="btn btn-danger btn-sm flex-fill"
-                                            data-bind="click: $root.deleteChannel, text: $root.isAdmin ? 'Delete' : 'Unsubscribe'"></button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                        data-bind="click: function() { $root.openEditCategoryModal($data); }">
+                                                    <i class="bi bi-folder2-open me-2"></i>Assign category
+                                                </button>
+                                            </li>
+                                            @if (isAdmin)
+                                            {
+                                                <li>
+                                                    <button type="button" class="dropdown-item"
+                                                            data-bind="click: function() { $root.openAssignUsersModal($data); }">
+                                                        <i class="bi bi-person-plus-fill me-2"></i>Assign to users
+                                                    </button>
+                                                </li>
+                                            }
+                                            <li><hr class="dropdown-divider" /></li>
+                                            <li>
+                                                <button type="button" class="dropdown-item text-danger"
+                                                        data-bind="click: function() { $root.deleteChannel($data); }">
+                                                    <span data-bind="text: $root.isAdmin ? 'Delete channel' : 'Unsubscribe'"></span>
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -155,15 +175,10 @@
                     <div class="row">
                         <!-- ko foreach: uncategorizedChannels() -->
                         <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
-                            <div class="channel-avatar-card" data-bind="click: $root.viewChannel, css: { 'channel-avatar-card--unsubbed': subscriberCount === 0 }">
+                            <div class="channel-avatar-card position-relative" data-bind="click: $root.viewChannel, css: { 'channel-avatar-card--unsubbed': subscriberCount === 0 }">
                                 <div class="channel-avatar-card-img-wrap">
                                     <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/160x160?text=' + name.charAt(0), alt: name }"
                                          class="channel-avatar-card-img" />
-                                    <button class="btn btn-sm channel-avatar-card-edit-btn" title="Assign to category"
-                                            data-bind="click: $root.openEditCategoryModal.bind($root, $data)"
-                                            onclick="event.stopPropagation()">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
                                 </div>
                                 <div class="channel-avatar-card-body">
                                     <div class="channel-avatar-card-name" data-bind="text: name, attr: { title: name }"></div>
@@ -177,16 +192,41 @@
                                         <!-- /ko -->
                                     </div>
                                 </div>
-                                <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">
-                                    @if (isAdmin)
-                                    {
-                                        <button class="btn btn-outline-secondary btn-sm" title="Assign to users"
-                                                data-bind="click: $root.openAssignUsersModal">
-                                            <i class="bi bi-person-plus-fill"></i>
+                                <div class="channel-index-card-menu-wrap" onclick="event.stopPropagation()">
+                                    <div class="dropdown dropend">
+                                        <button type="button"
+                                                class="channel-index-card-menu-trigger"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                                aria-expanded="false"
+                                                aria-label="Channel actions">
+                                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                         </button>
-                                    }
-                                    <button class="btn btn-danger btn-sm flex-fill"
-                                            data-bind="click: $root.deleteChannel, text: $root.isAdmin ? 'Delete' : 'Unsubscribe'"></button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                                            <li>
+                                                <button type="button" class="dropdown-item"
+                                                        data-bind="click: function() { $root.openEditCategoryModal($data); }">
+                                                    <i class="bi bi-folder2-open me-2"></i>Assign category
+                                                </button>
+                                            </li>
+                                            @if (isAdmin)
+                                            {
+                                                <li>
+                                                    <button type="button" class="dropdown-item"
+                                                            data-bind="click: function() { $root.openAssignUsersModal($data); }">
+                                                        <i class="bi bi-person-plus-fill me-2"></i>Assign to users
+                                                    </button>
+                                                </li>
+                                            }
+                                            <li><hr class="dropdown-divider" /></li>
+                                            <li>
+                                                <button type="button" class="dropdown-item text-danger"
+                                                        data-bind="click: function() { $root.deleteChannel($data); }">
+                                                    <span data-bind="text: $root.isAdmin ? 'Delete channel' : 'Unsubscribe'"></span>
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -241,7 +281,7 @@
                 <div data-bind="visible: channelViewMode() === 'avatar'" class="row">
                     <!-- ko foreach: channels -->
                     <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-4">
-                        <div class="channel-avatar-card" data-bind="click: $parent.viewChannel, css: { 'channel-avatar-card--unsubbed': subscriberCount === 0 }">
+                        <div class="channel-avatar-card position-relative" data-bind="click: $parent.viewChannel, css: { 'channel-avatar-card--unsubbed': subscriberCount === 0 }">
                             <div class="channel-avatar-card-img-wrap">
                                 <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/160x160?text=' + name.charAt(0), alt: name }"
                                      class="channel-avatar-card-img" />
@@ -258,14 +298,34 @@
                                     <!-- /ko -->
                                 </div>
                             </div>
-                            <div class="channel-avatar-card-actions d-flex gap-1" onclick="event.stopPropagation()">
-                                <!-- ko if: $parent.isAdmin -->
-                                <button class="btn btn-outline-secondary btn-sm" title="Assign to users"
-                                        data-bind="click: $parent.openAssignUsersModal">
-                                    <i class="bi bi-person-plus-fill"></i>
-                                </button>
-                                <!-- /ko -->
-                                <button class="btn btn-danger btn-sm flex-fill" data-bind="click: $parent.deleteChannel, text: $parent.isAdmin ? 'Delete' : 'Unsubscribe'"></button>
+                            <div class="channel-index-card-menu-wrap" onclick="event.stopPropagation()">
+                                <div class="dropdown dropend">
+                                    <button type="button"
+                                            class="channel-index-card-menu-trigger"
+                                            data-bs-toggle="dropdown"
+                                            data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                            aria-expanded="false"
+                                            aria-label="Channel actions">
+                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow">
+                                        <!-- ko if: $parent.isAdmin -->
+                                        <li>
+                                            <button type="button" class="dropdown-item"
+                                                    data-bind="click: function() { $parent.openAssignUsersModal($data); }">
+                                                <i class="bi bi-person-plus-fill me-2"></i>Assign to users
+                                            </button>
+                                        </li>
+                                        <li><hr class="dropdown-divider" /></li>
+                                        <!-- /ko -->
+                                        <li>
+                                            <button type="button" class="dropdown-item text-danger"
+                                                    data-bind="click: function() { $parent.deleteChannel($data); }">
+                                                <span data-bind="text: $parent.isAdmin ? 'Delete channel' : 'Unsubscribe'"></span>
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
