@@ -702,11 +702,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     await viewModel.initTags();
     await viewModel.loadSeriesCount();
 
-    // Programmatic Tab.show() does not run the tab button's click: loadSeries binding,
-    // so load series data explicitly before showing that tab.
+    // Load playlists when the tab is shown (register before programmatic Tab.show so the first show can fire this)
+    $('#playlists-tab').on('shown.bs.tab', function () {
+        if (viewModel.playlists().length === 0) {
+            viewModel.loadPlaylists();
+        }
+    });
+
+    // Programmatic Tab.show() does not run Knockout click handlers on tab buttons,
+    // so load tab data explicitly before showing that tab.
     const hasSeries = viewModel.seriesCount() > 0;
     if (hasSeries) {
         await viewModel.loadSeries();
+    } else {
+        await viewModel.loadPlaylists();
     }
     const initialTabId = hasSeries ? 'series-tab' : 'playlists-tab';
     bootstrap.Tab.getOrCreateInstance(document.getElementById(initialTabId)).show();
