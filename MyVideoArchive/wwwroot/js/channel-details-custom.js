@@ -16,7 +16,8 @@ import {
     openCreateSeriesForChannel,
     openEditSeriesForChannel,
     confirmSaveSeriesEditForChannel,
-    deleteSeriesForChannel
+    deleteSeriesForChannel,
+    initChannelCardDropdownStacking
 } from './channel-details-shared.js';
 
 class CustomChannelViewModel {
@@ -696,6 +697,7 @@ class CustomChannelViewModel {
 
 document.addEventListener('DOMContentLoaded', async () => {
     const viewModel = new CustomChannelViewModel(channelId);
+    initChannelCardDropdownStacking();
     ko.applyBindings(viewModel);
     await viewModel.loadUserSettings();
     await viewModel.load();

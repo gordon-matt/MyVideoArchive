@@ -219,12 +219,10 @@ a:has(.video-item) {
     border: 1px solid #ddd;
     border-radius: 8px;
     transition: all 0.3s;
-    overflow: hidden;
 }
 
     .playlist-card:hover {
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        transform: translateY(-5px);
     }
 
 .playlist-thumbnail {
@@ -273,12 +271,10 @@ a:has(.video-item) {
     border: 1px solid #ddd;
     border-radius: 8px;
     transition: all 0.3s;
-    overflow: hidden;
 }
 
     .video-grid-card:hover {
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        transform: translateY(-4px);
     }
 
 .video-grid-thumbnail {
@@ -316,4 +312,85 @@ a:has(.video-item) {
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+/* ── Card overflow: allow dropdowns to escape rounded cards ─────────────── */
+
+.video-grid-card,
+.playlist-card,
+.series-tab-card,
+.channel-detail-media-card {
+    overflow: visible;
+}
+
+/* ── Per-card actions menu (⋮) ─────────────────────────────────────────── */
+
+.channel-card-menu-wrap {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    z-index: 20;
+}
+
+/* Dropend on cards: pull menu ~20px inward (left); avoid transform here — Popper owns translate3d */
+.channel-card-menu-wrap > .dropdown.dropend > .dropdown-menu {
+    margin-top: 0 !important;
+    margin-left: -20px !important;
+}
+
+/* Grid column lifted while its card ⋮ menu is open (see initChannelCardDropdownStacking in channel-details-shared.js) */
+#channelTabsContent .row > [class*="col-"].channel-card-menu-col-active {
+    position: relative;
+    z-index: 5000;
+}
+
+#channelTabsContent .channel-card-menu-wrap .dropdown-menu.show {
+    z-index: 5010 !important;
+}
+
+.channel-card-menu-trigger {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+    color: #333;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s, box-shadow 0.15s;
+}
+
+.channel-card-menu-trigger:hover,
+.channel-card-menu-trigger:focus,
+.channel-card-menu-trigger.show {
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+    color: #000;
+}
+
+.channel-card-menu-trigger:focus-visible {
+    outline: 2px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+/* List-row compact menu (aligns with row actions) */
+.channel-card-menu-trigger--row {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    box-shadow: none;
+}
+
+.channel-card-menu-trigger--row:hover,
+.channel-card-menu-trigger--row:focus,
+.channel-card-menu-trigger--row.show {
+    background: #e9ecef;
+    box-shadow: none;
 }

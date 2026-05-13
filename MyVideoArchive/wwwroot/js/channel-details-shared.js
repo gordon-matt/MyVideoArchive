@@ -345,3 +345,55 @@ export async function deleteSeriesForChannel(vm, series) {
         toast.error('An error occurred while deleting.');
     }
 }
+
+const channelCardMenuColActiveClass = 'channel-card-menu-col-active';
+
+/**
+ * Dropend ⋮ menus use fixed Popper positioning; lift the Bootstrap grid column while open so the
+ * menu paints above sibling cards. Uses explicit classes (not :has) so switching between menus does
+ * not briefly lose stacking when the previous dropdown is still closing.
+ */
+export function initChannelCardDropdownStacking() {
+    const root = document.getElementById('channelTabsContent');
+    if (!root) return;
+
+    root.addEventListener('show.bs.dropdown', (e) => {
+        const openingDropdown = e.target;
+        if (!(openingDropdown instanceof HTMLElement)) return;
+        if (!openingDropdown.closest('.channel-card-menu-wrap')) return;
+
+        root.querySelectorAll('.channel-card-menu-wrap .dropdown').forEach((dd) => {
+            if (dd === openingDropdown) return;
+            const toggle = dd.querySelector('[data-bs-toggle="dropdown"]');
+            if (!toggle) return;
+            const instance = bootstrap.Dropdown.getInstance(toggle);
+            instance?.hide();
+        });
+    });
+
+    const clearActiveCols = () => {
+        root.querySelectorAll(`.${channelCardMenuColActiveClass}`).forEach((el) => {
+            el.classList.remove(channelCardMenuColActiveClass);
+        });
+    };
+
+    root.addEventListener('shown.bs.dropdown', (e) => {
+        const dropdownRoot = e.target;
+        if (!(dropdownRoot instanceof HTMLElement)) return;
+        if (!dropdownRoot.closest('.channel-card-menu-wrap')) return;
+
+        clearActiveCols();
+
+        const col = dropdownRoot.closest('.row > [class*="col-"]');
+        if (col) col.classList.add(channelCardMenuColActiveClass);
+    });
+
+    root.addEventListener('hidden.bs.dropdown', (e) => {
+        const dropdownRoot = e.target;
+        if (!(dropdownRoot instanceof HTMLElement)) return;
+        if (!dropdownRoot.closest('.channel-card-menu-wrap')) return;
+
+        const col = dropdownRoot.closest('.row > [class*="col-"]');
+        col?.classList.remove(channelCardMenuColActiveClass);
+    });
+}

@@ -186,9 +186,24 @@
                         <i class="bi bi-play-circle fs-3 text-primary"></i>
                     </div>
                 </a>
-                <button class="btn btn-sm btn-outline-danger ms-3" data-bind="click: $parent.deleteVideoFile" title="Delete file">
-                    <i class="bi bi-trash"></i>
-                </button>
+                <div class="dropdown ms-3 flex-shrink-0">
+                    <button type="button"
+                            class="channel-card-menu-trigger channel-card-menu-trigger--row"
+                            data-bs-toggle="dropdown"
+                            data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                            aria-expanded="false"
+                            aria-label="Video actions">
+                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow">
+                        <li>
+                            <button type="button" class="dropdown-item text-danger"
+                                    data-bind="click: $parent.deleteVideoFile">
+                                <i class="bi bi-trash me-2"></i>Delete file
+                            </button>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
 
@@ -196,29 +211,45 @@
         <div data-bind="visible: !loading() && videos().length > 0 && videoViewMode() === 'grid'" class="row">
             <!-- ko foreach: videos -->
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
-                <div class="video-grid-card card h-100" data-bind="css: { 'border-primary': _selected() }">
-                    <div class="position-absolute top-0 start-0 m-1" style="z-index:1;">
-                        <input type="checkbox" class="form-check-input" data-bind="checked: _selected"
-                               onclick="event.stopPropagation();" />
+                <div class="video-grid-card card h-100 position-relative" data-bind="css: { 'border-primary': _selected() }">
+                    <div class="position-relative">
+                        <div class="position-absolute top-0 start-0 m-1" style="z-index:1;">
+                            <input type="checkbox" class="form-check-input" data-bind="checked: _selected"
+                                   onclick="event.stopPropagation();" />
+                        </div>
+                        <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
+                            <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }"
+                                 class="card-img-top video-grid-thumbnail" />
+                        </a>
+                        <div class="channel-card-menu-wrap">
+                            <div class="dropdown dropend">
+                                <button type="button"
+                                        class="channel-card-menu-trigger"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                        aria-expanded="false"
+                                        aria-label="Video actions"
+                                        onclick="event.stopPropagation();">
+                                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow">
+                                    <li>
+                                        <button type="button" class="dropdown-item text-danger"
+                                                data-bind="click: $parent.deleteVideoFile"
+                                                onclick="event.stopPropagation();">
+                                            <i class="bi bi-trash me-2"></i>Delete file
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
-                    <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
-                        <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }"
-                             class="card-img-top video-grid-thumbnail" />
-                    </a>
                     <div class="card-body p-2">
                         <h6 class="video-grid-title mb-1" data-bind="text: Title, attr: { title: Title }"></h6>
                         <small class="text-muted d-block">
                             <span data-bind="if: UploadDate"><span data-bind="text: $parent.formatDate(UploadDate)"></span></span>
                         </small>
                         <span data-bind="if: NeedsMetadataReview" class="badge bg-danger mt-1">Needs Review</span>
-                    </div>
-                    <div class="card-footer p-1">
-                        <button class="btn btn-sm btn-outline-danger w-100"
-                                data-bind="click: $parent.deleteVideoFile"
-                                onclick="event.stopPropagation();"
-                                title="Delete file">
-                            <i class="bi bi-trash"></i>
-                        </button>
                     </div>
                 </div>
             </div>
@@ -253,35 +284,54 @@
         <div data-bind="visible: !playlistsLoading() && playlists().length > 0" class="row">
             <!-- ko foreach: playlists -->
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-3">
-                <div class="card h-100">
-                    <a data-bind="attr: { href: '/playlists/' + Id }">
-                        <!-- ko if: ThumbnailUrl -->
-                        <img data-bind="attr: { src: ThumbnailUrl + '?t=' + $parent.thumbnailCacheBust(), alt: Name }"
-                             class="card-img-top"
-                             style="height: 120px; object-fit: cover;" />
-                        <!-- /ko -->
-                        <!-- ko ifnot: ThumbnailUrl -->
-                        <div class="card-img-top d-flex align-items-center justify-content-center bg-secondary"
-                             style="height: 120px;">
-                            <i class="bi bi-collection-play text-white fs-2"></i>
+                <div class="card h-100 channel-detail-media-card position-relative">
+                    <div class="position-relative">
+                        <a data-bind="attr: { href: '/playlists/' + Id }">
+                            <!-- ko if: ThumbnailUrl -->
+                            <img data-bind="attr: { src: ThumbnailUrl + '?t=' + $parent.thumbnailCacheBust(), alt: Name }"
+                                 class="card-img-top"
+                                 style="height: 120px; object-fit: cover;" />
+                            <!-- /ko -->
+                            <!-- ko ifnot: ThumbnailUrl -->
+                            <div class="card-img-top d-flex align-items-center justify-content-center bg-secondary"
+                                 style="height: 120px;">
+                                <i class="bi bi-collection-play text-white fs-2"></i>
+                            </div>
+                            <!-- /ko -->
+                        </a>
+                        <div class="channel-card-menu-wrap">
+                            <div class="dropdown dropend">
+                                <button type="button"
+                                        class="channel-card-menu-trigger"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-popper-config='{"strategy":"fixed","modifiers":[{"name":"flip","enabled":false},{"name":"preventOverflow","enabled":false}]}'
+                                        aria-expanded="false"
+                                        aria-label="Playlist actions"
+                                        onclick="event.stopPropagation();">
+                                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow">
+                                    <li>
+                                        <button type="button" class="dropdown-item"
+                                                data-bind="click: $parent.openThumbnailModal"
+                                                onclick="event.stopPropagation();">
+                                            <i class="bi bi-image me-2"></i>Change thumbnail
+                                        </button>
+                                    </li>
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li>
+                                        <button type="button" class="dropdown-item text-danger"
+                                                data-bind="click: $parent.deletePlaylist"
+                                                onclick="event.stopPropagation();">
+                                            <i class="bi bi-trash me-2"></i>Delete playlist
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
-                        <!-- /ko -->
-                    </a>
+                    </div>
                     <div class="card-body p-2">
                         <h6 class="card-title mb-1" data-bind="text: Name"></h6>
-                    </div>
-                    <div class="card-footer p-1 d-flex gap-1">
-                        <button class="btn btn-sm btn-outline-secondary flex-fill"
-                                data-bind="click: $parent.openThumbnailModal"
-                                onclick="event.stopPropagation();">
-                            <i class="bi bi-image"></i> Thumbnail
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger"
-                                data-bind="click: $parent.deletePlaylist"
-                                onclick="event.stopPropagation();"
-                                title="Delete playlist">
-                            <i class="bi bi-trash"></i>
-                        </button>
                     </div>
                 </div>
             </div>
