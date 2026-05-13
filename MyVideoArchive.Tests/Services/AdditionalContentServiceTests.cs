@@ -665,4 +665,74 @@ public class AdditionalContentServiceTests
             try { File.Delete(path); } catch { /* ignore */ }
         }
     }
+
+    [Fact]
+    public async Task ImportFileAsync_WithVideoId_LinksVideoAndPlaylistsContainingVideo()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        var channel = await db.ChannelRepository.InsertAsync(new Channel
+        {
+            ChannelId = "c",
+            Name = "C",
+            Url = "custom://c",
+            Platform = "Custom",
+            SubscribedAt = DateTime.UtcNow
+        });
+        var playlist = await db.PlaylistRepository.InsertAsync(new Playlist
+        {
+            PlaylistId = "p1",
+            Name = "P",
+            Url = "custom://p1",
+            Platform = "Custom",
+            ChannelId = channel.Id,
+            SubscribedAt = DateTime.UtcNow
+        });
+        var video = await db.VideoRepository.InsertAsync(new Video
+        {
+            VideoId = "MyLesson01",
+            Title = "Lesson",
+            Url = "x",
+            Platform = "Custom",
+            ChannelId = channel.Id
+        });
+        await db.PlaylistVideoRepository.InsertAsync(new PlaylistVideo
+        {
+            PlaylistId = playlist.Id,
+            VideoId = video.Id,
+            Order = 0
+        });
+
+        string path = Path.Combine(Path.GetTempPath(), "mva-vid-extra-" + Guid.NewGuid().ToString("N") + ".txt");
+        await File.WriteAllTextAsync(path, "extra");
+        try
+        {
+            await CreateService(db).ImportFileAsync(path, channel.Id, null, video.Id);
+
+            var items = await db.AdditionalContentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
+            {
+                Query = x => x.FilePath == path
+            });
+            var list = items.ToList();
+            Assert.Single(list);
+            int itemId = list[0].Id;
+
+            var vLinks = (await db.VideoAdditionalContentRepository.FindAsync(new SearchOptions<VideoAdditionalContentItem>
+            {
+                Query = x => x.AdditionalContentItemId == itemId
+            })).ToList();
+            Assert.Single(vLinks);
+            Assert.Equal(video.Id, vLinks[0].VideoId);
+
+            var pLinks = (await db.PlaylistAdditionalContentRepository.FindAsync(new SearchOptions<PlaylistAdditionalContentItem>
+            {
+                Query = x => x.AdditionalContentItemId == itemId
+            })).ToList();
+            Assert.Single(pLinks);
+            Assert.Equal(playlist.Id, pLinks[0].PlaylistId);
+        }
+        finally
+        {
+            try { File.Delete(path); } catch { /* ignore */ }
+        }
+    }
 }

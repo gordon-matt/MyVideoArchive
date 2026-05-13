@@ -1,6 +1,5 @@
 import { formatDate, formatDuration, formatNumber } from './utils.js';
 import { getTagifyOptions } from './tagify-options.js';
-import { formatExtrasPlaylistNames as formatExtrasPlaylistNamesFn } from './channel-details-shared.js';
 import {
     setPlaylistVideoJsPlayerGetter,
     STORAGE_KEY_RATE,
@@ -79,7 +78,6 @@ class PlaylistDetailsViewModel {
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
         this.formatNumber = formatNumber;
-        this.formatExtrasPlaylistNames = formatExtrasPlaylistNamesFn;
 
         // ── Extras (per current video) ─────────────────────────────────────
         this.extrasItems = ko.observableArray([]);

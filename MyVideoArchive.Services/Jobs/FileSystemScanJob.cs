@@ -986,31 +986,59 @@ public class FileSystemScanJob
     }
 
     // ── Extras scanning ───────────────────────────────────────────────────────
-    // Enumerate the "_extras" subfolder for files not yet in AdditionalContent.
+    // Enumerate every `_extras` directory under the channel (channel-level and nested,
+    // e.g. next to a playlist folder) for files not yet in AdditionalContent.
     private async Task ScanExtrasAsync(
         ChannelEntry channel,
         string channelPath,
         CancellationToken cancellationToken)
     {
-        string extrasRoot = Path.Combine(channelPath, "_extras");
-        if (!Directory.Exists(extrasRoot))
+        if (!Directory.Exists(channelPath))
         {
             return;
         }
 
-        // Load playlists for this channel so we can resolve PlaylistId from folder name
+        // Playlists: string id (legacy extras parent-name match) + filesystem Url (series/playlist scan)
         var playlists = await playlistRepository.FindAsync(
             new SearchOptions<Playlist>
             {
                 CancellationToken = cancellationToken,
                 Query = x => x.ChannelId == channel.Id
             },
-            x => new { x.Id, x.PlaylistId });
+            x => new { x.Id, x.PlaylistId, x.Url });
 
         var playlistByStringId = playlists.ToDictionary(
             p => p.PlaylistId,
             p => p.Id,
             StringComparer.OrdinalIgnoreCase);
+
+        var playlistPathToId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in playlists)
+        {
+            if (string.IsNullOrWhiteSpace(p.Url) || p.Url.Contains("://", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            try
+            {
+                string fullPl = Path.GetFullPath(p.Url);
+                playlistPathToId[fullPl] = p.Id;
+            }
+            catch
+            {
+                // ignore invalid paths
+            }
+        }
+
+        var videoIdToDbId = (await videoRepository.FindAsync(
+            new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.ChannelId == channel.Id
+            },
+            x => new { x.Id, x.VideoId }))
+            .ToDictionary(x => x.VideoId, x => x.Id, StringComparer.OrdinalIgnoreCase);
 
         var trackedPaths = (await additionalContentRepository.FindAsync(
             new SearchOptions<AdditionalContentItem>
@@ -1021,44 +1049,83 @@ public class FileSystemScanJob
             x => x.FilePath))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (string filePath in Directory.EnumerateFiles(extrasRoot, "*", SearchOption.AllDirectories))
+        var extrasDirectoryRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string channelLevelExtras = Path.Combine(channelPath, "_extras");
+        if (Directory.Exists(channelLevelExtras))
+        {
+            extrasDirectoryRoots.Add(Path.GetFullPath(channelLevelExtras));
+        }
+
+        foreach (string dir in Directory.EnumerateDirectories(channelPath, "*", SearchOption.AllDirectories))
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 break;
             }
 
-            if (trackedPaths.Contains(filePath))
+            if (Path.GetFileName(dir).Equals("_extras", StringComparison.OrdinalIgnoreCase))
             {
-                continue;
-            }
-
-            // Subtitle files are not treated as additional content
-            string ext = Path.GetExtension(filePath);
-            if (SubtitleExtensionsToSkip.Contains(ext, StringComparer.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            try
-            {
-                int? playlistDbId = null;
-                string? parentDir = Path.GetDirectoryName(filePath);
-                if (parentDir != null && !parentDir.Equals(extrasRoot, StringComparison.OrdinalIgnoreCase))
+                try
                 {
-                    string folderName = Path.GetFileName(parentDir);
-                    if (playlistByStringId.TryGetValue(folderName, out int dbId))
-                    {
-                        playlistDbId = dbId;
-                    }
+                    extrasDirectoryRoots.Add(Path.GetFullPath(dir));
+                }
+                catch
+                {
+                    // ignore invalid paths
+                }
+            }
+        }
+
+        foreach (string extrasDir in extrasDirectoryRoots)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            foreach (string filePath in Directory.EnumerateFiles(extrasDir, "*", SearchOption.AllDirectories))
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
                 }
 
-                await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, cancellationToken);
-                trackedPaths.Add(filePath);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "Error importing extras file: {FilePath}", filePath);
+                if (trackedPaths.Contains(filePath))
+                {
+                    continue;
+                }
+
+                // Subtitle files are not treated as additional content
+                string ext = Path.GetExtension(filePath);
+                if (SubtitleExtensionsToSkip.Contains(ext, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    int? playlistDbId = TryResolvePlaylistForExtrasFile(filePath, channelPath, playlistPathToId);
+                    if (!playlistDbId.HasValue)
+                    {
+                        string? parentDir = Path.GetDirectoryName(filePath);
+                        if (parentDir is not null)
+                        {
+                            string folderName = Path.GetFileName(parentDir);
+                            if (playlistByStringId.TryGetValue(folderName, out int dbId))
+                            {
+                                playlistDbId = dbId;
+                            }
+                        }
+                    }
+
+                    int? videoDbId = TryResolveVideoFromExtrasSubfolder(channelPath, filePath, videoIdToDbId);
+                    await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, videoDbId, cancellationToken);
+                    trackedPaths.Add(filePath);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogError(ex, "Error importing extras file: {FilePath}", filePath);
+                }
             }
         }
     }
@@ -1125,6 +1192,11 @@ public class FileSystemScanJob
                 continue;
             }
 
+            if (IsUnderAnyExtrasFolder(channelPath, filePath))
+            {
+                continue;
+            }
+
             if (videoFilePaths.Contains(filePath))
             {
                 continue;
@@ -1150,7 +1222,7 @@ public class FileSystemScanJob
             try
             {
                 int? playlistDbId = ResolvePlaylistForFile(filePath, channelPath, playlistFolderPaths);
-                await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, cancellationToken);
+                await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, null, cancellationToken);
                 trackedPaths.Add(filePath);
                 logger.LogInformation("Imported additional content file {FilePath}", filePath);
             }
@@ -1158,6 +1230,125 @@ public class FileSystemScanJob
             {
                 logger.LogError(ex, "Error importing additional content file: {FilePath}", filePath);
             }
+        }
+    }
+
+    /// <summary>
+    /// When the path contains a <c>_extras</c> folder (anywhere under the channel), the first segment
+    /// after the <b>last</b> <c>_extras</c> is matched to <c>VideoId</c> (case-insensitive).
+    /// Example: <c>…/PlaylistFolder/_extras/03 - Breakout/readme.pdf</c> → video id <c>03 - Breakout</c>.
+    /// </summary>
+    private static int? TryResolveVideoFromExtrasSubfolder(
+        string channelPath,
+        string filePath,
+        IReadOnlyDictionary<string, int> videoIdToDbId)
+    {
+        if (videoIdToDbId.Count == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            string channelRoot = Path.GetFullPath(channelPath);
+            string full = Path.GetFullPath(filePath);
+            if (!full.StartsWith(channelRoot, StringComparison.OrdinalIgnoreCase) || full.Length <= channelRoot.Length)
+            {
+                return null;
+            }
+
+            string rel = Path.GetRelativePath(channelRoot, full);
+            if (string.IsNullOrEmpty(rel) || rel == "." || rel.StartsWith("..", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            string[] parts = rel.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+            int extrasIdx = -1;
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (parts[i].Equals("_extras", StringComparison.OrdinalIgnoreCase))
+                {
+                    extrasIdx = i;
+                }
+            }
+
+            // Need: …/_extras/{videoId}/{fileName} at minimum
+            if (extrasIdx < 0 || extrasIdx + 2 >= parts.Length)
+            {
+                return null;
+            }
+
+            string videoFolder = parts[extrasIdx + 1];
+            return videoIdToDbId.TryGetValue(videoFolder, out int id) ? id : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Walks ancestors of the file to find a folder that matches a playlist’s on-disk <c>Url</c>.
+    /// </summary>
+    private static int? TryResolvePlaylistForExtrasFile(
+        string filePath,
+        string channelPath,
+        IReadOnlyDictionary<string, int> playlistPathToId)
+    {
+        if (playlistPathToId.Count == 0)
+        {
+            return null;
+        }
+
+        string? dir = Path.GetDirectoryName(filePath);
+        while (dir is not null && !dir.Equals(channelPath, StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                string fullDir = Path.GetFullPath(dir);
+                if (playlistPathToId.TryGetValue(fullDir, out int id))
+                {
+                    return id;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// True when <paramref name="filePath"/> is under the channel tree and a path segment is <c>_extras</c>.
+    /// </summary>
+    private static bool IsUnderAnyExtrasFolder(string channelPath, string filePath)
+    {
+        try
+        {
+            string channelRoot = Path.GetFullPath(channelPath);
+            string full = Path.GetFullPath(filePath);
+            if (!full.StartsWith(channelRoot, StringComparison.OrdinalIgnoreCase) || full.Length <= channelRoot.Length)
+            {
+                return false;
+            }
+
+            string rel = Path.GetRelativePath(channelRoot, full);
+            if (string.IsNullOrEmpty(rel) || rel == "." || rel.StartsWith("..", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return rel.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
+                .Any(s => s.Equals("_extras", StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            return false;
         }
     }
 

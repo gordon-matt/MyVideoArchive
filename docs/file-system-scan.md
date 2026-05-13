@@ -131,9 +131,9 @@ Any directory whose **name starts with `_`** is **ignored** for series/playlist 
 ## Additional content and extras
 
 - **Non-video files** inside a custom channel tree (excluding known video/subtitle extensions and sidecar thumbnails next to videos) can be imported as **additional content**. When series/playlists were created in the same scan, files **inside a playlist folder** (or deeper subfolders) are associated with that **playlist**.
-- **`_extras`:** Under each channel folder (`_Custom/...` or non-custom `ChannelId/`), a **`_extras`** subtree can hold extra files. Import rules differ slightly from playlist-folder scanning; subtitle extensions are skipped.
+- **`_extras`:** Any folder named **`_extras`** anywhere under the channel tree can hold extra files (for example channel-level `{ChannelId}/_extras/…`, or next to a playlist folder like `{ChannelId}/{PlaylistFolder}/_extras/…`). Subtitle extensions are skipped. During a file system scan, if a path looks like **`…/_extras/{VideoId}/…`**, the segment immediately after `_extras` is matched to a channel video’s **`VideoId`** (same string as the video file’s basename for custom imports, case-insensitive). When the extras folder lives under a playlist directory, the scan also associates the file with that **playlist** (using the playlist’s on-disk path when it matches `Playlist.Url`). Files are linked to the **video** and to **playlists** as resolved, so duplicate filenames in different `_extras/{VideoId}/…` trees stay distinct on disk but each maps to the correct video.
 
-Place supplementary assets (PDFs, images, etc.) next to videos or under `_extras` as fits your workflow.
+Place supplementary assets (PDFs, images, etc.) next to videos or under `_extras` as fits your workflow. On the channel **Additional Content** tab, each row shows a **Path** column: the file’s location **relative to the channel archive folder** (not the full machine path).
 
 ---
 

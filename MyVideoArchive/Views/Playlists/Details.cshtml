@@ -259,14 +259,15 @@
                 </div>
                 <div data-bind="visible: !extrasPickerLoading() && extrasPickerItems().length > 0" class="list-group">
                     <!-- ko foreach: extrasPickerItems -->
-                    <label class="list-group-item d-flex align-items-center gap-2">
-                        <input type="checkbox" class="form-check-input flex-shrink-0 mt-0"
+                    <label class="list-group-item d-flex align-items-start gap-2">
+                        <input type="checkbox" class="form-check-input flex-shrink-0 mt-1"
                                data-bind="checkedValue: id, checked: $parent.extrasPickerSelectedIds" />
-                        <a class="flex-grow-1 min-w-0 text-truncate link-body-emphasis"
-                           data-bind="attr: { href: '/api/additional-content/' + id + '/download' }, text: fileName"
-                           target="_blank" rel="noopener noreferrer"></a>
-                        <small class="text-muted text-truncate" style="max-width: 40%;"
-                               data-bind="text: $parent.formatExtrasPlaylistNames($data)"></small>
+                        <div class="flex-grow-1 min-w-0">
+                            <a class="d-block text-truncate link-body-emphasis"
+                               data-bind="attr: { href: '/api/additional-content/' + id + '/download' }, text: fileName"
+                               target="_blank" rel="noopener noreferrer"></a>
+                            <div class="text-muted small text-break" data-bind="text: relativePath || '—'"></div>
+                        </div>
                     </label>
                     <!-- /ko -->
                 </div>

@@ -43,6 +43,9 @@ public class AdditionalContentService : IAdditionalContentService
 
     public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetChannelItemsAsync(int channelId)
     {
+        var channel = await channelRepository.FindOneAsync(channelId);
+        string? archiveRoot = channel is null ? null : GetChannelArchiveRoot(channel);
+
         var items = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = x => x.ChannelId == channelId,
@@ -52,11 +55,19 @@ public class AdditionalContentService : IAdditionalContentService
         });
 
         return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(
-            items.Select(ToDto).ToList());
+            items.Select(i => ToDto(i, archiveRoot)).ToList());
     }
 
     public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetItemsForVideoAsync(int videoId)
     {
+        var video = await videoRepository.FindOneAsync(videoId);
+        string? archiveRoot = null;
+        if (video is not null)
+        {
+            var channel = await channelRepository.FindOneAsync(video.ChannelId);
+            archiveRoot = channel is null ? null : GetChannelArchiveRoot(channel);
+        }
+
         var items = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = x => x.VideoLinks.Any(v => v.VideoId == videoId),
@@ -65,7 +76,7 @@ public class AdditionalContentService : IAdditionalContentService
                 .ThenInclude(l => l.Playlist)
         });
 
-        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(ToDto).ToList());
+        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(i => ToDto(i, archiveRoot)).ToList());
     }
 
     public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetAvailableItemsForVideoOnPlaylistAsync(int playlistId, int videoId)
@@ -98,6 +109,9 @@ public class AdditionalContentService : IAdditionalContentService
 
         int channelId = playlist.ChannelId;
 
+        var channel = await channelRepository.FindOneAsync(channelId);
+        string? archiveRoot = channel is null ? null : GetChannelArchiveRoot(channel);
+
         var items = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
             Query = x => x.ChannelId == channelId &&
@@ -109,7 +123,7 @@ public class AdditionalContentService : IAdditionalContentService
                 .Include(x => x.VideoLinks)
         });
 
-        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(ToDto).ToList());
+        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(i => ToDto(i, archiveRoot)).ToList());
     }
 
     public async Task<Result<AdditionalContentItemDto>> UploadAsync(int channelId, IFormFile file, IReadOnlyList<int>? playlistIds)
@@ -181,7 +195,7 @@ public class AdditionalContentService : IAdditionalContentService
 
             logger.LogInformation("Uploaded additional content {FileName} to channel {ChannelId}", item.FileName, channelId);
 
-            return Result.Success(ToDto(reloaded!));
+            return Result.Success(ToDto(reloaded!, GetChannelArchiveRoot(channel)));
         }
         catch (Exception ex)
         {
@@ -434,7 +448,7 @@ public class AdditionalContentService : IAdditionalContentService
         return Result.Success();
     }
 
-    public async Task ImportFileAsync(string filePath, int channelId, int? playlistId, CancellationToken cancellationToken = default)
+    public async Task ImportFileAsync(string filePath, int channelId, int? playlistId, int? videoId = null, CancellationToken cancellationToken = default)
     {
         var exists = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
@@ -462,33 +476,76 @@ public class AdditionalContentService : IAdditionalContentService
 
         await repository.InsertAsync(item, ContextOptions.ForCancellationToken(cancellationToken));
 
+        var playlistIdsToLink = new HashSet<int>();
         if (playlistId.HasValue)
         {
-            await playlistLinkRepository.InsertAsync(new PlaylistAdditionalContentItem
+            playlistIdsToLink.Add(playlistId.Value);
+        }
+
+        if (videoId.HasValue)
+        {
+            await videoLinkRepository.InsertAsync(
+                new VideoAdditionalContentItem
+                {
+                    VideoId = videoId.Value,
+                    AdditionalContentItemId = item.Id
+                },
+                ContextOptions.ForCancellationToken(cancellationToken));
+
+            var playlistIdsForVideo = await playlistVideoRepository.FindAsync(
+                new SearchOptions<PlaylistVideo>
+                {
+                    CancellationToken = cancellationToken,
+                    Query = x => x.VideoId == videoId.Value
+                },
+                x => x.PlaylistId);
+            foreach (int pid in playlistIdsForVideo)
             {
-                PlaylistId = playlistId.Value,
-                AdditionalContentItemId = item.Id
-            }, ContextOptions.ForCancellationToken(cancellationToken));
+                playlistIdsToLink.Add(pid);
+            }
+        }
+
+        foreach (int pid in playlistIdsToLink)
+        {
+            var duplicate = await playlistLinkRepository.FindOneAsync(new SearchOptions<PlaylistAdditionalContentItem>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.PlaylistId == pid && x.AdditionalContentItemId == item.Id
+            });
+            if (duplicate is not null)
+            {
+                continue;
+            }
+
+            await playlistLinkRepository.InsertAsync(
+                new PlaylistAdditionalContentItem
+                {
+                    PlaylistId = pid,
+                    AdditionalContentItemId = item.Id
+                },
+                ContextOptions.ForCancellationToken(cancellationToken));
         }
 
         logger.LogInformation("Imported additional content file {FilePath}", filePath);
     }
 
-    private string GetExtrasDirectoryRoot(Channel channel)
+    private string GetExtrasDirectoryRoot(Channel channel) =>
+        Path.Combine(GetChannelArchiveRoot(channel), "_extras");
+
+    /// <summary>Physical folder for the channel’s videos and extras (not including <c>_extras</c>).</summary>
+    private string GetChannelArchiveRoot(Channel channel)
     {
         string downloadPath = GetDownloadPath();
-        string channelFolder = channel.Platform == "Custom"
+        return channel.Platform == "Custom"
             ? Path.Combine(downloadPath, "_Custom", channel.ChannelId)
             : Path.Combine(downloadPath, channel.ChannelId);
-
-        return Path.Combine(channelFolder, "_extras");
     }
 
     private string GetDownloadPath() =>
         configuration.GetValue<string>("VideoDownload:OutputPath")
         ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
-    private static AdditionalContentItemDto ToDto(AdditionalContentItem item)
+    private static AdditionalContentItemDto ToDto(AdditionalContentItem item, string? channelArchiveRoot)
     {
         var ordered = item.PlaylistLinks
             .Where(l => l.Playlist is not null)
@@ -504,7 +561,38 @@ public class AdditionalContentService : IAdditionalContentService
             item.UploadedAt,
             item.ChannelId,
             ordered.Select(t => t.PlaylistId).ToList(),
-            ordered.Select(t => t.Name).ToList());
+            ordered.Select(t => t.Name).ToList(),
+            TryGetRelativePath(item.FilePath, channelArchiveRoot));
+    }
+
+    private static string? TryGetRelativePath(string? absoluteFilePath, string? channelArchiveRoot)
+    {
+        if (string.IsNullOrEmpty(absoluteFilePath) || string.IsNullOrEmpty(channelArchiveRoot))
+        {
+            return null;
+        }
+
+        try
+        {
+            string root = Path.GetFullPath(channelArchiveRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            string file = Path.GetFullPath(absoluteFilePath);
+            if (file.Length <= root.Length || !file.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (file[root.Length] != Path.DirectorySeparatorChar && file[root.Length] != Path.AltDirectorySeparatorChar)
+            {
+                return null;
+            }
+
+            string rel = file[(root.Length + 1)..];
+            return rel.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string ResolveContentType(string? providedType, string extension)

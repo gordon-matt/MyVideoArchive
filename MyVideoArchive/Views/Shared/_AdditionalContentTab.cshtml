@@ -36,6 +36,7 @@
             <thead class="table-light">
                 <tr>
                     <th>Item</th>
+                    <th>Path</th>
                     <th>Playlists</th>
                     <th>Size</th>
                     <th>Actions</th>
@@ -50,6 +51,7 @@
                            class="link-body-emphasis"></a>
                         <small class="text-muted ms-1" data-bind="text: contentType ? '(' + contentType + ')' : ''"></small>
                     </td>
+                    <td class="text-muted small text-break" data-bind="text: relativePath || '—'"></td>
                     <td>
                         <span data-bind="text: $parent.formatExtrasPlaylistNames($data)"></span>
                     </td>

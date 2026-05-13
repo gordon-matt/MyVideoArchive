@@ -1,5 +1,4 @@
 import { formatDate, formatDuration, encodeArchiveUrlForHtml } from './utils.js';
-import { formatExtrasPlaylistNames as formatExtrasPlaylistNamesFn } from './channel-details-shared.js';
 import {
     setPlaylistVideoJsPlayerGetter,
     STORAGE_KEY_RATE,
@@ -52,7 +51,6 @@ class CustomPlaylistDetailsViewModel {
 
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
-        this.formatExtrasPlaylistNames = formatExtrasPlaylistNamesFn;
 
         // ── Extras (per current video) ─────────────────────────────────────
         this.extrasItems = ko.observableArray([]);
