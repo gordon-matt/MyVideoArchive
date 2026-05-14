@@ -467,6 +467,9 @@ class PlaylistDetailsViewModel {
 
         this.sortableInstance = new Sortable(container, {
             handle: '.drag-handle',
+            // Let "Move to top" receive real clicks; Sortable otherwise can swallow pointer events on list rows.
+            filter: '.mva-move-to-top',
+            preventOnFilter: false,
             animation: 150,
             disabled: !this.useCustomOrder(),
             onEnd: async () => {
@@ -481,6 +484,20 @@ class PlaylistDetailsViewModel {
                 await this.saveCustomOrder();
             }
         });
+    };
+
+    moveVideoToTop = async (video) => {
+        if (!this.useCustomOrder() || !video) return;
+        const vid = video.id ?? video.Id;
+        if (vid == null) return;
+        const arr = this.playlistVideos().slice();
+        const idx = arr.findIndex(v => (v.id ?? v.Id) === vid);
+        if (idx <= 0) return;
+        arr.splice(idx, 1);
+        arr.unshift(video);
+        this.playlistVideos(arr);
+        await this.saveCustomOrder();
+        setTimeout(() => this.initializeSortable(), 50);
     };
 
     saveCustomOrder = async (reloadAfterSave) => {

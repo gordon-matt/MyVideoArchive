@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Models;
 
@@ -7,6 +9,8 @@ namespace MyVideoArchive.Services.Jobs;
 /// Scans the configured downloads folder for video files not yet tracked in the database.
 /// Non-Custom platforms use a convention-based path check (OutputPath/{ChannelId}/{VideoId}).
 /// Custom platform channels use file enumeration inside OutputPath/_Custom/{ChannelId}/.
+/// Custom <see cref="Video.VideoId"/> values are derived from each file's path relative to the channel folder so that
+/// the same filename in different playlists remains unique (the database enforces a unique (Platform, VideoId) index).
 /// When scanning all channels, immediate subfolders of OutputPath/_Custom that are not yet
 /// registered create new Custom <c>Channel</c> rows (folder name = channel id and name).
 /// Also picks up any files in "_extras" subfolders and registers them as AdditionalContentItems.
@@ -161,7 +165,7 @@ public class FileSystemScanJob
         int totalChannels = channels.Count;
         int processedChannels = 0;
 
-        progress?.Report(new FileSystemScanProgress { TotalChannels = totalChannels });
+        ReportScanProgress(progress, totalChannels, processedChannels, null, 0, 0, result);
 
         foreach (var channel in channels)
         {
@@ -170,17 +174,34 @@ public class FileSystemScanJob
                 break;
             }
 
+            ReportScanProgress(progress, totalChannels, processedChannels, channel.Name, 0, 0, result);
+
             try
             {
                 if (channel.Platform == "Custom")
                 {
-                    await ProcessCustomChannelAsync(channel, customBasePath, downloadPath, result, cancellationToken);
+                    await ProcessCustomChannelAsync(
+                        channel,
+                        customBasePath,
+                        downloadPath,
+                        result,
+                        progress,
+                        totalChannels,
+                        processedChannels,
+                        cancellationToken);
                     string customChannelPath = Path.Combine(customBasePath, channel.ChannelId);
                     await ScanExtrasAsync(channel, customChannelPath, result, cancellationToken);
                 }
                 else
                 {
-                    await ProcessNonCustomChannelAsync(channel, downloadPath, result, cancellationToken);
+                    await ProcessNonCustomChannelAsync(
+                        channel,
+                        downloadPath,
+                        result,
+                        progress,
+                        totalChannels,
+                        processedChannels,
+                        cancellationToken);
                     string channelPath = Path.Combine(downloadPath, channel.ChannelId);
                     await ScanExtrasAsync(channel, channelPath, result, cancellationToken);
                 }
@@ -193,29 +214,12 @@ public class FileSystemScanJob
             }
 
             processedChannels++;
-            progress?.Report(new FileSystemScanProgress
-            {
-                TotalChannels = totalChannels,
-                ProcessedChannels = processedChannels,
-                CurrentChannelName = channel.Name,
-                NewVideos = result.NewVideos,
-                UpdatedVideos = result.UpdatedVideos,
-                FlaggedForReview = result.FlaggedForReview,
-                MissingFiles = result.MissingFiles
-            });
+            ReportScanProgress(progress, totalChannels, processedChannels, channel.Name, 0, 0, result);
         }
 
         await AppendFlaggedVideosForScannedChannelsAsync(channels, result, cancellationToken);
 
-        progress?.Report(new FileSystemScanProgress
-        {
-            TotalChannels = totalChannels,
-            ProcessedChannels = processedChannels,
-            NewVideos = result.NewVideos,
-            UpdatedVideos = result.UpdatedVideos,
-            FlaggedForReview = result.FlaggedForReview,
-            MissingFiles = result.MissingFiles
-        });
+        ReportScanProgress(progress, totalChannels, processedChannels, null, 0, 0, result);
 
         logger.LogInformation(
             "File system scan complete. New: {New}, Updated: {Updated}, Flagged: {Flagged}, Missing: {Missing}",
@@ -349,6 +353,60 @@ public class FileSystemScanJob
         {
             return filePath;
         }
+    }
+
+    private static void ReportScanProgress(
+        IProgress<FileSystemScanProgress>? progress,
+        int totalChannels,
+        int processedChannels,
+        string? currentChannelName,
+        int workProcessed,
+        int workTotal,
+        FileSystemScanResult result)
+    {
+        progress?.Report(new FileSystemScanProgress
+        {
+            TotalChannels = totalChannels,
+            ProcessedChannels = processedChannels,
+            CurrentChannelName = currentChannelName,
+            CurrentChannelWorkProcessed = workProcessed,
+            CurrentChannelWorkTotal = workTotal,
+            NewVideos = result.NewVideos,
+            UpdatedVideos = result.UpdatedVideos,
+            FlaggedForReview = result.FlaggedForReview,
+            MissingFiles = result.MissingFiles
+        });
+    }
+
+    /// <summary>
+    /// Derives a unique <see cref="Video.VideoId"/> for Custom platform files. The database enforces uniqueness on
+    /// (Platform, VideoId), so filename-only ids collide when the same name appears in different folders.
+    /// </summary>
+    private static string BuildCustomPlatformVideoId(string channelRoot, string videoFilePath)
+    {
+        string rel = Path.GetRelativePath(channelRoot, videoFilePath);
+        string dir = Path.GetDirectoryName(rel) ?? string.Empty;
+        string fileBase = Path.GetFileNameWithoutExtension(rel);
+        string combined = string.IsNullOrEmpty(dir)
+            ? fileBase
+            : $"{dir.Replace('\\', '/')}/{fileBase}";
+
+        const int maxLen = 128;
+        if (combined.Length <= maxLen)
+        {
+            return combined;
+        }
+
+        byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(combined));
+        string prefix = Convert.ToHexString(hashBytes.AsSpan(0, 8));
+        int budget = maxLen - prefix.Length - 2;
+        if (budget < 1)
+        {
+            return prefix[..maxLen];
+        }
+
+        string suffix = fileBase.Length <= budget ? fileBase : fileBase[..budget];
+        return $"{prefix}__{suffix}";
     }
 
     private async Task RemoveTrackedVideoWhenFileMissingAsync(
@@ -566,6 +624,9 @@ public class FileSystemScanJob
         string customBasePath,
         string downloadBasePath,
         FileSystemScanResult result,
+        IProgress<FileSystemScanProgress>? progress,
+        int totalChannels,
+        int processedChannelsBefore,
         CancellationToken cancellationToken)
     {
         string channelPath = Path.Combine(customBasePath, channel.ChannelId);
@@ -608,7 +669,25 @@ public class FileSystemScanJob
 
         var allVideoFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (string filePath in EnumerateVideoFiles(channelPath))
+        var videoFilePaths = EnumerateVideoFiles(channelPath).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
+        int totalVideoFiles = videoFilePaths.Count;
+        int videoFileIndex = 0;
+
+        void ReportVideoProgress()
+        {
+            ReportScanProgress(
+                progress,
+                totalChannels,
+                processedChannelsBefore,
+                channel.Name,
+                videoFileIndex,
+                totalVideoFiles,
+                result);
+        }
+
+        ReportVideoProgress();
+
+        foreach (string filePath in videoFilePaths)
         {
             allVideoFilePaths.Add(filePath);
 
@@ -620,23 +699,56 @@ public class FileSystemScanJob
             if (trackedVideoPaths.Contains(filePath))
             {
                 // For already-tracked videos with no thumbnail, try to resolve one
-                string videoId = Path.GetFileNameWithoutExtension(filePath);
-                if (videosByVideoId.TryGetValue(videoId, out var existingEntry) && string.IsNullOrEmpty(existingEntry.ThumbnailUrl))
+                string pathBasedId = BuildCustomPlatformVideoId(channelPath, filePath);
+                VideoEntry? thumbEntry = null;
+                if (videosByVideoId.TryGetValue(pathBasedId, out var byPathId))
                 {
-                    await TryResolveThumbnailAsync(existingEntry.Id, filePath, downloadBasePath, cancellationToken);
+                    thumbEntry = byPathId;
                 }
+                else if (videosByVideoId.TryGetValue(Path.GetFileNameWithoutExtension(filePath), out var legacy) &&
+                    string.Equals(legacy.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    thumbEntry = legacy;
+                }
+
+                if (thumbEntry is not null && string.IsNullOrEmpty(thumbEntry.ThumbnailUrl))
+                {
+                    await TryResolveThumbnailAsync(thumbEntry.Id, filePath, downloadBasePath, cancellationToken);
+                }
+
+                videoFileIndex++;
+                if (videoFileIndex == 1 || videoFileIndex == totalVideoFiles || videoFileIndex % 10 == 0)
+                {
+                    ReportVideoProgress();
+                }
+
                 continue;
             }
 
             try
             {
-                await ProcessCustomFileAsync(filePath, channel, videosByVideoId, downloadBasePath, result, cancellationToken);
+                await ProcessCustomFileAsync(
+                    channelPath,
+                    filePath,
+                    channel,
+                    videosByVideoId,
+                    downloadBasePath,
+                    result,
+                    cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Error processing file: {FilePath}", filePath);
             }
+
+            videoFileIndex++;
+            if (videoFileIndex == 1 || videoFileIndex == totalVideoFiles || videoFileIndex % 10 == 0)
+            {
+                ReportVideoProgress();
+            }
         }
+
+        ReportVideoProgress();
 
         // When the folder layout follows the Series → Playlist → Video convention,
         // create/update Series, Playlist, and PlaylistVideo records accordingly.
@@ -659,8 +771,9 @@ public class FileSystemScanJob
 
     // ── Custom channels ───────────────────────────────────────────────────────
     // Files live under OutputPath/_Custom/{ChannelId}/.
-    // We enumerate files and match them against existing DB records by filename.
+    // We match existing DB rows by path-based <see cref="Video.VideoId"/> (or legacy filename-only ids for the same path).
     private async Task ProcessCustomFileAsync(
+        string channelPath,
         string filePath,
         ChannelEntry channel,
         Dictionary<string, VideoEntry> videosByVideoId,
@@ -668,7 +781,7 @@ public class FileSystemScanJob
         FileSystemScanResult result,
         CancellationToken cancellationToken)
     {
-        string videoId = Path.GetFileNameWithoutExtension(filePath);
+        string videoId = BuildCustomPlatformVideoId(channelPath, filePath);
 
         if (videosByVideoId.TryGetValue(videoId, out var existingEntry))
         {
@@ -676,13 +789,24 @@ public class FileSystemScanJob
             return;
         }
 
+        // Legacy imports used filename-only VideoId; re-link if this path already belongs to such a row.
+        string fileNameId = Path.GetFileNameWithoutExtension(filePath);
+        if (videosByVideoId.TryGetValue(fileNameId, out var legacyEntry) &&
+            (legacyEntry.FilePath is null ||
+             string.Equals(legacyEntry.FilePath, filePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            await LinkFoundFileAsync(legacyEntry, filePath, result, cancellationToken);
+            return;
+        }
+
         var fileInfo = new FileInfo(filePath);
         string? thumbnailUrl = FindSidecardThumbnail(filePath, downloadBasePath);
+        string displayTitle = fileNameId;
 
         var video = new Video
         {
             VideoId = videoId,
-            Title = videoId,
+            Title = displayTitle,
             Url = filePath,
             Platform = "Custom",
             UploadDate = fileInfo.LastWriteTimeUtc,
@@ -698,6 +822,16 @@ public class FileSystemScanJob
         await videoRepository.InsertAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
         result.NewVideos++;
         result.AddedFilePaths.Add(NormalizeLoggedFilePath(filePath));
+
+        videosByVideoId[video.VideoId] = new VideoEntry(
+            video.Id,
+            video.VideoId,
+            video.FilePath,
+            video.NeedsMetadataReview,
+            video.IsManuallyImported,
+            video.Title,
+            video.DownloadedAt,
+            video.ThumbnailUrl);
 
         logger.LogInformation("Imported custom file {FilePath}", filePath);
 
@@ -1156,20 +1290,26 @@ public class FileSystemScanJob
         ChannelEntry channel,
         string downloadPath,
         FileSystemScanResult result,
+        IProgress<FileSystemScanProgress>? progress,
+        int totalChannels,
+        int processedChannelsBefore,
         CancellationToken cancellationToken)
     {
         string channelPath = Path.Combine(downloadPath, channel.ChannelId);
 
-        var videoEntries = await videoRepository.FindAsync(
+        var videoEntries = (await videoRepository.FindAsync(
             new SearchOptions<Video>
             {
                 CancellationToken = cancellationToken,
                 Query = x => x.ChannelId == channel.Id
             },
-            x => new VideoEntry(x.Id, x.VideoId, x.FilePath, x.NeedsMetadataReview, x.IsManuallyImported, x.Title, x.DownloadedAt, x.ThumbnailUrl));
+            x => new VideoEntry(x.Id, x.VideoId, x.FilePath, x.NeedsMetadataReview, x.IsManuallyImported, x.Title, x.DownloadedAt, x.ThumbnailUrl))).ToList();
 
-        foreach (var entry in videoEntries)
+        int totalWork = videoEntries.Count;
+        for (int i = 0; i < videoEntries.Count; i++)
         {
+            var entry = videoEntries[i];
+
             if (cancellationToken.IsCancellationRequested)
             {
                 break;
@@ -1189,6 +1329,18 @@ public class FileSystemScanJob
                 {
                     await LinkFoundFileAsync(entry, found, result, cancellationToken);
                 }
+            }
+
+            if (i % 25 == 0 || i == videoEntries.Count - 1)
+            {
+                ReportScanProgress(
+                    progress,
+                    totalChannels,
+                    processedChannelsBefore,
+                    channel.Name,
+                    i + 1,
+                    totalWork,
+                    result);
             }
         }
     }

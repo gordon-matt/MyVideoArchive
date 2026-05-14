@@ -101,6 +101,19 @@ class SeriesDetailsViewModel {
         });
     };
 
+    movePlaylistToTop = async (playlist) => {
+        const s = this.series();
+        if (!s?.playlists?.length || !playlist) return;
+        const idx = s.playlists.findIndex(p => p.id === playlist.id);
+        if (idx <= 0) return;
+        const reordered = [...s.playlists];
+        reordered.splice(idx, 1);
+        reordered.unshift(playlist);
+        this.series({ ...s, playlists: reordered });
+        setTimeout(() => this._initSortable(), 50);
+        await this._saveOrder(reordered.map(p => p.id));
+    };
+
     _saveOrder = async (playlistIds) => {
         this.saving(true);
         try {

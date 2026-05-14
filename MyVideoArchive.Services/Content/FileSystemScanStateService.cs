@@ -47,6 +47,8 @@ public sealed class FileSystemScanStateService
             totalChannels = Progress.TotalChannels,
             processedChannels = Progress.ProcessedChannels,
             currentChannelName = Progress.CurrentChannelName,
+            currentChannelWorkProcessed = Progress.CurrentChannelWorkProcessed,
+            currentChannelWorkTotal = Progress.CurrentChannelWorkTotal,
             newVideos = Progress.NewVideos,
             updatedVideos = Progress.UpdatedVideos,
             flaggedForReview = Progress.FlaggedForReview,

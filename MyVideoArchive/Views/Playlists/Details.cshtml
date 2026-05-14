@@ -124,9 +124,9 @@
                                 <span data-bind="text: useCustomOrder() ? 'My Custom Order' : 'Original Order'"></span>
                             </label>
                         </div>
-                        
+
                         <div data-bind="visible: useCustomOrder" class="mb-2">
-                            <small class="text-muted"><i class="bi bi-info-circle"></i> Drag videos to reorder</small>
+                            <small class="text-muted"><i class="bi bi-info-circle"></i> Drag videos to reorder, or use <i class="bi bi-chevron-double-up"></i> to move to top.</small>
                         </div>
 
                         <!-- Show Hidden Toggle -->
@@ -167,9 +167,17 @@
                     
                     <div id="videoListContainer" data-bind="visible: !loadingVideos() && playlistVideos().length > 0, foreach: playlistVideos">
                     <div class="playlist-video-item" data-bind="click: $parent.playVideo, css: { active: $parent.currentVideo() && $parent.currentVideo().id === id, 'not-downloaded': !downloadedAt }, attr: { 'data-video-id': id }">
-                        <span data-bind="visible: $parent.useCustomOrder()" class="drag-handle">
-                            <i class="bi bi-grip-vertical"></i>
-                        </span>
+                        <!-- ko if: $root.useCustomOrder -->
+                        <div class="mva-reorder-tools d-flex flex-column align-items-center flex-shrink-0" data-bind="click: function(data, event) { event.stopPropagation(); }">
+                            <button type="button" class="btn btn-link btn-sm p-0 mva-move-to-top" title="Move to top" aria-label="Move to top"
+                                    data-bind="visible: $index() > 0, click: function(d, event) { event.stopPropagation(); $root.moveVideoToTop(d); }">
+                                <i class="bi bi-chevron-double-up"></i>
+                            </button>
+                            <span class="drag-handle">
+                                <i class="bi bi-grip-vertical"></i>
+                            </span>
+                        </div>
+                        <!-- /ko -->
                         <img data-bind="attr: { src: thumbnailUrl || 'https://placehold.co/120x68?text=No+Thumbnail', alt: title }" class="playlist-video-thumbnail" />
                             <div class="playlist-video-info flex-grow-1">
                                 <div class="playlist-video-title">

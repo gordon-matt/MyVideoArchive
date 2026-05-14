@@ -103,6 +103,10 @@
                                 </small>
                                 <small class="text-muted">
                                     <!-- ko if: scanProgress() -->
+                                    <!-- ko if: scanProgress().currentChannelWorkTotal > 0 -->
+                                    <span data-bind="text: scanProgress().currentChannelWorkProcessed"></span> / <span data-bind="text: scanProgress().currentChannelWorkTotal"></span> videos
+                                    &nbsp;&middot;&nbsp;
+                                    <!-- /ko -->
                                     <span data-bind="text: scanProgress().processedChannels"></span> / <span data-bind="text: scanProgress().totalChannels"></span> channels
                                     &nbsp;(<span data-bind="text: scanProgress().percentComplete"></span>%)
                                     <!-- /ko -->
@@ -119,7 +123,7 @@
                             <small class="text-muted mt-1 d-block">
                                 <span data-bind="text: scanProgress().newVideos"></span> new &middot;
                                 <span data-bind="text: scanProgress().updatedVideos"></span> updated &middot;
-                                <span data-bind="text: scanProgress().missingFiles"></span> removed so far (missing file)
+                                <span data-bind="text: scanProgress().missingFiles"></span> removed (missing files)
                             </small>
                             <!-- /ko -->
                         </div>
