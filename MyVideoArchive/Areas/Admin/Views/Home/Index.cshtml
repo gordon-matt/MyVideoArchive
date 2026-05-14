@@ -63,10 +63,18 @@
                             Scan the configured downloads folder and reconcile video files with the database.
                             For non-Custom channels, checks convention paths (<code>OutputPath/{ChannelId}/{VideoId}</code>) for unlinked videos and detects files that no longer exist.
                             Custom channel files are enumerated from <code>OutputPath/_Custom/{ChannelId}/</code>.
+                            Use <strong>Scope</strong> to scan only platform or only custom channels when you know what changed.
                         </p>
                         <div id="scanStatus" class="alert d-none" role="alert"></div>
 
                         <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <label class="mb-0 small text-muted" for="scanChannelScope">Scope</label>
+                            <select id="scanChannelScope" class="form-select form-select-sm" style="width: auto; min-width: 11rem;"
+                                    data-bind="value: scanChannelScope, enable: !scanning()">
+                                <option value="All">All Channels</option>
+                                <option value="PlatformChannels">Platform Channels</option>
+                                <option value="CustomChannels">Custom Channels</option>
+                            </select>
                             <button id="btnScanFileSystem" class="btn btn-primary"
                                     data-bind="click: scanFileSystem, enable: !scanning()">
                                 <span data-bind="visible: !scanning()">

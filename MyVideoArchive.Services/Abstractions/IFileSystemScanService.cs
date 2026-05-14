@@ -1,4 +1,5 @@
 using Ardalis.Result;
+using MyVideoArchive.Models;
 
 namespace MyVideoArchive.Services;
 
@@ -20,10 +21,10 @@ public interface IFileSystemScanService
     Task<Result<ScanStartOutcome>> StartChannelScanAsync(int channelId);
 
     /// <summary>
-    /// Starts a background file system scan across all channels.
+    /// Starts a background file system scan across channels (optionally limited by <paramref name="channelScope"/>).
     /// Returns Started if the scan was started, AlreadyRunning if a scan is in progress.
     /// </summary>
-    Task<Result<ScanStartOutcome>> StartScanAsync();
+    Task<Result<ScanStartOutcome>> StartScanAsync(FileSystemScanChannelScope channelScope = FileSystemScanChannelScope.All);
 }
 
 public enum ScanStartOutcome

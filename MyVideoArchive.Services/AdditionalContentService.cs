@@ -461,7 +461,7 @@ public class AdditionalContentService : IAdditionalContentService
         return Result.Success();
     }
 
-    public async Task ImportFileAsync(string filePath, int channelId, int? playlistId, int? videoId = null, CancellationToken cancellationToken = default)
+    public async Task<bool> ImportFileAsync(string filePath, int channelId, int? playlistId, int? videoId = null, CancellationToken cancellationToken = default)
     {
         var exists = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
@@ -471,7 +471,7 @@ public class AdditionalContentService : IAdditionalContentService
 
         if (exists.Count > 0)
         {
-            return;
+            return false;
         }
 
         var fileInfo = new FileInfo(filePath);
@@ -540,6 +540,7 @@ public class AdditionalContentService : IAdditionalContentService
         }
 
         logger.LogInformation("Imported additional content file {FilePath}", filePath);
+        return true;
     }
 
     private string GetExtrasDirectoryRoot(Channel channel) =>

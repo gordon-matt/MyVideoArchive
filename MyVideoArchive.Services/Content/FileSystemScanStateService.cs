@@ -60,7 +60,11 @@ public sealed class FileSystemScanStateService
             flaggedForReview = LastResult.FlaggedForReview,
             missingFiles = LastResult.MissingFiles,
             addedFilePaths = LastResult.AddedFilePaths,
-            updatedFilePaths = LastResult.UpdatedFilePaths
+            updatedFilePaths = LastResult.UpdatedFilePaths,
+            addedAdditionalContentPaths = LastResult.AddedAdditionalContentPaths,
+            removedVideoPaths = LastResult.RemovedVideoPaths,
+            removedAdditionalContentPaths = LastResult.RemovedAdditionalContentPaths,
+            flaggedForReviewPaths = LastResult.FlaggedForReviewPaths
         },
         errorMessage = ErrorMessage
     };

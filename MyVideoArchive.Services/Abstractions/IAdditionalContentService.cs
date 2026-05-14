@@ -36,5 +36,6 @@ public interface IAdditionalContentService
     Task<Result> UnlinkItemFromVideoAsync(int videoId, int itemId);
 
     /// <param name="videoId">When set, links the item to this channel video (and to every playlist that contains the video).</param>
-    Task ImportFileAsync(string filePath, int channelId, int? playlistId, int? videoId = null, CancellationToken cancellationToken = default);
+    /// <returns><see langword="true"/> when a new <see cref="AdditionalContentItem"/> was created; <see langword="false"/> when the path was already registered.</returns>
+    Task<bool> ImportFileAsync(string filePath, int channelId, int? playlistId, int? videoId = null, CancellationToken cancellationToken = default);
 }

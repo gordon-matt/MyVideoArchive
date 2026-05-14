@@ -1,3 +1,5 @@
+using MyVideoArchive.Models;
+
 namespace MyVideoArchive.Controllers.Api;
 
 /// <summary>
@@ -21,14 +23,15 @@ public class AdminApiController : ControllerBase
     }
 
     /// <summary>
-    /// Starts a background file system scan across all channels.
+    /// Starts a background file system scan across channels (see <paramref name="scope"/>).
     /// Returns 202 Accepted immediately; poll /status for progress.
     /// Returns 409 Conflict if a scan is already running.
     /// </summary>
     [HttpPost("scan-filesystem")]
-    public async Task<IActionResult> ScanFileSystem()
+    public async Task<IActionResult> ScanFileSystem(
+        [FromQuery(Name = "scope")] FileSystemScanChannelScope scope = FileSystemScanChannelScope.All)
     {
-        var result = await fileSystemScanService.StartScanAsync();
+        var result = await fileSystemScanService.StartScanAsync(scope);
 
         if (!result.IsSuccess)
         {

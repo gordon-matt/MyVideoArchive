@@ -6,6 +6,8 @@ class AdminViewModel {
         this.syncing = ko.observable(false);
         this.scanProgress = ko.observable(null);
         this.scanResult = ko.observable(null);
+        this.scanChannelScope = ko.observable('All');
+
         this.scanLogText = ko.pureComputed(() => {
             const r = this.scanResult();
             if (!r) {
@@ -13,24 +15,61 @@ class AdminViewModel {
             }
             const added = r.addedFilePaths || r.AddedFilePaths || [];
             const updated = r.updatedFilePaths || r.UpdatedFilePaths || [];
+            const extrasAdded =
+                r.addedAdditionalContentPaths || r.AddedAdditionalContentPaths || [];
+            const removedVideos = r.removedVideoPaths || r.RemovedVideoPaths || [];
+            const removedExtras =
+                r.removedAdditionalContentPaths || r.RemovedAdditionalContentPaths || [];
+            const flaggedPaths =
+                r.flaggedForReviewPaths || r.FlaggedForReviewPaths || [];
             const lines = [];
             lines.push(
                 `summary: new=${r.newVideos ?? 0}  updated=${r.updatedVideos ?? 0}  removed=${r.missingFiles ?? 0}  flagged=${r.flaggedForReview ?? 0}`
             );
             lines.push('');
             if (added.length) {
-                lines.push('added:');
+                lines.push('added (videos):');
                 added.forEach(p => lines.push(`  + ${p}`));
+                lines.push('');
+            }
+            if (extrasAdded.length) {
+                lines.push('added (additional content):');
+                extrasAdded.forEach(p => lines.push(`  + ${p}`));
                 lines.push('');
             }
             if (updated.length) {
                 lines.push('updated (re-linked):');
                 updated.forEach(p => lines.push(`  ~ ${p}`));
+                lines.push('');
             }
-            if (!added.length && !updated.length) {
-                lines.push('(no video files were added or updated this run.)');
+            if (removedVideos.length) {
+                lines.push('removed (videos — file missing on disk):');
+                removedVideos.forEach(p => lines.push(`  - ${p}`));
+                lines.push('');
             }
-            return lines.join('\n');
+            if (removedExtras.length) {
+                lines.push('removed (additional content — file missing on disk):');
+                removedExtras.forEach(p => lines.push(`  - ${p}`));
+                lines.push('');
+            }
+            if (flaggedPaths.length) {
+                lines.push('flagged for metadata review:');
+                flaggedPaths.forEach(p => lines.push(`  ! ${p}`));
+                lines.push('');
+            }
+            if (
+                !added.length &&
+                !updated.length &&
+                !extrasAdded.length &&
+                !removedVideos.length &&
+                !removedExtras.length &&
+                !flaggedPaths.length
+            ) {
+                lines.push(
+                    '(no videos or additional content were added, updated, removed, or listed as flagged this run.)'
+                );
+            }
+            return lines.join('\n').replace(/\n+$/, '');
         });
 
         // Failed downloads tab
@@ -84,7 +123,8 @@ class AdminViewModel {
         hideAlert();
 
         try {
-            const response = await fetch('/api/admin/scan-filesystem', { method: 'POST' });
+            const scope = encodeURIComponent(this.scanChannelScope());
+            const response = await fetch(`/api/admin/scan-filesystem?scope=${scope}`, { method: 'POST' });
 
             if (response.status === 409) {
                 showAlert('warning', 'A scan is already in progress. Attaching to it…');

@@ -11,7 +11,9 @@ import {
     openVideoExtrasPickerForPlaylist,
     reloadVideoExtrasPickerForPlaylist,
     confirmVideoExtrasPickerForPlaylist,
-    removeVideoExtraForPlaylist
+    removeVideoExtraForPlaylist,
+    loadAndAttachSubtitleTracksForPlaylist,
+    bindPlaylistSubtitlePreferenceStorage
 } from './playlist-details-shared.js';
 import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
 
@@ -517,6 +519,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const savedRate = parseFloat(localStorage.getItem(STORAGE_KEY_RATE) || '1');
         player.playbackRate(savedRate);
+        bindPlaylistSubtitlePreferenceStorage(player);
     });
 
     player.on('ratechange', () => {
@@ -542,6 +545,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     player.on('loadedmetadata', () => {
         if (!_currentVideoId) return;
+        void loadAndAttachSubtitleTracksForPlaylist(player, _currentVideoId);
         const saved = loadSavedPosition(_currentVideoId);
         if (saved > 5 && isFinite(player.duration()) && saved < player.duration() - 5) {
             player.currentTime(saved);

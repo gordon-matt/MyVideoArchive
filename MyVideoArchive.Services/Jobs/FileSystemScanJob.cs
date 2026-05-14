@@ -102,10 +102,12 @@ public class FileSystemScanJob
     /// <param name="filterChannelId">DB primary key of the channel to scan, or null to scan all channels.</param>
     /// <param name="progress">Optional progress reporter updated after each channel is processed.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="channelScope">When <paramref name="filterChannelId"/> is null, limits which channels are scanned.</param>
     public async Task<FileSystemScanResult> ExecuteAsync(
         int? filterChannelId = null,
         IProgress<FileSystemScanProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        FileSystemScanChannelScope channelScope = FileSystemScanChannelScope.All)
     {
         var result = new FileSystemScanResult();
 
@@ -120,9 +122,16 @@ public class FileSystemScanJob
 
         string customBasePath = Path.Combine(downloadPath, "_Custom");
 
-        logger.LogInformation("Starting file system scan in: {Path}", downloadPath);
+        logger.LogInformation(
+            "Starting file system scan in: {Path} (scope: {Scope})",
+            downloadPath,
+            filterChannelId.HasValue ? "single channel" : channelScope.ToString());
 
-        if (!filterChannelId.HasValue && Directory.Exists(customBasePath))
+        bool discoverCustomFolders = !filterChannelId.HasValue
+            && channelScope != FileSystemScanChannelScope.PlatformChannels
+            && Directory.Exists(customBasePath);
+
+        if (discoverCustomFolders)
         {
             await DiscoverCustomChannelsFromFilesystemAsync(customBasePath, cancellationToken);
         }
@@ -131,6 +140,18 @@ public class FileSystemScanJob
         if (filterChannelId.HasValue)
         {
             channelOptions.Query = x => x.Id == filterChannelId.Value;
+        }
+        else
+        {
+            switch (channelScope)
+            {
+                case FileSystemScanChannelScope.PlatformChannels:
+                    channelOptions.Query = x => x.Platform != "Custom";
+                    break;
+                case FileSystemScanChannelScope.CustomChannels:
+                    channelOptions.Query = x => x.Platform == "Custom";
+                    break;
+            }
         }
 
         var channels = await channelRepository.FindAsync(
@@ -155,16 +176,16 @@ public class FileSystemScanJob
                 {
                     await ProcessCustomChannelAsync(channel, customBasePath, downloadPath, result, cancellationToken);
                     string customChannelPath = Path.Combine(customBasePath, channel.ChannelId);
-                    await ScanExtrasAsync(channel, customChannelPath, cancellationToken);
+                    await ScanExtrasAsync(channel, customChannelPath, result, cancellationToken);
                 }
                 else
                 {
                     await ProcessNonCustomChannelAsync(channel, downloadPath, result, cancellationToken);
                     string channelPath = Path.Combine(downloadPath, channel.ChannelId);
-                    await ScanExtrasAsync(channel, channelPath, cancellationToken);
+                    await ScanExtrasAsync(channel, channelPath, result, cancellationToken);
                 }
 
-                await RemoveStaleAdditionalContentRecordsAsync(channel.Id, cancellationToken);
+                await RemoveStaleAdditionalContentRecordsAsync(channel.Id, result, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -183,6 +204,18 @@ public class FileSystemScanJob
                 MissingFiles = result.MissingFiles
             });
         }
+
+        await AppendFlaggedVideosForScannedChannelsAsync(channels, result, cancellationToken);
+
+        progress?.Report(new FileSystemScanProgress
+        {
+            TotalChannels = totalChannels,
+            ProcessedChannels = processedChannels,
+            NewVideos = result.NewVideos,
+            UpdatedVideos = result.UpdatedVideos,
+            FlaggedForReview = result.FlaggedForReview,
+            MissingFiles = result.MissingFiles
+        });
 
         logger.LogInformation(
             "File system scan complete. New: {New}, Updated: {Updated}, Flagged: {Flagged}, Missing: {Missing}",
@@ -341,13 +374,19 @@ public class FileSystemScanJob
         await videoTagRepository.DeleteAsync(x => x.VideoId == videoDbId);
         await playlistVideoRepository.DeleteAsync(x => x.VideoId == videoDbId);
 
+        string removedLine = string.IsNullOrWhiteSpace(video.FilePath)
+            ? $"[{videoId}] (no stored file path)"
+            : $"{NormalizeLoggedFilePath(video.FilePath)}  [{videoId}]";
+        result.RemovedVideoPaths.Add(removedLine);
+
         await videoRepository.DeleteAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
         result.MissingFiles++;
 
         logger.LogInformation(
-            "File no longer exists on disk; removed video {VideoId} (database id {VideoDbId}) from the library",
+            "File no longer exists on disk; removed video {VideoId} (database id {VideoDbId}) from the library. Path: {FilePath}",
             videoId,
-            videoDbId);
+            videoDbId,
+            video.FilePath ?? "(none)");
     }
 
     private static bool IsCustomChannelBrandingOrReservedImageFile(string fileFullPath, string channelRootFullPath)
@@ -413,7 +452,38 @@ public class FileSystemScanJob
         }
     }
 
-    private async Task RemoveStaleAdditionalContentRecordsAsync(int channelId, CancellationToken cancellationToken)
+    private async Task AppendFlaggedVideosForScannedChannelsAsync(
+        IEnumerable<ChannelEntry> scannedChannels,
+        FileSystemScanResult result,
+        CancellationToken cancellationToken)
+    {
+        var channelIds = scannedChannels.Select(c => c.Id).Distinct().ToList();
+        if (channelIds.Count == 0)
+        {
+            return;
+        }
+        var flagged = await videoRepository.FindAsync(
+            new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => channelIds.Contains(x.ChannelId) && x.NeedsMetadataReview
+            },
+            x => new { x.VideoId, x.FilePath, x.Title });
+
+        result.FlaggedForReview = flagged.Count;
+        foreach (var v in flagged.OrderBy(x => x.VideoId, StringComparer.OrdinalIgnoreCase))
+        {
+            string line = string.IsNullOrWhiteSpace(v.FilePath)
+                ? $"[{v.VideoId}]  {v.Title ?? ""}"
+                : $"{NormalizeLoggedFilePath(v.FilePath!)}  [{v.VideoId}]";
+            result.FlaggedForReviewPaths.Add(line);
+        }
+    }
+
+    private async Task RemoveStaleAdditionalContentRecordsAsync(
+        int channelId,
+        FileSystemScanResult result,
+        CancellationToken cancellationToken)
     {
         var items = await additionalContentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
@@ -436,7 +506,14 @@ public class FileSystemScanJob
             var deleteResult = await additionalContentService.DeleteAsync(item.Id);
             if (deleteResult.IsSuccess)
             {
-                logger.LogInformation("Removed additional content record {Id} (file missing on disk).", item.Id);
+                string removedLine = string.IsNullOrWhiteSpace(item.FilePath)
+                    ? $"[additional content id {item.Id}] (no stored file path)"
+                    : $"{NormalizeLoggedFilePath(item.FilePath)}";
+                result.RemovedAdditionalContentPaths.Add(removedLine);
+                logger.LogInformation(
+                    "Removed additional content record {Id} (file missing on disk). Path: {FilePath}",
+                    item.Id,
+                    item.FilePath ?? "(none)");
             }
             else if (logger.IsEnabled(LogLevel.Warning))
             {
@@ -577,7 +654,7 @@ public class FileSystemScanJob
         }
 
         // Scan non-video files in the channel root as additional content
-        await ScanCustomChannelRootExtrasAsync(channel, channelPath, allVideoFilePaths, playlistFolderPaths, cancellationToken);
+        await ScanCustomChannelRootExtrasAsync(channel, channelPath, allVideoFilePaths, playlistFolderPaths, result, cancellationToken);
     }
 
     // ── Custom channels ───────────────────────────────────────────────────────
@@ -1122,6 +1199,7 @@ public class FileSystemScanJob
     private async Task ScanExtrasAsync(
         ChannelEntry channel,
         string channelPath,
+        FileSystemScanResult result,
         CancellationToken cancellationToken)
     {
         if (!Directory.Exists(channelPath))
@@ -1250,7 +1328,10 @@ public class FileSystemScanJob
                     }
 
                     int? videoDbId = TryResolveVideoFromExtrasSubfolder(channelPath, filePath, videoIdToDbId);
-                    await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, videoDbId, cancellationToken);
+                    if (await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, videoDbId, cancellationToken))
+                    {
+                        result.AddedAdditionalContentPaths.Add(NormalizeLoggedFilePath(filePath));
+                    }
                     trackedPaths.Add(filePath);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
@@ -1278,6 +1359,7 @@ public class FileSystemScanJob
         string channelPath,
         HashSet<string> videoFilePaths,
         IReadOnlyDictionary<string, int>? playlistFolderPaths,
+        FileSystemScanResult result,
         CancellationToken cancellationToken)
     {
         if (!Directory.Exists(channelPath))
@@ -1360,9 +1442,12 @@ public class FileSystemScanJob
             try
             {
                 int? playlistDbId = ResolvePlaylistForFile(filePath, channelPath, playlistFolderPaths);
-                await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, null, cancellationToken);
+                if (await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, null, cancellationToken))
+                {
+                    result.AddedAdditionalContentPaths.Add(NormalizeLoggedFilePath(filePath));
+                    logger.LogInformation("Imported additional content file {FilePath}", filePath);
+                }
                 trackedPaths.Add(filePath);
-                logger.LogInformation("Imported additional content file {FilePath}", filePath);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -1543,4 +1628,16 @@ public class FileSystemScanResult
 
     /// <summary>Full paths of existing videos that were re-linked or updated during the scan.</summary>
     public List<string> UpdatedFilePaths { get; } = [];
+
+    /// <summary>Full paths of newly registered additional-content (extras) files.</summary>
+    public List<string> AddedAdditionalContentPaths { get; } = [];
+
+    /// <summary>Removed videos (last known path or id) when the file was missing on disk.</summary>
+    public List<string> RemovedVideoPaths { get; } = [];
+
+    /// <summary>Removed additional-content records when the file was missing on disk.</summary>
+    public List<string> RemovedAdditionalContentPaths { get; } = [];
+
+    /// <summary>Videos still flagged for metadata review in scanned channels after the run.</summary>
+    public List<string> FlaggedForReviewPaths { get; } = [];
 }

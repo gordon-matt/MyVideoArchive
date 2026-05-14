@@ -693,7 +693,7 @@ public class AdditionalContentServiceTests
                 Query = x => x.FilePath == path
             });
 
-            await CreateService(db).ImportFileAsync(path, channel.Id, null);
+            Assert.False(await CreateService(db).ImportFileAsync(path, channel.Id, null));
 
             var after = await db.AdditionalContentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
             {
@@ -732,7 +732,7 @@ public class AdditionalContentServiceTests
         await File.WriteAllTextAsync(path, "# doc");
         try
         {
-            await CreateService(db).ImportFileAsync(path, channel.Id, playlist.Id);
+            Assert.True(await CreateService(db).ImportFileAsync(path, channel.Id, playlist.Id));
 
             var items = await db.AdditionalContentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
             {
@@ -792,7 +792,7 @@ public class AdditionalContentServiceTests
         await File.WriteAllTextAsync(path, "extra");
         try
         {
-            await CreateService(db).ImportFileAsync(path, channel.Id, null, video.Id);
+            Assert.True(await CreateService(db).ImportFileAsync(path, channel.Id, null, video.Id));
 
             var items = await db.AdditionalContentRepository.FindAsync(new SearchOptions<AdditionalContentItem>
             {

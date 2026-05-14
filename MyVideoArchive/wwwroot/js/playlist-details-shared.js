@@ -12,6 +12,80 @@ export function setPlaylistVideoJsPlayerGetter(fn) {
 export const STORAGE_KEY_RATE = 'mva-playback-rate';
 export const STORAGE_KEY_AUTO_ADVANCE = 'mva-auto-advance';
 
+/** Same key as `video-details.js` so caption choice persists across pages. */
+export const STORAGE_KEY_SUBTITLE_LANG = 'mva-subtitle-lang';
+
+/** Remove remote text tracks before switching to another video. */
+export function clearRemoteTextTracks(player) {
+    if (!player?.remoteTextTracks) {
+        return;
+    }
+    const list = player.remoteTextTracks();
+    for (let i = list.length - 1; i >= 0; i--) {
+        player.removeRemoteTextTrack(list[i]);
+    }
+}
+
+/**
+ * Loads sidecar WebVTT tracks for a library video and attaches them to the Video.js player.
+ */
+export async function loadAndAttachSubtitleTracksForPlaylist(player, videoDbId) {
+    clearRemoteTextTracks(player);
+    if (!player || !videoDbId) {
+        return;
+    }
+    try {
+        const response = await fetch(`/api/videos/${videoDbId}/subtitles`, { credentials: 'same-origin' });
+        if (!response.ok) {
+            return;
+        }
+        const data = await response.json();
+        const subtitles = data.subtitles ?? data.Subtitles ?? [];
+        const savedLang = localStorage.getItem(STORAGE_KEY_SUBTITLE_LANG) || '';
+        for (const sub of subtitles) {
+            const url = sub.url ?? sub.Url;
+            const lang = sub.lang ?? sub.Lang;
+            const label = sub.label ?? sub.Label ?? lang;
+            if (!url || !lang) {
+                continue;
+            }
+            player.addRemoteTextTrack(
+                {
+                    kind: 'captions',
+                    src: url,
+                    srclang: lang,
+                    label,
+                    default: savedLang ? String(lang).toLowerCase() === savedLang.toLowerCase() : false
+                },
+                false
+            );
+        }
+    } catch (error) {
+        console.error('Error loading subtitles:', error);
+    }
+}
+
+const _playersWithSubtitlePrefListener = new WeakSet();
+
+/** Persist caption on/off to localStorage (same behaviour as single-video page). */
+export function bindPlaylistSubtitlePreferenceStorage(player) {
+    if (!player?.textTracks || _playersWithSubtitlePrefListener.has(player)) {
+        return;
+    }
+    _playersWithSubtitlePrefListener.add(player);
+    player.textTracks().addEventListener('change', () => {
+        const tracks = player.textTracks();
+        for (let i = 0; i < tracks.length; i++) {
+            const t = tracks[i];
+            if (t.kind === 'captions' && t.mode === 'showing' && t.language) {
+                localStorage.setItem(STORAGE_KEY_SUBTITLE_LANG, t.language);
+                return;
+            }
+        }
+        localStorage.removeItem(STORAGE_KEY_SUBTITLE_LANG);
+    });
+}
+
 export function savePosition(videoId, time) {
     if (time > 5) localStorage.setItem(`mva-pos-${videoId}`, Math.floor(time));
 }

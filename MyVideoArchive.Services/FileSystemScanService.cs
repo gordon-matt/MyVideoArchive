@@ -62,7 +62,7 @@ public class FileSystemScanService : IFileSystemScanService
         return Task.FromResult(Result<ScanStartOutcome>.Success(ScanStartOutcome.Started));
     }
 
-    public Task<Result<ScanStartOutcome>> StartScanAsync()
+    public Task<Result<ScanStartOutcome>> StartScanAsync(FileSystemScanChannelScope channelScope = FileSystemScanChannelScope.All)
     {
         if (!scanState.TryStart(out var cancellationToken))
         {
@@ -71,14 +71,14 @@ public class FileSystemScanService : IFileSystemScanService
 
         _ = Task.Run(async () =>
         {
-            logger.LogInformation("File system scan (all channels) initiated");
+            logger.LogInformation("File system scan initiated (scope: {Scope})", channelScope);
 
             try
             {
                 using var scope = scopeFactory.CreateScope();
                 var scanJob = scope.ServiceProvider.GetRequiredService<FileSystemScanJob>();
                 var progress = new Progress<FileSystemScanProgress>(p => scanState.UpdateProgress(p));
-                var result = await scanJob.ExecuteAsync(null, progress, cancellationToken);
+                var result = await scanJob.ExecuteAsync(null, progress, cancellationToken, channelScope);
                 scanState.Complete(result);
             }
             catch (OperationCanceledException)
