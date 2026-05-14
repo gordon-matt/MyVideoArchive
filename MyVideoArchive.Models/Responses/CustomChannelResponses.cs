@@ -8,4 +8,6 @@ public record CreateChannelResponse(int Id, string Name, string Platform);
 
 public record GetChannelPlaylistsResponse(IReadOnlyList<ChannelPlaylistItem> Playlists);
 
+public record PlaylistThumbnailFallbacksResponse(IReadOnlyDictionary<int, string?> Thumbnails);
+
 public record GetVideoPlaylistIdsResponse(IReadOnlyList<int> PlaylistIds);

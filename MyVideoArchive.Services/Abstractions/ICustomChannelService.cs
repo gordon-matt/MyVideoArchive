@@ -35,4 +35,15 @@ public interface ICustomChannelService
     Task<Result<string>> UploadVideoThumbnailAsync(int videoId, Stream fileStream, string fileName);
 
     Task<Result<int>> BulkAddVideosToPlaylistAsync(int playlistId, IReadOnlyList<int> videoIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// For custom-channel playlists with no uploaded thumbnail URL, returns the first video's
+    /// thumbnail keyed by playlist id (only entries with a non-empty URL).
+    /// </summary>
+    Task<Result<PlaylistThumbnailFallbacksResponse>> GetPlaylistThumbnailFallbacksAsync(int channelId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stored playlist thumbnail URL, or the first linked video's thumbnail for custom playlists when none is set.
+    /// </summary>
+    Task<Result<string?>> GetPlaylistDisplayThumbnailAsync(int playlistId, CancellationToken cancellationToken = default);
 }

@@ -13,6 +13,7 @@ import {
     confirmVideoExtrasPickerForPlaylist,
     removeVideoExtraForPlaylist
 } from './playlist-details-shared.js';
+import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
@@ -62,6 +63,8 @@ class CustomPlaylistDetailsViewModel {
         this.extrasPickerSaving = ko.observable(false);
         this.extrasPickerOnlyUnassigned = ko.observable(false);
         this.reloadExtrasPickerAfterFilterChange = async () => reloadVideoExtrasPickerForPlaylist(this);
+        this.isTextualExtraName = name => isTextualExtraFileName(name);
+        this.openTextExtra = item => openExtraTextViewerModal(item.id, item.fileName);
 
         // ── Add to Series ─────────────────────────────────────────────────
         this.addToSeriesLoading = ko.observable(false);
@@ -95,7 +98,26 @@ class CustomPlaylistDetailsViewModel {
     _fetchPlaylist = async () => {
         const response = await fetch(`/odata/PlaylistOData(${this.playlistId})?$expand=Channel`);
         if (!response.ok) throw new Error('Playlist not found');
-        this.playlist(await response.json());
+        const pl = await response.json();
+        const ch = pl.Channel ?? pl.channel;
+        const platform = ch?.Platform ?? ch?.platform;
+        let thumb = pl.ThumbnailUrl ?? pl.thumbnailUrl;
+        if (!thumb && platform === 'Custom') {
+            try {
+                const fr = await fetch(`/api/custom/playlists/${this.playlistId}/display-thumbnail`, { credentials: 'same-origin' });
+                if (fr.ok) {
+                    const d = await fr.json();
+                    const u = d.thumbnailUrl ?? d.ThumbnailUrl;
+                    if (u) {
+                        thumb = encodeArchiveUrlForHtml(u);
+                        pl.ThumbnailUrl = pl.thumbnailUrl = thumb;
+                    }
+                }
+            } catch {
+                /* ignore */
+            }
+        }
+        this.playlist(pl);
     };
 
     _loadOrderSetting = async () => {

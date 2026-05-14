@@ -1,0 +1,28 @@
+@* Shared by channel and playlist pages for viewing .txt / .md / .html extras in-app. *@
+<div class="modal fade" id="extraTextViewerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="extraTextViewerTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 bg-body-secondary">
+                <div id="extraTextViewerIframeWrap" class="d-none">
+                    <iframe id="extraTextViewerIframe"
+                            class="w-100 border-0 bg-white"
+                            style="min-height: 70vh;"
+                            title="HTML preview"></iframe>
+                </div>
+                <div id="extraTextViewerPreWrap" class="d-none p-3">
+                    <pre id="extraTextViewerPre" class="mb-0 small text-body" style="white-space: pre-wrap; word-break: break-word;"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a class="btn btn-outline-secondary" id="extraTextViewerDownloadBtn" href="#" target="_blank" rel="noopener noreferrer">
+                    <i class="bi bi-download me-1"></i>Open / download in browser
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -155,7 +155,7 @@ public class SeriesServiceTests
 
         var result = await CreateService(db).UpdateSeriesPlaylistsAsync(
             series.Id,
-            new UpdateSeriesPlaylistsRequest([foreignPl.Id]));
+            new UpdateSeriesPlaylistsRequest { PlaylistIds = [foreignPl.Id] });
 
         Assert.Equal(ResultStatus.Invalid, result.Status);
     }
@@ -197,7 +197,7 @@ public class SeriesServiceTests
 
         var result = await CreateService(db).UpdateSeriesPlaylistsAsync(
             series.Id,
-            new UpdateSeriesPlaylistsRequest([pl2.Id, pl1.Id]));
+            new UpdateSeriesPlaylistsRequest { PlaylistIds = [pl2.Id, pl1.Id] });
 
         Assert.True(result.IsSuccess);
         var links = await db.SeriesPlaylistRepository.FindAsync(new SearchOptions<SeriesPlaylist>

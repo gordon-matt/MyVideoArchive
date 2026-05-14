@@ -1,4 +1,5 @@
 import { formatDate, formatFileSize, encodeArchiveUrlForHtml } from './utils.js';
+import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
 import {
     initChannelTags,
     saveChannelTags,
@@ -79,6 +80,8 @@ class CustomChannelViewModel {
         this.extrasItems = ko.observableArray([]);
         this.extrasLoading = ko.observable(false);
         this.extrasLoaded = false;
+        this.isTextualExtraName = name => isTextualExtraFileName(name);
+        this.openTextExtra = item => openExtraTextViewerModal(item.id, item.fileName);
 
         // Upload state
         this.extrasUploadFiles = ko.observableArray([]);
@@ -345,11 +348,39 @@ class CustomChannelViewModel {
             const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
-                this.playlists((data.value || []).map(p => {
+                let rows = (data.value || []).map(p => {
                     const raw = p.ThumbnailUrl ?? p.thumbnailUrl;
                     const thumb = raw ? encodeArchiveUrlForHtml(raw) : raw;
                     return { ...p, ThumbnailUrl: thumb, thumbnailUrl: thumb };
-                }));
+                });
+                const needFallback = rows.some(p => !(p.ThumbnailUrl ?? p.thumbnailUrl));
+                if (needFallback) {
+                    try {
+                        const fbRes = await fetch(
+                            `/api/custom/channels/${this.channelId}/playlist-thumbnail-fallbacks`,
+                            { credentials: 'same-origin' });
+                        if (fbRes.ok) {
+                            const fb = await fbRes.json();
+                            const map = fb.thumbnails || fb.Thumbnails || {};
+                            rows = rows.map(p => {
+                                const id = p.Id ?? p.id;
+                                const existing = p.ThumbnailUrl ?? p.thumbnailUrl;
+                                if (existing) {
+                                    return p;
+                                }
+                                const rawUrl = map[id] ?? map[String(id)];
+                                if (!rawUrl) {
+                                    return p;
+                                }
+                                const enc = encodeArchiveUrlForHtml(rawUrl);
+                                return { ...p, ThumbnailUrl: enc, thumbnailUrl: enc };
+                            });
+                        }
+                    } catch {
+                        /* ignore fallback errors */
+                    }
+                }
+                this.playlists(rows);
                 const total = data['@odata.count'] ?? 0;
                 this.playlistsTotalCount(total);
                 this.playlistsTotalPages(Math.max(1, Math.ceil(total / this.playlistsPageSize)));

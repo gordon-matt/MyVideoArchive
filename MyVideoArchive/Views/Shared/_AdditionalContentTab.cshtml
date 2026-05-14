@@ -46,9 +46,15 @@
                 <tr>
                     <td>
                         <i class="bi bi-file-earmark me-1 text-muted"></i>
+                        <!-- ko if: $parent.isTextualExtraName && $parent.isTextualExtraName(fileName) -->
+                        <a href="#" class="link-body-emphasis"
+                           data-bind="text: fileName, click: function(row) { $parent.openTextExtra(row); return false; }"></a>
+                        <!-- /ko -->
+                        <!-- ko ifnot: $parent.isTextualExtraName && $parent.isTextualExtraName(fileName) -->
                         <a data-bind="attr: { href: '/api/additional-content/' + id + '/download' }, text: fileName"
                            target="_blank" rel="noopener noreferrer"
                            class="link-body-emphasis"></a>
+                        <!-- /ko -->
                         <small class="text-muted ms-1" data-bind="text: contentType ? '(' + contentType + ')' : ''"></small>
                     </td>
                     <td class="text-muted small text-break" data-bind="text: relativePath || '—'"></td>

@@ -14,6 +14,7 @@ import {
     confirmVideoExtrasPickerForPlaylist,
     removeVideoExtraForPlaylist
 } from './playlist-details-shared.js';
+import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
@@ -89,6 +90,8 @@ class PlaylistDetailsViewModel {
         this.extrasPickerSaving = ko.observable(false);
         this.extrasPickerOnlyUnassigned = ko.observable(false);
         this.reloadExtrasPickerAfterFilterChange = async () => reloadVideoExtrasPickerForPlaylist(this);
+        this.isTextualExtraName = name => isTextualExtraFileName(name);
+        this.openTextExtra = item => openExtraTextViewerModal(item.id, item.fileName);
 
         // ── Add to Series ─────────────────────────────────────────────────
         this.addToSeriesLoading = ko.observable(false);

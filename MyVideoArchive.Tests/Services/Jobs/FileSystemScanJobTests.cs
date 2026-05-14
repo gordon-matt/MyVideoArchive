@@ -20,6 +20,10 @@ public class FileSystemScanJobTests
             Mock.Of<IRepository<Series>>(),
             Mock.Of<IRepository<SeriesPlaylist>>(),
             Mock.Of<IRepository<PlaylistVideo>>(),
+            Mock.Of<IRepository<VideoTag>>(),
+            Mock.Of<IRepository<UserVideo>>(),
+            Mock.Of<IRepository<UserPlaylistVideo>>(),
+            Mock.Of<IRepository<CustomPlaylistVideo>>(),
             Mock.Of<IAdditionalContentService>(),
             new ThumbnailService(NullLogger<ThumbnailService>.Instance, Mock.Of<IHttpClientFactory>()));
 

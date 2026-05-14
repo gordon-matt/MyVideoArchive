@@ -631,6 +631,131 @@ public class CustomChannelService : ICustomChannelService
         return Result.Success(inserts.Count);
     }
 
+    public async Task<Result<PlaylistThumbnailFallbacksResponse>> GetPlaylistThumbnailFallbacksAsync(
+        int channelId,
+        CancellationToken cancellationToken = default)
+    {
+        var (canAccess, channel) = await CanAccessChannelAsync(channelId);
+        if (!canAccess)
+        {
+            return Result.Forbidden();
+        }
+
+        if (channel is null || channel.Platform != "Custom")
+        {
+            return Result.NotFound("Channel not found");
+        }
+
+        var playlists = await playlistRepository.FindAsync(
+            new SearchOptions<Playlist>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.ChannelId == channelId && x.Platform == "Custom" && !x.IsIgnored
+            },
+            x => new { x.Id, x.ThumbnailUrl });
+
+        var idsNeedingFallback = playlists
+            .Where(p => string.IsNullOrWhiteSpace(p.ThumbnailUrl))
+            .Select(p => p.Id)
+            .ToList();
+
+        if (idsNeedingFallback.Count == 0)
+        {
+            return Result.Success(new PlaylistThumbnailFallbacksResponse(new Dictionary<int, string?>()));
+        }
+
+        var links = await playlistVideoRepository.FindAsync(
+            new SearchOptions<PlaylistVideo>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => idsNeedingFallback.Contains(x.PlaylistId)
+            },
+            x => new { x.PlaylistId, x.Order, x.VideoId });
+
+        if (links.Count == 0)
+        {
+            return Result.Success(new PlaylistThumbnailFallbacksResponse(new Dictionary<int, string?>()));
+        }
+
+        var videoIds = links.Select(l => l.VideoId).Distinct().ToList();
+        var videos = await videoRepository.FindAsync(
+            new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => videoIds.Contains(x.Id)
+            },
+            x => new { x.Id, x.ThumbnailUrl });
+
+        var thumbByVideoId = videos.ToDictionary(x => x.Id, x => x.ThumbnailUrl);
+
+        var resultMap = new Dictionary<int, string?>();
+        foreach (var group in links.GroupBy(x => x.PlaylistId))
+        {
+            var first = group.OrderBy(x => x.Order).First();
+            if (thumbByVideoId.TryGetValue(first.VideoId, out string? thumb) && !string.IsNullOrWhiteSpace(thumb))
+            {
+                resultMap[group.Key] = thumb;
+            }
+        }
+
+        return Result.Success(new PlaylistThumbnailFallbacksResponse(resultMap));
+    }
+
+    public async Task<Result<string?>> GetPlaylistDisplayThumbnailAsync(
+        int playlistId,
+        CancellationToken cancellationToken = default)
+    {
+        var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.Id == playlistId,
+            Include = q => q.Include(p => p.Channel)
+        });
+
+        if (playlist is null)
+        {
+            return Result.NotFound("Playlist not found");
+        }
+
+        var (canAccess, _) = await CanAccessChannelAsync(playlist.ChannelId);
+        if (!canAccess)
+        {
+            return Result.Forbidden();
+        }
+
+        if (!string.IsNullOrWhiteSpace(playlist.ThumbnailUrl))
+        {
+            return Result.Success<string?>(playlist.ThumbnailUrl);
+        }
+
+        if (playlist.Platform != "Custom")
+        {
+            return Result.Success<string?>(null);
+        }
+
+        var linkRows = await playlistVideoRepository.FindAsync(
+            new SearchOptions<PlaylistVideo>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.PlaylistId == playlistId
+            },
+            x => new { x.Order, x.VideoId });
+
+        var firstLink = linkRows.OrderBy(x => x.Order).FirstOrDefault();
+        if (firstLink is null)
+        {
+            return Result.Success<string?>(null);
+        }
+
+        var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.Id == firstLink.VideoId
+        });
+
+        return Result.Success(string.IsNullOrWhiteSpace(video?.ThumbnailUrl) ? null : video.ThumbnailUrl);
+    }
+
     private async Task TryDeletePlaylistThumbnailFileAsync(Playlist playlist)
     {
         try

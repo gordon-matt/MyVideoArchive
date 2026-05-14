@@ -102,12 +102,14 @@ public class SeriesService : ISeriesService
             return Result.NotFound();
         }
 
-        if (request.PlaylistIds.Count > 0)
+        var playlistIds = request.PlaylistIds ?? [];
+
+        if (playlistIds.Count > 0)
         {
             var playlists = await playlistRepository.FindAsync(new SearchOptions<Playlist>
             {
                 CancellationToken = cancellationToken,
-                Query = x => request.PlaylistIds.Contains(x.Id)
+                Query = x => playlistIds.Contains(x.Id)
             });
 
             if (playlists.Any(p => p.ChannelId != series.ChannelId))
@@ -127,9 +129,9 @@ public class SeriesService : ISeriesService
             await seriesPlaylistRepository.DeleteAsync(existing, ContextOptions.ForCancellationToken(cancellationToken));
         }
 
-        if (request.PlaylistIds.Count > 0)
+        if (playlistIds.Count > 0)
         {
-            var inserts = request.PlaylistIds
+            var inserts = playlistIds
                 .Select((playlistId, index) => new SeriesPlaylist
                 {
                     SeriesId = seriesId,

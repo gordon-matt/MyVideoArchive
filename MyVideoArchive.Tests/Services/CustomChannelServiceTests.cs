@@ -436,4 +436,107 @@ public class CustomChannelServiceTests
         var result = await service.UploadVideoThumbnailAsync(video.Id, stream, "file.txt");
         Assert.Equal(ResultStatus.Invalid, result.Status);
     }
+
+    [Fact]
+    public async Task GetPlaylistThumbnailFallbacksAsync_WhenNoPlaylistThumbnail_UsesFirstVideoThumbnail()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        var channel = await db.ChannelRepository.InsertAsync(new Channel
+        {
+            ChannelId = "c1",
+            Name = "C",
+            Url = "custom://c1",
+            Platform = "Custom",
+            SubscribedAt = DateTime.UtcNow
+        });
+        await db.UserChannelRepository.InsertAsync(new UserChannel
+        {
+            UserId = "user1",
+            ChannelId = channel.Id,
+            SubscribedAt = DateTime.UtcNow
+        });
+        var playlist = await db.PlaylistRepository.InsertAsync(new Playlist
+        {
+            PlaylistId = "p1",
+            Name = "P",
+            Url = "x",
+            Platform = "Custom",
+            ChannelId = channel.Id,
+            SubscribedAt = DateTime.UtcNow,
+            ThumbnailUrl = null
+        });
+        var video = await db.VideoRepository.InsertAsync(new Video
+        {
+            VideoId = "vid1",
+            Title = "V",
+            Url = "https://v",
+            Platform = "Custom",
+            ChannelId = channel.Id,
+            ThumbnailUrl = "/thumb.jpg"
+        });
+        await db.PlaylistVideoRepository.InsertAsync(new PlaylistVideo
+        {
+            PlaylistId = playlist.Id,
+            VideoId = video.Id,
+            Order = 0
+        });
+
+        var service = CreateService(db);
+        var result = await service.GetPlaylistThumbnailFallbacksAsync(channel.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Thumbnails.TryGetValue(playlist.Id, out var thumb));
+        Assert.Equal("/thumb.jpg", thumb);
+    }
+
+    [Fact]
+    public async Task GetPlaylistDisplayThumbnailAsync_WhenCustomPlaylistWithoutThumbnail_ReturnsFirstVideoThumb()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        var channel = await db.ChannelRepository.InsertAsync(new Channel
+        {
+            ChannelId = "c1",
+            Name = "C",
+            Url = "custom://c1",
+            Platform = "Custom",
+            SubscribedAt = DateTime.UtcNow
+        });
+        await db.UserChannelRepository.InsertAsync(new UserChannel
+        {
+            UserId = "user1",
+            ChannelId = channel.Id,
+            SubscribedAt = DateTime.UtcNow
+        });
+        var playlist = await db.PlaylistRepository.InsertAsync(new Playlist
+        {
+            PlaylistId = "p1",
+            Name = "P",
+            Url = "x",
+            Platform = "Custom",
+            ChannelId = channel.Id,
+            SubscribedAt = DateTime.UtcNow,
+            ThumbnailUrl = null
+        });
+        var video = await db.VideoRepository.InsertAsync(new Video
+        {
+            VideoId = "vid1",
+            Title = "V",
+            Url = "https://v",
+            Platform = "Custom",
+            ChannelId = channel.Id,
+            ThumbnailUrl = "/from-video.jpg"
+        });
+        await db.PlaylistVideoRepository.InsertAsync(new PlaylistVideo
+        {
+            PlaylistId = playlist.Id,
+            VideoId = video.Id,
+            Order = 0
+        });
+
+        var service = CreateService(db);
+        var result = await service.GetPlaylistDisplayThumbnailAsync(playlist.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("/from-video.jpg", result.Value);
+    }
 }

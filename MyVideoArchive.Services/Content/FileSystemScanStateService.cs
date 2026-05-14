@@ -58,7 +58,9 @@ public sealed class FileSystemScanStateService
             newVideos = LastResult.NewVideos,
             updatedVideos = LastResult.UpdatedVideos,
             flaggedForReview = LastResult.FlaggedForReview,
-            missingFiles = LastResult.MissingFiles
+            missingFiles = LastResult.MissingFiles,
+            addedFilePaths = LastResult.AddedFilePaths,
+            updatedFilePaths = LastResult.UpdatedFilePaths
         },
         errorMessage = ErrorMessage
     };

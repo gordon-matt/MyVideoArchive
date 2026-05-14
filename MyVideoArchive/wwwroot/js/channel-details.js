@@ -1,4 +1,5 @@
 import { formatDate, formatDuration, formatFileSize } from './utils.js';
+import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
 import {
     initChannelTags,
     saveChannelTags,
@@ -156,6 +157,8 @@ class ChannelDetailsViewModel {
         this.extrasItems = ko.observableArray([]);
         this.extrasLoading = ko.observable(false);
         this.extrasLoaded = false;
+        this.isTextualExtraName = name => isTextualExtraFileName(name);
+        this.openTextExtra = item => openExtraTextViewerModal(item.id, item.fileName);
 
         // Upload state
         this.extrasUploadFiles = ko.observableArray([]);
@@ -428,9 +431,8 @@ class ChannelDetailsViewModel {
 
                 if (data.lastResult) {
                     const r = data.lastResult;
-                    this.scanMessage(
-                        `Scan complete: ${r.newVideos} new, ${r.updatedVideos} updated, ${r.missingFiles} missing from disk.`
-                    );
+                    const removed = r.missingFiles > 0 ? ` ${r.missingFiles} video(s) removed (file no longer on disk).` : '';
+                    this.scanMessage(`Scan complete: ${r.newVideos} new, ${r.updatedVideos} updated.${removed}`);
                     // Reload videos to reflect any path changes
                     await this.loadVideos();
                 } else if (data.errorMessage) {

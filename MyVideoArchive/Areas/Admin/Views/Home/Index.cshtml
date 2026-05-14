@@ -111,7 +111,7 @@
                             <small class="text-muted mt-1 d-block">
                                 <span data-bind="text: scanProgress().newVideos"></span> new &middot;
                                 <span data-bind="text: scanProgress().updatedVideos"></span> updated &middot;
-                                <span data-bind="text: scanProgress().missingFiles"></span> missing so far
+                                <span data-bind="text: scanProgress().missingFiles"></span> removed so far (missing file)
                             </small>
                             <!-- /ko -->
                         </div>
@@ -125,10 +125,11 @@
                                         <span data-bind="text: scanResult() && scanResult().newVideos"></span> new video(s),
                                         <span data-bind="text: scanResult() && scanResult().updatedVideos"></span> updated,
                                         <span data-bind="text: scanResult() && scanResult().flaggedForReview"></span> flagged for review,
-                                        <span data-bind="text: scanResult() && scanResult().missingFiles"></span> missing from disk.
+                                        <span data-bind="text: scanResult() && scanResult().missingFiles"></span> video(s) removed (file no longer on disk).
                                     </small>
                                 </div>
                             </div>
+                            <pre class="mva-scan-cli" data-bind="text: scanLogText"></pre>
                         </div>
                     </div>
                 </div>

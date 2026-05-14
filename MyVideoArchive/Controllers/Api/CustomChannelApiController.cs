@@ -87,6 +87,20 @@ public class CustomChannelApiController : ControllerBase
         return result.ToActionResult(this, thumbnailUrl => Ok(new { thumbnailUrl }));
     }
 
+    [HttpGet("channels/{channelId:int}/playlist-thumbnail-fallbacks")]
+    public async Task<IActionResult> GetPlaylistThumbnailFallbacks(int channelId)
+    {
+        var result = await customChannelService.GetPlaylistThumbnailFallbacksAsync(channelId, HttpContext.RequestAborted);
+        return result.ToActionResult(this, value => Ok(new { thumbnails = value.Thumbnails }));
+    }
+
+    [HttpGet("playlists/{playlistId:int}/display-thumbnail")]
+    public async Task<IActionResult> GetPlaylistDisplayThumbnail(int playlistId)
+    {
+        var result = await customChannelService.GetPlaylistDisplayThumbnailAsync(playlistId, HttpContext.RequestAborted);
+        return result.ToActionResult(this, thumbnailUrl => Ok(new { thumbnailUrl }));
+    }
+
     [HttpGet("channels/{channelId:int}/playlists")]
     public async Task<IActionResult> GetChannelPlaylists(int channelId)
     {

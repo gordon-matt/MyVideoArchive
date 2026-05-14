@@ -21,7 +21,7 @@ class SeriesDetailsViewModel {
     load = async () => {
         this.loading(true);
         try {
-            const response = await fetch(`/api/series/${this.seriesId}`);
+            const response = await fetch(`/api/series/${this.seriesId}`, { credentials: 'same-origin' });
             if (response.ok) {
                 const s = await response.json();
                 if (s.playlists?.length) {
@@ -29,6 +29,26 @@ class SeriesDetailsViewModel {
                         ...p,
                         thumbnailUrl: p.thumbnailUrl ? encodeArchiveUrlForHtml(p.thumbnailUrl) : p.thumbnailUrl
                     }));
+                    const needFallback = s.playlists.some(p => !p.thumbnailUrl);
+                    if (needFallback && s.channelId) {
+                        try {
+                            const fbRes = await fetch(
+                                `/api/custom/channels/${s.channelId}/playlist-thumbnail-fallbacks`,
+                                { credentials: 'same-origin' });
+                            if (fbRes.ok) {
+                                const fb = await fbRes.json();
+                                const map = fb.thumbnails || fb.Thumbnails || {};
+                                s.playlists = s.playlists.map(p => {
+                                    if (p.thumbnailUrl) return p;
+                                    const rawUrl = map[p.id] ?? map[String(p.id)];
+                                    if (!rawUrl) return p;
+                                    return { ...p, thumbnailUrl: encodeArchiveUrlForHtml(rawUrl) };
+                                });
+                            }
+                        } catch {
+                            /* non-custom channel or network error — keep list as-is */
+                        }
+                    }
                 }
                 this.series(s);
                 if (isAdmin) {
@@ -57,10 +77,18 @@ class SeriesDetailsViewModel {
 
                 const reordered = [];
                 items.forEach(item => {
-                    const id = parseInt(item.getAttribute('data-playlist-id'));
-                    const pl = s.playlists.find(p => p.id === id);
+                    const raw = item.getAttribute('data-playlist-id');
+                    const id = raw == null || raw === '' ? NaN : Number(raw);
+                    const pl = s.playlists.find(p => Number(p.id) === id);
                     if (pl) reordered.push(pl);
                 });
+
+                if (reordered.length !== s.playlists.length) {
+                    console.error('Reorder mismatch: DOM vs playlists', { domCount: reordered.length, listCount: s.playlists.length });
+                    toast.error('Could not save order (mismatch). Reloading.');
+                    await this.load();
+                    return;
+                }
 
                 // Update the observable so $index() re-renders.
                 // Knockout will re-render the list, so we re-init Sortable afterwards.
@@ -79,6 +107,7 @@ class SeriesDetailsViewModel {
             const response = await fetch(`/api/series/${this.seriesId}/playlists`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify({ playlistIds })
             });
             if (!response.ok) {
@@ -137,6 +166,7 @@ class SeriesDetailsViewModel {
                 fetch(`/api/series/${id}/playlists`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
                     body: JSON.stringify({ playlistIds: this.seriesEditPlaylistIds().slice() })
                 })
             ]);

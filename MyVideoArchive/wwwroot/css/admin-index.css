@@ -7,3 +7,20 @@
     background-color: #f8f9fa;
     border-bottom: 1px solid #e9ecef;
 }
+
+/* Terminal-style output for file system scan details */
+.mva-scan-cli {
+    background: #0d0d0d;
+    color: #f0f0f0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    padding: 12px 14px;
+    border-radius: 4px;
+    max-height: 360px;
+    overflow: auto;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border: 1px solid #1a1a1a;
+}

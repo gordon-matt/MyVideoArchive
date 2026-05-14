@@ -6,6 +6,32 @@ class AdminViewModel {
         this.syncing = ko.observable(false);
         this.scanProgress = ko.observable(null);
         this.scanResult = ko.observable(null);
+        this.scanLogText = ko.pureComputed(() => {
+            const r = this.scanResult();
+            if (!r) {
+                return '';
+            }
+            const added = r.addedFilePaths || r.AddedFilePaths || [];
+            const updated = r.updatedFilePaths || r.UpdatedFilePaths || [];
+            const lines = [];
+            lines.push(
+                `summary: new=${r.newVideos ?? 0}  updated=${r.updatedVideos ?? 0}  removed=${r.missingFiles ?? 0}  flagged=${r.flaggedForReview ?? 0}`
+            );
+            lines.push('');
+            if (added.length) {
+                lines.push('added:');
+                added.forEach(p => lines.push(`  + ${p}`));
+                lines.push('');
+            }
+            if (updated.length) {
+                lines.push('updated (re-linked):');
+                updated.forEach(p => lines.push(`  ~ ${p}`));
+            }
+            if (!added.length && !updated.length) {
+                lines.push('(no video files were added or updated this run.)');
+            }
+            return lines.join('\n');
+        });
 
         // Failed downloads tab
         this.failedVideos = ko.observableArray([]);
@@ -120,7 +146,9 @@ class AdminViewModel {
 
                 if (data.lastResult) {
                     this.scanResult(data.lastResult);
-                    showAlert('success', `Scan complete. ${data.lastResult.newVideos} new, ${data.lastResult.updatedVideos} updated, ${data.lastResult.missingFiles} missing from disk.`);
+                    const r = data.lastResult;
+                    const removedPart = r.missingFiles > 0 ? ` ${r.missingFiles} video(s) removed (file no longer on disk).` : '';
+                    showAlert('success', `Scan complete. ${r.newVideos} new, ${r.updatedVideos} updated.${removedPart}`);
                 } else if (data.errorMessage) {
                     showAlert('danger', data.errorMessage);
                 }
