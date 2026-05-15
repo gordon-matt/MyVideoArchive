@@ -39,7 +39,8 @@ namespace MyVideoArchive.Services.Jobs;
 /// </code>
 /// Non-video files found inside a playlist folder are imported as
 /// <see cref="AdditionalContentItem"/>s and linked to that playlist.
-/// Folders whose names begin with <c>_</c> are excluded from Series/Playlist detection.
+/// Folders whose names begin with <c>_</c> and known NAS metadata folders (e.g. Synology <c>@eaDir</c>)
+/// are excluded from Series/Playlist detection.
 /// </para>
 /// </summary>
 public class FileSystemScanJob
@@ -251,7 +252,7 @@ public class FileSystemScanJob
             }
 
             string folderName = Path.GetFileName(dir);
-            if (string.IsNullOrWhiteSpace(folderName) || folderName.StartsWith("_", StringComparison.Ordinal))
+            if (CustomChannelFolderRules.IsIgnoredDirectoryName(folderName))
             {
                 continue;
             }
@@ -304,9 +305,9 @@ public class FileSystemScanJob
     private static bool HasSeriesPlaylistStructure(string channelPath) =>
         Directory.Exists(channelPath) &&
         Directory.EnumerateDirectories(channelPath)
-            .Where(d => !Path.GetFileName(d).StartsWith("_", StringComparison.Ordinal))
+            .Where(d => !CustomChannelFolderRules.IsIgnoredDirectoryName(Path.GetFileName(d)))
             .Any(d => Directory.EnumerateDirectories(d)
-                .Any(sd => !Path.GetFileName(sd).StartsWith("_", StringComparison.Ordinal)));
+                .Any(sd => !CustomChannelFolderRules.IsIgnoredDirectoryName(Path.GetFileName(sd))));
 
     /// <summary>
     /// Returns true when a channel folder contains at least one immediate non-special
@@ -316,10 +317,10 @@ public class FileSystemScanJob
     private static bool HasPlaylistOnlyStructure(string channelPath) =>
         Directory.Exists(channelPath) &&
         Directory.EnumerateDirectories(channelPath)
-            .Where(d => !Path.GetFileName(d).StartsWith("_", StringComparison.Ordinal))
+            .Where(d => !CustomChannelFolderRules.IsIgnoredDirectoryName(Path.GetFileName(d)))
             .Any(d =>
                 !Directory.EnumerateDirectories(d)
-                    .Any(sd => !Path.GetFileName(sd).StartsWith("_", StringComparison.Ordinal)) &&
+                    .Any(sd => !CustomChannelFolderRules.IsIgnoredDirectoryName(Path.GetFileName(sd))) &&
                 Directory.EnumerateFiles(d)
                     .Any(f => VideoExtensions.Contains(
                         Path.GetExtension(f), StringComparer.OrdinalIgnoreCase)));
@@ -942,13 +943,13 @@ public class FileSystemScanJob
 
             string seriesName = Path.GetFileName(levelOneDir);
 
-            if (seriesName.StartsWith("_", StringComparison.Ordinal))
+            if (CustomChannelFolderRules.IsIgnoredDirectoryName(seriesName))
             {
                 continue;
             }
 
             var levelTwoDirs = Directory.EnumerateDirectories(levelOneDir)
-                .Where(d => !Path.GetFileName(d).StartsWith("_", StringComparison.Ordinal))
+                .Where(d => !CustomChannelFolderRules.IsIgnoredDirectoryName(Path.GetFileName(d)))
                 .OrderBy(d => d, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -1119,14 +1120,14 @@ public class FileSystemScanJob
 
             string folderName = Path.GetFileName(playlistDir);
 
-            if (folderName.StartsWith("_", StringComparison.Ordinal))
+            if (CustomChannelFolderRules.IsIgnoredDirectoryName(folderName))
             {
                 continue;
             }
 
             // Skip folders that themselves contain non-special subdirectories (series structure)
             var subDirs = Directory.EnumerateDirectories(playlistDir)
-                .Where(d => !Path.GetFileName(d).StartsWith("_", StringComparison.Ordinal))
+                .Where(d => !CustomChannelFolderRules.IsIgnoredDirectoryName(Path.GetFileName(d)))
                 .ToList();
 
             if (subDirs.Count > 0)
