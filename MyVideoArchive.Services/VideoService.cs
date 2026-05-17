@@ -3,6 +3,7 @@ using Hangfire;
 using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Models.Responses;
 using MyVideoArchive.Models.Video;
+using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services;
 
@@ -628,17 +629,7 @@ public class VideoService : IVideoService
                 return Result.NotFound("Video file not found");
             }
 
-            string fileExtension = Path.GetExtension(video.FilePath).ToLowerInvariant();
-            string contentType = fileExtension switch
-            {
-                ".mp4" => "video/mp4",
-                ".webm" => "video/webm",
-                ".mkv" => "video/x-matroska",
-                ".avi" => "video/x-msvideo",
-                ".mov" => "video/quicktime",
-                ".flv" => "video/x-flv",
-                _ => "application/octet-stream"
-            };
+            string contentType = VideoContentTypes.FromFilePath(video.FilePath);
 
             return Result.Success(new VideoStreamInfo(video.FilePath, contentType));
         }

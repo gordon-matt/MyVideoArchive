@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
+using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services;
 
@@ -297,7 +298,8 @@ public class PlaylistService : IPlaylistService
                 x.Video.DownloadFailed,
                 x.Video.ChannelId,
                 new ChannelInfo(x.Video.Channel.Id, x.Video.Channel.Name),
-                hiddenVideoIds.Contains(x.VideoId))).ToList();
+                hiddenVideoIds.Contains(x.VideoId),
+                VideoContentTypes.FromFilePath(x.Video.FilePath))).ToList();
 
             return Result.Success(new PlaylistOperationsVideosResponse(videos));
         }

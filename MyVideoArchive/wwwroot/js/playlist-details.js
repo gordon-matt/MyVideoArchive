@@ -17,6 +17,7 @@ import {
     bindPlaylistSubtitlePreferenceStorage
 } from './playlist-details-shared.js';
 import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
+import { buildVideoStreamSource, mergeVideoJsPlayerOptions } from './video-player.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
@@ -308,7 +309,7 @@ class PlaylistDetailsViewModel {
         _availableVideos = this.playlistVideos().filter(v => v.downloadedAt && !v.isHidden);
 
         const items = _availableVideos.map(v => ({
-            sources: [{ src: `/api/videos/${v.id}/stream`, type: 'video/mp4' }],
+            sources: [buildVideoStreamSource(v.id, v.streamContentType)],
             poster: v.thumbnailUrl || undefined,
             name: v.title
         }));
@@ -648,14 +649,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     ko.applyBindings(viewModel);
 
     // Initialise Video.js
-    player = videojs('videoPlayer', {
+    player = videojs('videoPlayer', mergeVideoJsPlayerOptions({
         controls: true,
         fluid: true,
         aspectRatio: '16:9',
         playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5],
         controlBar: { skipButtons: { forward: 10, backward: 10 } },
         userActions: { hotkeys: true }
-    });
+    }));
 
     // Add Prev / Next playlist navigation buttons to the control bar
     player.ready(() => {

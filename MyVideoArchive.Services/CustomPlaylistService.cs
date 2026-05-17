@@ -3,6 +3,7 @@ using Hangfire;
 using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
+using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services;
 
@@ -530,7 +531,8 @@ public class CustomPlaylistService : ICustomPlaylistService
                     x.Video.LikeCount,
                     x.Video.UploadDate,
                     x.Video.Description,
-                    new ChannelInfo(x.Video.Channel.Id, x.Video.Channel.Name)))).ToList();
+                    new ChannelInfo(x.Video.Channel.Id, x.Video.Channel.Name),
+                    VideoContentTypes.FromFilePath(x.Video.FilePath)))).ToList();
 
             return Result.Success(new GetPlaylistVideosResponse(
                 new PlaylistInfo(playlist.Id, playlist.Name, playlist.Description, playlist.ThumbnailUrl),

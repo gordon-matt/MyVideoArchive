@@ -182,6 +182,26 @@
         "dist/videojs-playlist.min.js",
         "LICENSE"
       ]
+    },
+    {
+      "library": "videojs-flvjs@0.3.1",
+      "destination": "wwwroot/lib/videojs-flvjs/",
+      "files": [
+        "dist/videojs-flvjs.js",
+        "dist/videojs-flvjs.min.js",
+        "LICENSE"
+      ]
+    },
+    {
+      "library": "flv.js@1.6.2",
+      "destination": "wwwroot/lib/flv.js/",
+      "files": [
+        "LICENSE",
+        "dist/flv.js",
+        "dist/flv.js.map",
+        "dist/flv.min.js",
+        "dist/flv.min.js.map"
+      ]
     }
   ]
 }

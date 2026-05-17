@@ -1,13 +1,21 @@
 import { formatDate, formatDuration, formatFileSize, encodeArchiveUrlForHtml } from './utils.js';
-import { initVideoPageTags, saveVideoPageTags } from './video-details-shared.js';
+import {
+    initVideoPageTags,
+    saveVideoPageTags,
+    fetchVideoSubtitles,
+    syncVideoDetailsPlayer
+} from './video-details-shared.js';
+
+/** @type {import('video.js').VideoJsPlayer | null} */
+let player = null;
 
 class CustomVideoViewModel {
     constructor(videoId) {
         this.videoId = videoId;
         this.video = ko.observable(null);
         this.loading = ko.observable(true);
-        this.videoUrl = ko.observable(null);
         this.showEditForm = ko.observable(false);
+        this.subtitles = [];
 
         // Edit form fields
         this.editTitle = ko.observable('');
@@ -52,7 +60,6 @@ class CustomVideoViewModel {
             const thumb = rawThumb ? encodeArchiveUrlForHtml(rawThumb) : rawThumb;
             const normalized = { ...data, ThumbnailUrl: thumb, thumbnailUrl: thumb };
             this.video(normalized);
-            if (data.FilePath) this.videoUrl(`/api/videos/${data.Id}/stream`);
             this.populateEditForm(normalized);
 
             if (data.ChannelId) {
@@ -69,6 +76,10 @@ class CustomVideoViewModel {
         } finally {
             this.loading(false);
         }
+
+        const filePath = this.video()?.FilePath;
+        this.subtitles = filePath ? await fetchVideoSubtitles(this.videoId) : [];
+        player = syncVideoDetailsPlayer(player, this.videoId, filePath, this.subtitles);
     };
 
     loadCustomPlaylists = async () => {
@@ -251,17 +262,24 @@ class CustomVideoViewModel {
         if (!playlistId) return;
 
         this.addingToPlaylist(true);
+
         try {
             const response = await fetch(`/api/custom-playlists/${playlistId}/videos/${this.videoId}`, {
                 method: 'POST'
             });
 
+            const data = await response.json();
+
             if (response.ok) {
                 this.selectedPlaylistId('');
                 await this.loadVideoPlaylists();
+                toast.success(data.message || 'Video added to playlist.');
+            } else {
+                toast.error(data.message || 'Failed to add to playlist.');
             }
         } catch (error) {
             console.error('Error adding to playlist:', error);
+            toast.error('An error occurred. Please try again.');
         } finally {
             this.addingToPlaylist(false);
         }
@@ -332,7 +350,9 @@ class CustomVideoViewModel {
 document.addEventListener('DOMContentLoaded', async () => {
     window.viewModel = new CustomVideoViewModel(videoId);
     ko.applyBindings(window.viewModel);
+
     await window.viewModel.loadVideo();
+
     await Promise.all([
         window.viewModel.loadCustomPlaylists(),
         window.viewModel.loadVideoPlaylists(),

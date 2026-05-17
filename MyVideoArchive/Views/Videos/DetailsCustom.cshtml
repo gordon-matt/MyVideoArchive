@@ -19,8 +19,10 @@
         </div>
 
         <div data-bind="visible: !loading() && video() && hasFile()">
-            <video id="videoPlayer" class="w-100" controls data-bind="attr: { src: videoUrl }">
-                Your browser does not support the video tag.
+            <video id="videoPlayer"
+                   class="video-js vjs-default-skin vjs-big-play-centered"
+                   controls
+                   preload="auto">
             </video>
         </div>
 

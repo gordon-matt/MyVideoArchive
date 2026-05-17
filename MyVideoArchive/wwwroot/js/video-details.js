@@ -1,23 +1,16 @@
 import { formatDate, formatDuration, formatFileSize, formatNumber } from './utils.js';
-import { initVideoPageTags, saveVideoPageTags } from './video-details-shared.js';
+import {
+    initVideoPageTags,
+    saveVideoPageTags,
+    fetchVideoSubtitles,
+    createVideoDetailsPlayer,
+    attachSubtitleTracks,
+    bindPlaybackPositionPersistence
+} from './video-details-shared.js';
+import { buildVideoStreamSource } from './video-player.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
-
-const STORAGE_KEY_RATE = 'mva-playback-rate';
-
-// ─── Playback position persistence ────────────────────────────────────────────
-function savePosition(vid, time) {
-    if (time > 5) localStorage.setItem(`mva-pos-${vid}`, Math.floor(time));
-}
-function loadSavedPosition(vid) {
-    return parseInt(localStorage.getItem(`mva-pos-${vid}`) || '0', 10);
-}
-function clearPosition(vid) {
-    localStorage.removeItem(`mva-pos-${vid}`);
-}
-
-const STORAGE_KEY_SUBTITLE_LANG = 'mva-subtitle-lang';
 
 class VideoPlayerViewModel {
     constructor(videoId) {
@@ -60,6 +53,7 @@ class VideoPlayerViewModel {
 
                 if (data.Id && data.DownloadedAt) {
                     this._pendingVideoUrl = `/api/videos/${data.Id}/stream`;
+                    this._pendingVideoMimeHint = data.FilePath;
                     await this.markWatched();
                 }
 
@@ -72,14 +66,7 @@ class VideoPlayerViewModel {
     };
 
     loadSubtitles = async () => {
-        try {
-            const response = await fetch(`/api/videos/${this.videoId}/subtitles`);
-            if (!response.ok) return;
-            const data = await response.json();
-            this.subtitles = data.subtitles || [];
-        } catch (error) {
-            console.error('Error loading subtitles:', error);
-        }
+        this.subtitles = await fetchVideoSubtitles(this.videoId);
     };
 
     loadPlaylists = async () => {
@@ -300,71 +287,6 @@ class VideoPlayerViewModel {
 
 var viewModel;
 
-function initVideoJsPlayer() {
-    player = videojs('videoPlayer', {
-        controls: true,
-        fluid: true,
-        aspectRatio: '16:9',
-        playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5],
-        controlBar: {
-            skipButtons: {
-                forward: 10,
-                backward: 10
-            }
-        },
-        userActions: {
-            hotkeys: true
-        }
-    });
-
-    // Restore saved playback rate
-    player.ready(() => {
-        const savedRate = parseFloat(localStorage.getItem(STORAGE_KEY_RATE) || '1');
-        player.playbackRate(savedRate);
-    });
-
-    // Persist playback rate across videos
-    player.on('ratechange', () => {
-        localStorage.setItem(STORAGE_KEY_RATE, player.playbackRate());
-    });
-
-    return player;
-}
-
-function attachSubtitleTracks(subtitles) {
-    if (!player || !Array.isArray(subtitles) || subtitles.length === 0) {
-        return;
-    }
-
-    const savedLang = localStorage.getItem(STORAGE_KEY_SUBTITLE_LANG) || '';
-
-    subtitles.forEach(sub => {
-        player.addRemoteTextTrack({
-            kind: 'captions',
-            src: sub.url,
-            srclang: sub.lang,
-            label: sub.label,
-            default: savedLang
-                ? sub.lang.toLowerCase() === savedLang.toLowerCase()
-                : false
-        }, false);
-    });
-
-    // Persist the user's caption choice so it survives navigation between videos.
-    player.textTracks().addEventListener('change', () => {
-        const tracks = player.textTracks();
-        for (let i = 0; i < tracks.length; i++) {
-            const t = tracks[i];
-            if (t.kind === 'captions' && t.mode === 'showing' && t.language) {
-                localStorage.setItem(STORAGE_KEY_SUBTITLE_LANG, t.language);
-                return;
-            }
-        }
-        // No captions currently showing — clear the saved preference.
-        localStorage.removeItem(STORAGE_KEY_SUBTITLE_LANG);
-    });
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
     viewModel = new VideoPlayerViewModel(videoId);
     ko.applyBindings(viewModel);
@@ -378,34 +300,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         await viewModel.loadSubtitles();
     }
 
-    initVideoJsPlayer();
-
-    // Set the video source once player is ready
     if (viewModel._pendingVideoUrl) {
-        player.src({ type: 'video/mp4', src: viewModel._pendingVideoUrl });
-        attachSubtitleTracks(viewModel.subtitles);
+        player = createVideoDetailsPlayer();
+        player.src(buildVideoStreamSource(videoId, viewModel._pendingVideoMimeHint));
+        attachSubtitleTracks(player, viewModel.subtitles);
+        bindPlaybackPositionPersistence(player, videoId);
     }
-
-    // Restore saved playback position after metadata is available
-    player.on('loadedmetadata', () => {
-        const saved = loadSavedPosition(videoId);
-        if (saved > 5 && isFinite(player.duration()) && saved < player.duration() - 5) {
-            player.currentTime(saved);
-        }
-    });
-
-    // Save position every 2 seconds while playing
-    let _lastSave = 0;
-    player.on('timeupdate', () => {
-        const now = Date.now();
-        if (now - _lastSave >= 2000) {
-            _lastSave = now;
-            savePosition(videoId, player.currentTime());
-        }
-    });
-
-    // Clear saved position when the video ends (user finished watching)
-    player.on('ended', () => clearPosition(videoId));
 
     await Promise.all([
         viewModel.loadPlaylists(),

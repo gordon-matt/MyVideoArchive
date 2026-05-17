@@ -39,7 +39,8 @@ public record PlaylistVideoItem(
     bool DownloadFailed,
     int ChannelId,
     ChannelInfo Channel,
-    bool IsHidden);
+    bool IsHidden,
+    string? StreamContentType);
 
 public record RefreshPlaylistsResponse(string Message, int TotalCount, int NewCount);
 

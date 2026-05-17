@@ -30,7 +30,8 @@ public record PlaylistVideoDetail(
     int? LikeCount,
     DateTime? UploadDate,
     string? Description,
-    ChannelInfo Channel);
+    ChannelInfo Channel,
+    string? StreamContentType);
 
 public record PlaylistVideoEntry(int Order, PlaylistVideoDetail Video);
 
