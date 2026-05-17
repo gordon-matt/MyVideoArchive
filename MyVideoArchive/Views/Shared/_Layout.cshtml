@@ -82,8 +82,9 @@
     </div>
 
     <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; @DateTime.Today.Year - MyVideoArchive</a>
+        <div class="container-fluid d-flex justify-content-between align-items-center">
+            <span>&copy; @DateTime.Today.Year - MyVideoArchive</span>
+            <span class="small text-muted">v@(AppVersion.Current)</span>
         </div>
     </footer>
 
