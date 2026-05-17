@@ -5,7 +5,9 @@ import {
     fetchVideoSubtitles,
     createVideoDetailsPlayer,
     attachSubtitleTracks,
-    bindPlaybackPositionPersistence
+    bindPlaybackPositionPersistence,
+    initVideoExtrasBindings,
+    loadVideoExtras
 } from './video-details-shared.js';
 import { buildVideoStreamSource } from './video-player.js';
 
@@ -40,6 +42,8 @@ class VideoPlayerViewModel {
         this.formatNumber = formatNumber;
 
         this._tagifyInstance = null;
+
+        initVideoExtrasBindings(this);
     }
 
     loadVideo = async () => {
@@ -57,6 +61,7 @@ class VideoPlayerViewModel {
                     await this.markWatched();
                 }
 
+                await loadVideoExtras(this, this.videoId);
                 this.loading(false);
             })
             .catch(error => {

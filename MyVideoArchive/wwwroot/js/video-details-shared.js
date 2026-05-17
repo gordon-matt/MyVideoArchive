@@ -3,6 +3,7 @@
  */
 import { getTagifyOptions } from './tagify-options.js';
 import { buildVideoStreamSource, mergeVideoJsPlayerOptions } from './video-player.js';
+import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
 
 export const STORAGE_KEY_RATE = 'mva-playback-rate';
 export const STORAGE_KEY_SUBTITLE_LANG = 'mva-subtitle-lang';
@@ -165,6 +166,83 @@ export async function fetchVideoSubtitles(videoDbId) {
     } catch (error) {
         console.error('Error loading subtitles:', error);
         return [];
+    }
+}
+
+/** @returns {number | null} */
+export function resolveVideoDbId(vm) {
+    if (vm.videoId != null) {
+        return vm.videoId;
+    }
+    const video = typeof vm.currentVideo === 'function'
+        ? vm.currentVideo()
+        : typeof vm.video === 'function'
+            ? vm.video()
+            : null;
+    return video?.Id ?? video?.id ?? null;
+}
+
+export function initVideoExtrasBindings(vm) {
+    vm.extrasItems = ko.observableArray([]);
+    vm.extrasLoading = ko.observable(false);
+    vm.isTextualExtraName = name => isTextualExtraFileName(name);
+    vm.openTextExtra = item => openExtraTextViewerModal(item.id, item.fileName);
+    vm.removeVideoExtra = async (item) => removeVideoExtra(vm, item);
+}
+
+export async function loadVideoExtras(vm, videoId) {
+    const id = videoId ?? resolveVideoDbId(vm);
+    if (!id) {
+        vm.extrasItems([]);
+        return;
+    }
+
+    vm.extrasLoading(true);
+    try {
+        const response = await fetch(`/api/videos/${id}/additional-content`);
+        if (response.ok) {
+            const data = await response.json();
+            vm.extrasItems(data.items || []);
+        } else {
+            vm.extrasItems([]);
+        }
+    } catch (error) {
+        console.error('Error loading video extras:', error);
+        vm.extrasItems([]);
+    } finally {
+        vm.extrasLoading(false);
+    }
+}
+
+export async function removeVideoExtra(vm, item) {
+    if (globalThis.isAdmin !== true) {
+        return;
+    }
+
+    const videoId = resolveVideoDbId(vm);
+    if (!videoId) {
+        return;
+    }
+
+    if (!confirm(`Remove "${item.fileName}" from this video? The file will remain on the channel.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `/api/videos/${videoId}/additional-content/${item.id}`,
+            { method: 'DELETE' }
+        );
+        if (response.ok) {
+            vm.extrasItems.remove(item);
+            toast.success('Removed from this video.');
+        } else {
+            const data = await response.json().catch(() => ({}));
+            toast.error(data.message || 'Failed to remove association.');
+        }
+    } catch (error) {
+        console.error('Error removing video extra:', error);
+        toast.error('Failed to remove association.');
     }
 }
 

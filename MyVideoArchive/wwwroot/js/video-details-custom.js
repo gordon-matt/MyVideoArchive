@@ -3,7 +3,9 @@ import {
     initVideoPageTags,
     saveVideoPageTags,
     fetchVideoSubtitles,
-    syncVideoDetailsPlayer
+    syncVideoDetailsPlayer,
+    initVideoExtrasBindings,
+    loadVideoExtras
 } from './video-details-shared.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
@@ -46,6 +48,8 @@ class CustomVideoViewModel {
 
         this._tagifyInstance = null;
 
+        initVideoExtrasBindings(this);
+
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
         this.formatFileSize = formatFileSize;
@@ -80,6 +84,7 @@ class CustomVideoViewModel {
         const filePath = this.video()?.FilePath;
         this.subtitles = filePath ? await fetchVideoSubtitles(this.videoId) : [];
         player = syncVideoDetailsPlayer(player, this.videoId, filePath, this.subtitles);
+        await loadVideoExtras(this, this.videoId);
     };
 
     loadCustomPlaylists = async () => {

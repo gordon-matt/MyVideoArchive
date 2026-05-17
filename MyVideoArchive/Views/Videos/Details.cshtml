@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Video Player";
     var videoId = ViewBag.VideoId;
+    var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
 }
 
 @section Styles {
@@ -114,6 +115,8 @@
             <div class="col-12 col-lg-8">
 
                 @await Html.PartialAsync("_VideoTagsCard")
+
+                @await Html.PartialAsync("_VideoExtrasCard", isAdminUser)
 
             </div>
 
@@ -230,9 +233,12 @@
     </div>
 </div>
 
+@await Html.PartialAsync("_ExtraTextViewerModal")
+
 @section Scripts {
     <script type="text/javascript">
         const videoId = @videoId;
+        window.isAdmin = @(isAdminUser ? "true" : "false");
     </script>
     <script type="module" src="~/js/video-details.js" asp-append-version="true"></script>
 }

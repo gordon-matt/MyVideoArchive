@@ -17,3 +17,11 @@
     max-height: 300px;
     overflow-y: auto;
 }
+
+/* Extras for this video: keep the actions column only as wide as the buttons */
+.video-extras-actions {
+    width: 1%;
+    white-space: nowrap;
+    vertical-align: middle;
+    text-align: end;
+}

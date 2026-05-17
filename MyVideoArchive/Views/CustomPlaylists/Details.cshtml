@@ -1,6 +1,8 @@
 @{
     ViewData["Title"] = "Playlist";
     var playlistId = ViewBag.PlaylistId;
+    var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
+    ViewData["VideoVisibleBinding"] = "currentVideo()";
 }
 
 @section Styles {
@@ -89,6 +91,8 @@
                     </div>
                 </div>
             </div>
+            @await Html.PartialAsync("_VideoExtrasCard", isAdminUser)
+
         </div>
 
         <div class="col-lg-4">
@@ -192,9 +196,12 @@
     </div>
 </div>
 
+@await Html.PartialAsync("_ExtraTextViewerModal")
+
 @section Scripts {
     <script type="text/javascript">
         const playlistId = @playlistId;
+        window.isAdmin = @(isAdminUser ? "true" : "false");
     </script>
     <script type="module" src="~/js/custom-playlist-details.js" asp-append-version="true"></script>
 }

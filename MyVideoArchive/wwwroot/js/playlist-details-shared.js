@@ -8,7 +8,9 @@ import {
     loadSavedPosition,
     clearPosition,
     clearRemoteTextTracks,
-    bindSubtitlePreferenceStorage
+    bindSubtitlePreferenceStorage,
+    loadVideoExtras,
+    removeVideoExtra
 } from './video-details-shared.js';
 
 export {
@@ -103,25 +105,7 @@ export function registerPlaylistButtons() {
 }
 
 export async function loadVideoExtrasForPlaylist(vm, videoId) {
-    if (!videoId) {
-        vm.extrasItems([]);
-        return;
-    }
-    vm.extrasLoading(true);
-    try {
-        const response = await fetch(`/api/videos/${videoId}/additional-content`);
-        if (response.ok) {
-            const data = await response.json();
-            vm.extrasItems(data.items || []);
-        } else {
-            vm.extrasItems([]);
-        }
-    } catch (error) {
-        console.error('Error loading video extras:', error);
-        vm.extrasItems([]);
-    } finally {
-        vm.extrasLoading(false);
-    }
+    return loadVideoExtras(vm, videoId);
 }
 
 async function loadExtrasPickerItemsForCurrentVideo(vm) {
@@ -210,25 +194,5 @@ export async function confirmVideoExtrasPickerForPlaylist(vm) {
 }
 
 export async function removeVideoExtraForPlaylist(vm, item) {
-    if (globalThis.isAdmin !== true) return;
-    const video = vm.currentVideo();
-    if (!video?.id) return;
-    if (!confirm(`Remove "${item.fileName}" from this video? The file will remain on the channel.`)) return;
-
-    try {
-        const response = await fetch(
-            `/api/videos/${video.id}/additional-content/${item.id}`,
-            { method: 'DELETE' }
-        );
-        if (response.ok) {
-            vm.extrasItems.remove(item);
-            toast.success('Removed from this video.');
-        } else {
-            const data = await response.json().catch(() => ({}));
-            toast.error(data.message || 'Failed to remove association.');
-        }
-    } catch (error) {
-        console.error('Error removing video extra:', error);
-        toast.error('Failed to remove association.');
-    }
+    return removeVideoExtra(vm, item);
 }

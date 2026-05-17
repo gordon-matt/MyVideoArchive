@@ -2,8 +2,14 @@ import { formatDate, formatDuration, formatNumber } from './utils.js';
 import { getTagifyOptions } from './tagify-options.js';
 import {
     loadAndAttachSubtitleTracksForPlaylist,
-    bindPlaylistSubtitlePreferenceStorage
+    bindPlaylistSubtitlePreferenceStorage,
+    registerPlaylistButtons,
+    savePosition,
+    loadSavedPosition,
+    clearPosition,
+    STORAGE_KEY_RATE
 } from './playlist-details-shared.js';
+import { initVideoExtrasBindings, loadVideoExtras } from './video-details-shared.js';
 import { buildVideoStreamSource, mergeVideoJsPlayerOptions } from './video-player.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
@@ -17,45 +23,7 @@ let player = null;
 let _availableItems = [];
 
 const PAGE_SIZE = 500;
-const STORAGE_KEY_RATE = 'mva-playback-rate';
 const STORAGE_KEY_AUTO_ADVANCE = 'mva-auto-advance';
-
-// ─── Playback position persistence ────────────────────────────────────────────
-function savePosition(videoId, time) {
-    if (time > 5) localStorage.setItem(`mva-pos-${videoId}`, Math.floor(time));
-}
-function loadSavedPosition(videoId) {
-    return parseInt(localStorage.getItem(`mva-pos-${videoId}`) || '0', 10);
-}
-function clearPosition(videoId) {
-    localStorage.removeItem(`mva-pos-${videoId}`);
-}
-
-// ─── Custom control bar buttons ────────────────────────────────────────────────
-function registerPlaylistButtons() {
-    if (videojs.getComponent('PlaylistPrevButton')) return;
-
-    class PlaylistPrevButton extends videojs.getComponent('Button') {
-        constructor(player, options) {
-            super(player, options);
-            this.controlText('Previous Video');
-        }
-        buildCSSClass() { return 'vjs-playlist-prev-btn ' + super.buildCSSClass(); }
-        handleClick(e) { super.handleClick(e); player?.playlist?.previous(); }
-    }
-
-    class PlaylistNextButton extends videojs.getComponent('Button') {
-        constructor(player, options) {
-            super(player, options);
-            this.controlText('Next Video');
-        }
-        buildCSSClass() { return 'vjs-playlist-next-btn ' + super.buildCSSClass(); }
-        handleClick(e) { super.handleClick(e); player?.playlist?.next(); }
-    }
-
-    videojs.registerComponent('PlaylistPrevButton', PlaylistPrevButton);
-    videojs.registerComponent('PlaylistNextButton', PlaylistNextButton);
-}
 
 // ─── ViewModel ────────────────────────────────────────────────────────────────
 class CustomPlaylistDetailsViewModel {
@@ -86,6 +54,8 @@ class CustomPlaylistDetailsViewModel {
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
         this.formatNumber = formatNumber;
+
+        initVideoExtrasBindings(this);
     }
 
     loadPlaylist = async () => {
@@ -337,7 +307,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         _currentVideoId = item.video.id;
         viewModel.currentVideo(item.video);
-        await viewModel.loadVideoTags(item.video.id);
+        await Promise.all([
+            viewModel.loadVideoTags(item.video.id),
+            loadVideoExtras(viewModel, item.video.id)
+        ]);
 
         setTimeout(() => {
             const activeItem = document.querySelector('.playlist-video-item.active');
