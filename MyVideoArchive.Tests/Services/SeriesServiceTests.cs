@@ -13,6 +13,28 @@ public class SeriesServiceTests
             NullLogger<SeriesService>.Instance);
 
     [Fact]
+    public async Task GetSeriesForChannelAsync_ReturnsSeriesSortedAlphabeticallyByName()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        var channel = await db.ChannelRepository.InsertAsync(new Channel
+        {
+            ChannelId = "ch-sort",
+            Name = "C",
+            Url = "https://c",
+            Platform = "YT",
+            SubscribedAt = DateTime.UtcNow
+        });
+        await db.SeriesRepository.InsertAsync(new Series { Name = "Zulu", ChannelId = channel.Id });
+        await db.SeriesRepository.InsertAsync(new Series { Name = "alpha", ChannelId = channel.Id });
+        await db.SeriesRepository.InsertAsync(new Series { Name = "Mike", ChannelId = channel.Id });
+
+        var result = await CreateService(db).GetSeriesForChannelAsync(channel.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(["alpha", "Mike", "Zulu"], result.Value.Select(s => s.Name).ToList());
+    }
+
+    [Fact]
     public async Task GetSeriesForChannelAsync_ReturnsOrderedDtos()
     {
         using var db = new InMemoryDatabaseFixture();

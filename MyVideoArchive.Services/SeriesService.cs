@@ -38,7 +38,8 @@ public class SeriesService : ISeriesService
         });
 
         var dtos = seriesList
-            .Select(s => ToDto(s))
+            .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(ToDto)
             .ToList();
 
         return Result.Success<IList<SeriesDto>>(dtos);
