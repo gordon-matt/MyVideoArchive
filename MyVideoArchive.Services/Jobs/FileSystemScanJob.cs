@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using MyVideoArchive.Data.Entities;
 using MyVideoArchive.Models;
 
 namespace MyVideoArchive.Services.Jobs;
@@ -42,6 +41,14 @@ namespace MyVideoArchive.Services.Jobs;
 /// Folders whose names begin with <c>_</c> and known NAS metadata folders (e.g. Synology <c>@eaDir</c>)
 /// are excluded from Series/Playlist detection.
 /// </para>
+/// <para>
+/// <b>Filesystem safety:</b> A scan never deletes, moves, or overwrites library files (videos, subtitles,
+/// extras, images, or any other user content). It may add files (e.g. write a sidecar <c>.vtt</c> next to an
+/// existing <c>.srt</c>, or generate a thumbnail JPEG). Stale or NAS-metadata additional-content rows are
+/// unlinked via <see cref="IAdditionalContentService.DeleteRecordOnlyAsync"/> only; disk deletion is reserved
+/// for explicit user actions via <see cref="IAdditionalContentService.DeleteAsync"/>.
+/// Missing tracked videos are removed from the database only (not from disk).
+/// </para>
 /// </summary>
 public class FileSystemScanJob
 {
@@ -51,52 +58,52 @@ public class FileSystemScanJob
 
     private static readonly string[] SubtitleExtensionsToSkip = [".vtt", ".srt"];
 
-    private readonly IRepository<Channel> channelRepository;
-    private readonly IConfiguration configuration;
     private readonly ILogger<FileSystemScanJob> logger;
-    private readonly IRepository<Video> videoRepository;
-    private readonly IRepository<AdditionalContentItem> additionalContentRepository;
-    private readonly IRepository<Playlist> playlistRepository;
-    private readonly IRepository<Series> seriesRepository;
-    private readonly IRepository<SeriesPlaylist> seriesPlaylistRepository;
-    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
-    private readonly IRepository<VideoTag> videoTagRepository;
-    private readonly IRepository<UserVideo> userVideoRepository;
-    private readonly IRepository<UserPlaylistVideo> userPlaylistVideoRepository;
-    private readonly IRepository<CustomPlaylistVideo> customPlaylistVideoRepository;
+    private readonly IConfiguration configuration;
     private readonly IAdditionalContentService additionalContentService;
     private readonly ThumbnailService thumbnailService;
+    private readonly IRepository<AdditionalContentItem> additionalContentRepository;
+    private readonly IRepository<Channel> channelRepository;
+    private readonly IRepository<CustomPlaylistVideo> customPlaylistVideoRepository;
+    private readonly IRepository<Playlist> playlistRepository;
+    private readonly IRepository<PlaylistVideo> playlistVideoRepository;
+    private readonly IRepository<Series> seriesRepository;
+    private readonly IRepository<SeriesPlaylist> seriesPlaylistRepository;
+    private readonly IRepository<UserPlaylistVideo> userPlaylistVideoRepository;
+    private readonly IRepository<UserVideo> userVideoRepository;
+    private readonly IRepository<Video> videoRepository;
+    private readonly IRepository<VideoTag> videoTagRepository;
 
     public FileSystemScanJob(
         ILogger<FileSystemScanJob> logger,
         IConfiguration configuration,
-        IRepository<Channel> channelRepository,
-        IRepository<Video> videoRepository,
         IRepository<AdditionalContentItem> additionalContentRepository,
+        IRepository<Channel> channelRepository,
+        IRepository<CustomPlaylistVideo> customPlaylistVideoRepository,
         IRepository<Playlist> playlistRepository,
+        IRepository<PlaylistVideo> playlistVideoRepository,
         IRepository<Series> seriesRepository,
         IRepository<SeriesPlaylist> seriesPlaylistRepository,
-        IRepository<PlaylistVideo> playlistVideoRepository,
-        IRepository<VideoTag> videoTagRepository,
-        IRepository<UserVideo> userVideoRepository,
         IRepository<UserPlaylistVideo> userPlaylistVideoRepository,
-        IRepository<CustomPlaylistVideo> customPlaylistVideoRepository,
+        IRepository<UserVideo> userVideoRepository,
+        IRepository<Video> videoRepository,
+        IRepository<VideoTag> videoTagRepository,
         IAdditionalContentService additionalContentService,
         ThumbnailService thumbnailService)
     {
         this.logger = logger;
         this.configuration = configuration;
-        this.channelRepository = channelRepository;
-        this.videoRepository = videoRepository;
         this.additionalContentRepository = additionalContentRepository;
-        this.playlistRepository = playlistRepository;
-        this.seriesRepository = seriesRepository;
-        this.seriesPlaylistRepository = seriesPlaylistRepository;
-        this.playlistVideoRepository = playlistVideoRepository;
-        this.videoTagRepository = videoTagRepository;
-        this.userVideoRepository = userVideoRepository;
-        this.userPlaylistVideoRepository = userPlaylistVideoRepository;
+        this.channelRepository = channelRepository;
         this.customPlaylistVideoRepository = customPlaylistVideoRepository;
+        this.playlistRepository = playlistRepository;
+        this.playlistVideoRepository = playlistVideoRepository;
+        this.seriesPlaylistRepository = seriesPlaylistRepository;
+        this.seriesRepository = seriesRepository;
+        this.userPlaylistVideoRepository = userPlaylistVideoRepository;
+        this.userVideoRepository = userVideoRepository;
+        this.videoRepository = videoRepository;
+        this.videoTagRepository = videoTagRepository;
         this.additionalContentService = additionalContentService;
         this.thumbnailService = thumbnailService;
     }
@@ -153,6 +160,7 @@ public class FileSystemScanJob
                 case FileSystemScanChannelScope.PlatformChannels:
                     channelOptions.Query = x => x.Platform != "Custom";
                     break;
+
                 case FileSystemScanChannelScope.CustomChannels:
                     channelOptions.Query = x => x.Platform == "Custom";
                     break;
@@ -344,16 +352,31 @@ public class FileSystemScanJob
         return null;
     }
 
+    /// <summary>Returns the canonical full path, falling back to the original if normalization fails.</summary>
     private static string NormalizeLoggedFilePath(string filePath)
     {
-        try
+        try { return Path.GetFullPath(filePath); }
+        catch { return filePath; }
+    }
+
+    /// <summary>
+    /// Returns true when the file exists, tolerating paths that are not yet in canonical form
+    /// (e.g. stored before the normalization change, or sourced from a NAS with mixed separators).
+    /// </summary>
+    private static bool LibraryFileExists(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
         {
-            return Path.GetFullPath(filePath);
+            return false;
         }
-        catch
+
+        if (File.Exists(filePath))
         {
-            return filePath;
+            return true;
         }
+
+        try { return File.Exists(Path.GetFullPath(filePath)); }
+        catch { return false; }
     }
 
     private static void ReportScanProgress(
@@ -363,9 +386,7 @@ public class FileSystemScanJob
         string? currentChannelName,
         int workProcessed,
         int workTotal,
-        FileSystemScanResult result)
-    {
-        progress?.Report(new FileSystemScanProgress
+        FileSystemScanResult result) => progress?.Report(new FileSystemScanProgress
         {
             TotalChannels = totalChannels,
             ProcessedChannels = processedChannels,
@@ -377,7 +398,6 @@ public class FileSystemScanJob
             FlaggedForReview = result.FlaggedForReview,
             MissingFiles = result.MissingFiles
         });
-    }
 
     /// <summary>
     /// Derives a unique <see cref="Video.VideoId"/> for Custom platform files. The database enforces uniqueness on
@@ -410,7 +430,9 @@ public class FileSystemScanJob
         return $"{prefix}__{suffix}";
     }
 
-    private async Task RemoveTrackedVideoWhenFileMissingAsync(
+    /// <summary>Database cleanup only; never deletes the video file from disk.</summary>
+    /// <returns><see langword="true"/> when the video row was removed from the database.</returns>
+    private async Task<bool> RemoveTrackedVideoWhenFileMissingAsync(
         int videoDbId,
         string videoId,
         FileSystemScanResult result,
@@ -424,21 +446,26 @@ public class FileSystemScanJob
 
         if (video is null)
         {
-            return;
+            return false;
         }
 
-        await customPlaylistVideoRepository.DeleteAsync(x => x.VideoId == videoDbId);
-        await userPlaylistVideoRepository.DeleteAsync(x => x.VideoId == videoDbId);
-        await userVideoRepository.DeleteAsync(x => x.VideoId == videoDbId);
-        await videoTagRepository.DeleteAsync(x => x.VideoId == videoDbId);
-        await playlistVideoRepository.DeleteAsync(x => x.VideoId == videoDbId);
+        await TryDeleteVideoRelatedRecordsAsync(videoDbId, cancellationToken);
 
         string removedLine = string.IsNullOrWhiteSpace(video.FilePath)
             ? $"[{videoId}] (no stored file path)"
             : $"{NormalizeLoggedFilePath(video.FilePath)}  [{videoId}]";
         result.RemovedVideoPaths.Add(removedLine);
 
-        await videoRepository.DeleteAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+        try
+        {
+            await videoRepository.DeleteAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to delete video {VideoId} (database id {VideoDbId}) from the library", videoId, videoDbId);
+            return false;
+        }
+
         result.MissingFiles++;
 
         logger.LogInformation(
@@ -446,6 +473,32 @@ public class FileSystemScanJob
             videoId,
             videoDbId,
             video.FilePath ?? "(none)");
+
+        return true;
+    }
+
+    private async Task TryDeleteVideoRelatedRecordsAsync(int videoDbId, CancellationToken cancellationToken)
+    {
+        var deleteSteps = new (string Name, Func<Task> Delete)[]
+        {
+            ("custom playlist videos", () => customPlaylistVideoRepository.DeleteAsync(x => x.VideoId == videoDbId)),
+            ("user playlist videos", () => userPlaylistVideoRepository.DeleteAsync(x => x.VideoId == videoDbId)),
+            ("user videos", () => userVideoRepository.DeleteAsync(x => x.VideoId == videoDbId)),
+            ("video tags", () => videoTagRepository.DeleteAsync(x => x.VideoId == videoDbId)),
+            ("playlist videos", () => playlistVideoRepository.DeleteAsync(x => x.VideoId == videoDbId))
+        };
+
+        foreach (var (name, delete) in deleteSteps)
+        {
+            try
+            {
+                await delete();
+            }
+            catch (Exception ex) when (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Could not delete {RelatedRecord} for video database id {VideoDbId}", name, videoDbId);
+            }
+        }
     }
 
     private static bool IsCustomChannelBrandingOrReservedImageFile(string fileFullPath, string channelRootFullPath)
@@ -539,6 +592,7 @@ public class FileSystemScanJob
         }
     }
 
+    /// <summary>Unlinks stale or ignored additional-content database rows; never deletes files on disk.</summary>
     private async Task RemoveStaleAdditionalContentRecordsAsync(
         int channelId,
         FileSystemScanResult result,
@@ -557,13 +611,27 @@ public class FileSystemScanJob
                 break;
             }
 
-            if (!string.IsNullOrWhiteSpace(item.FilePath) && File.Exists(item.FilePath))
+            if (CustomChannelFolderRules.IsIgnoredAdditionalContentPath(item.FilePath))
+            {
+                var unlinkIgnored = await additionalContentService.DeleteRecordOnlyAsync(item.Id);
+                if (unlinkIgnored.IsSuccess)
+                {
+                    logger.LogInformation(
+                        "Unregistered ignored additional content record {Id} (Synology/OS metadata; file not deleted). Path: {FilePath}",
+                        item.Id,
+                        item.FilePath ?? "(none)");
+                }
+
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(item.FilePath) && LibraryFileExists(item.FilePath))
             {
                 continue;
             }
 
-            var deleteResult = await additionalContentService.DeleteAsync(item.Id);
-            if (deleteResult.IsSuccess)
+            var unlinkResult = await additionalContentService.DeleteRecordOnlyAsync(item.Id);
+            if (unlinkResult.IsSuccess)
             {
                 string removedLine = string.IsNullOrWhiteSpace(item.FilePath)
                     ? $"[additional content id {item.Id}] (no stored file path)"
@@ -582,12 +650,15 @@ public class FileSystemScanJob
     }
 
     // ── Shared helpers ────────────────────────────────────────────────────────
-    private async Task LinkFoundFileAsync(
+    /// <returns><see langword="true"/> when the video row was found and updated.</returns>
+    private async Task<bool> LinkFoundFileAsync(
         VideoEntry entry,
         string filePath,
         FileSystemScanResult result,
         CancellationToken cancellationToken)
     {
+        filePath = NormalizeLoggedFilePath(filePath);
+
         var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
         {
             CancellationToken = cancellationToken,
@@ -596,7 +667,7 @@ public class FileSystemScanJob
 
         if (video is null)
         {
-            return;
+            return false;
         }
 
         video.FilePath = filePath;
@@ -618,6 +689,7 @@ public class FileSystemScanJob
         result.UpdatedFilePaths.Add(NormalizeLoggedFilePath(filePath));
 
         logger.LogInformation("Linked file {FilePath} to video {VideoId}", filePath, entry.VideoId);
+        return true;
     }
 
     private async Task ProcessCustomChannelAsync(
@@ -649,13 +721,17 @@ public class FileSystemScanJob
 
             if (entry.FilePath != null)
             {
-                if (!File.Exists(entry.FilePath))
+                string normalizedPath = NormalizeLoggedFilePath(entry.FilePath);
+                if (!LibraryFileExists(normalizedPath))
                 {
-                    await RemoveTrackedVideoWhenFileMissingAsync(entry.Id, entry.VideoId, result, cancellationToken);
+                    if (await RemoveTrackedVideoWhenFileMissingAsync(entry.Id, entry.VideoId, result, cancellationToken))
+                    {
+                        videosByVideoId.Remove(entry.VideoId);
+                    }
                 }
                 else
                 {
-                    trackedVideoPaths.Add(entry.FilePath);
+                    trackedVideoPaths.Add(normalizedPath);
                 }
             }
         }
@@ -665,12 +741,17 @@ public class FileSystemScanJob
             return;
         }
 
+        channelPath = Path.GetFullPath(channelPath);
+
         // Convert any .srt subtitle files found in the channel folder to .vtt
         ConvertSrtFilesInDirectory(channelPath);
 
         var allVideoFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var videoFilePaths = EnumerateVideoFiles(channelPath).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
+        var videoFilePaths = EnumerateVideoFiles(channelPath)
+            .Select(NormalizeLoggedFilePath)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         int totalVideoFiles = videoFilePaths.Count;
         int videoFileIndex = 0;
 
@@ -716,30 +797,18 @@ public class FileSystemScanJob
                 {
                     await TryResolveThumbnailAsync(thumbEntry.Id, filePath, downloadBasePath, cancellationToken);
                 }
-
-                videoFileIndex++;
-                if (videoFileIndex == 1 || videoFileIndex == totalVideoFiles || videoFileIndex % 10 == 0)
+            }
+            else
+            {
+                try
                 {
-                    ReportVideoProgress();
+                    await ProcessCustomFileAsync(
+                        channelPath, filePath, channel, videosByVideoId, downloadBasePath, result, cancellationToken);
                 }
-
-                continue;
-            }
-
-            try
-            {
-                await ProcessCustomFileAsync(
-                    channelPath,
-                    filePath,
-                    channel,
-                    videosByVideoId,
-                    downloadBasePath,
-                    result,
-                    cancellationToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "Error processing file: {FilePath}", filePath);
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogError(ex, "Error processing file: {FilePath}", filePath);
+                }
             }
 
             videoFileIndex++;
@@ -782,22 +851,31 @@ public class FileSystemScanJob
         FileSystemScanResult result,
         CancellationToken cancellationToken)
     {
+        filePath = NormalizeLoggedFilePath(filePath);
         string videoId = BuildCustomPlatformVideoId(channelPath, filePath);
 
         if (videosByVideoId.TryGetValue(videoId, out var existingEntry))
         {
-            await LinkFoundFileAsync(existingEntry, filePath, result, cancellationToken);
-            return;
+            if (await LinkFoundFileAsync(existingEntry, filePath, result, cancellationToken))
+            {
+                return;
+            }
+
+            videosByVideoId.Remove(videoId);
         }
 
         // Legacy imports used filename-only VideoId; re-link if this path already belongs to such a row.
         string fileNameId = Path.GetFileNameWithoutExtension(filePath);
         if (videosByVideoId.TryGetValue(fileNameId, out var legacyEntry) &&
             (legacyEntry.FilePath is null ||
-             string.Equals(legacyEntry.FilePath, filePath, StringComparison.OrdinalIgnoreCase)))
+             string.Equals(NormalizeLoggedFilePath(legacyEntry.FilePath), filePath, StringComparison.OrdinalIgnoreCase)))
         {
-            await LinkFoundFileAsync(legacyEntry, filePath, result, cancellationToken);
-            return;
+            if (await LinkFoundFileAsync(legacyEntry, filePath, result, cancellationToken))
+            {
+                return;
+            }
+
+            videosByVideoId.Remove(fileNameId);
         }
 
         var fileInfo = new FileInfo(filePath);
@@ -1318,7 +1396,7 @@ public class FileSystemScanJob
 
             if (entry.FilePath != null)
             {
-                if (!File.Exists(entry.FilePath))
+                if (!LibraryFileExists(entry.FilePath))
                 {
                     await RemoveTrackedVideoWhenFileMissingAsync(entry.Id, entry.VideoId, result, cancellationToken);
                 }
@@ -1402,6 +1480,8 @@ public class FileSystemScanJob
             x => new { x.Id, x.VideoId }))
             .ToDictionary(x => x.VideoId, x => x.Id, StringComparer.OrdinalIgnoreCase);
 
+        string channelPathFull = Path.GetFullPath(channelPath);
+
         var trackedPaths = (await additionalContentRepository.FindAsync(
             new SearchOptions<AdditionalContentItem>
             {
@@ -1409,16 +1489,18 @@ public class FileSystemScanJob
                 Query = x => x.ChannelId == channel.Id
             },
             x => x.FilePath))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => NormalizeLoggedFilePath(p!))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var extrasDirectoryRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string channelLevelExtras = Path.Combine(channelPath, "_extras");
+        string channelLevelExtras = Path.Combine(channelPathFull, "_extras");
         if (Directory.Exists(channelLevelExtras))
         {
             extrasDirectoryRoots.Add(Path.GetFullPath(channelLevelExtras));
         }
 
-        foreach (string dir in Directory.EnumerateDirectories(channelPath, "*", SearchOption.AllDirectories))
+        foreach (string dir in Directory.EnumerateDirectories(channelPathFull, "*", SearchOption.AllDirectories))
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -1452,7 +1534,7 @@ public class FileSystemScanJob
                     break;
                 }
 
-                if (trackedPaths.Contains(filePath))
+                if (CustomChannelFolderRules.IsIgnoredAdditionalContentPath(filePath))
                 {
                     continue;
                 }
@@ -1464,9 +1546,11 @@ public class FileSystemScanJob
                     continue;
                 }
 
+                string normalizedExtraPath = NormalizeLoggedFilePath(filePath);
+
                 try
                 {
-                    int? playlistDbId = TryResolvePlaylistForExtrasFile(filePath, channelPath, playlistPathToId);
+                    int? playlistDbId = TryResolvePlaylistForExtrasFile(normalizedExtraPath, channelPathFull, playlistPathToId);
                     if (!playlistDbId.HasValue)
                     {
                         string? parentDir = Path.GetDirectoryName(filePath);
@@ -1480,12 +1564,23 @@ public class FileSystemScanJob
                         }
                     }
 
-                    int? videoDbId = TryResolveVideoFromExtrasSubfolder(channelPath, filePath, videoIdToDbId);
-                    if (await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, videoDbId, cancellationToken))
+                    int? videoDbId = CustomChannelExtrasVideoMatcher.TryResolveDatabaseVideoId(
+                        channelPathFull, normalizedExtraPath, videoIdToDbId);
+
+                    if (trackedPaths.Contains(normalizedExtraPath))
                     {
-                        result.AddedAdditionalContentPaths.Add(NormalizeLoggedFilePath(filePath));
+                        await additionalContentService.EnsureAssociationsForPathAsync(
+                            normalizedExtraPath, channel.Id, playlistDbId, videoDbId, cancellationToken);
+                        continue;
                     }
-                    trackedPaths.Add(filePath);
+
+                    if (await additionalContentService.ImportFileAsync(normalizedExtraPath, channel.Id, playlistDbId, videoDbId, cancellationToken))
+                    {
+                        result.AddedAdditionalContentPaths.Add(normalizedExtraPath);
+                    }
+                    // ImportFileAsync calls EnsureAssociationsForPathAsync internally when the item already exists.
+
+                    trackedPaths.Add(normalizedExtraPath);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -1546,6 +1641,8 @@ public class FileSystemScanJob
                 Query = x => x.ChannelId == channel.Id
             },
             x => x.FilePath))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => NormalizeLoggedFilePath(p!))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (string filePath in Directory.EnumerateFiles(channelPath, "*", SearchOption.AllDirectories))
@@ -1555,32 +1652,39 @@ public class FileSystemScanJob
                 break;
             }
 
-            if (trackedPaths.Contains(filePath))
+            string normalizedFilePath = NormalizeLoggedFilePath(filePath);
+
+            if (CustomChannelFolderRules.IsIgnoredAdditionalContentPath(normalizedFilePath))
             {
                 continue;
             }
 
-            if (IsUnderAnyExtrasFolder(channelPath, filePath))
+            if (trackedPaths.Contains(normalizedFilePath))
             {
                 continue;
             }
 
-            if (videoFilePaths.Contains(filePath))
+            if (IsUnderAnyExtrasFolder(channelPath, normalizedFilePath))
             {
                 continue;
             }
 
-            if (sidecarThumbnailPaths.Contains(filePath))
+            if (videoFilePaths.Contains(normalizedFilePath))
             {
                 continue;
             }
 
-            if (IsCustomChannelBrandingOrReservedImageFile(filePath, channelRootFull))
+            if (sidecarThumbnailPaths.Contains(normalizedFilePath))
             {
                 continue;
             }
 
-            string ext = Path.GetExtension(filePath);
+            if (IsCustomChannelBrandingOrReservedImageFile(normalizedFilePath, channelRootFull))
+            {
+                continue;
+            }
+
+            string ext = Path.GetExtension(normalizedFilePath);
 
             if (VideoExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
             {
@@ -1594,73 +1698,18 @@ public class FileSystemScanJob
 
             try
             {
-                int? playlistDbId = ResolvePlaylistForFile(filePath, channelPath, playlistFolderPaths);
-                if (await additionalContentService.ImportFileAsync(filePath, channel.Id, playlistDbId, null, cancellationToken))
+                int? playlistDbId = ResolvePlaylistForFile(normalizedFilePath, channelPath, playlistFolderPaths);
+                if (await additionalContentService.ImportFileAsync(normalizedFilePath, channel.Id, playlistDbId, null, cancellationToken))
                 {
-                    result.AddedAdditionalContentPaths.Add(NormalizeLoggedFilePath(filePath));
-                    logger.LogInformation("Imported additional content file {FilePath}", filePath);
+                    result.AddedAdditionalContentPaths.Add(normalizedFilePath);
+                    logger.LogInformation("Imported additional content file {FilePath}", normalizedFilePath);
                 }
-                trackedPaths.Add(filePath);
+                trackedPaths.Add(normalizedFilePath);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogError(ex, "Error importing additional content file: {FilePath}", filePath);
+                logger.LogError(ex, "Error importing additional content file: {FilePath}", normalizedFilePath);
             }
-        }
-    }
-
-    /// <summary>
-    /// When the path contains a <c>_extras</c> folder (anywhere under the channel), the first segment
-    /// after the <b>last</b> <c>_extras</c> is matched to <c>VideoId</c> (case-insensitive).
-    /// Example: <c>…/PlaylistFolder/_extras/03 - Breakout/readme.pdf</c> → video id <c>03 - Breakout</c>.
-    /// </summary>
-    private static int? TryResolveVideoFromExtrasSubfolder(
-        string channelPath,
-        string filePath,
-        IReadOnlyDictionary<string, int> videoIdToDbId)
-    {
-        if (videoIdToDbId.Count == 0)
-        {
-            return null;
-        }
-
-        try
-        {
-            string channelRoot = Path.GetFullPath(channelPath);
-            string full = Path.GetFullPath(filePath);
-            if (!full.StartsWith(channelRoot, StringComparison.OrdinalIgnoreCase) || full.Length <= channelRoot.Length)
-            {
-                return null;
-            }
-
-            string rel = Path.GetRelativePath(channelRoot, full);
-            if (string.IsNullOrEmpty(rel) || rel == "." || rel.StartsWith("..", StringComparison.Ordinal))
-            {
-                return null;
-            }
-
-            string[] parts = rel.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
-            int extrasIdx = -1;
-            for (int i = 0; i < parts.Length; i++)
-            {
-                if (parts[i].Equals("_extras", StringComparison.OrdinalIgnoreCase))
-                {
-                    extrasIdx = i;
-                }
-            }
-
-            // Need: …/_extras/{videoId}/{fileName} at minimum
-            if (extrasIdx < 0 || extrasIdx + 2 >= parts.Length)
-            {
-                return null;
-            }
-
-            string videoFolder = parts[extrasIdx + 1];
-            return videoIdToDbId.TryGetValue(videoFolder, out int id) ? id : null;
-        }
-        catch
-        {
-            return null;
         }
     }
 
@@ -1714,12 +1763,7 @@ public class FileSystemScanJob
             }
 
             string rel = Path.GetRelativePath(channelRoot, full);
-            if (string.IsNullOrEmpty(rel) || rel == "." || rel.StartsWith("..", StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            return rel.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
+            return !string.IsNullOrEmpty(rel) && rel != "." && !rel.StartsWith("..", StringComparison.Ordinal) && rel.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
                 .Any(s => s.Equals("_extras", StringComparison.OrdinalIgnoreCase));
         }
         catch

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using MyVideoArchive.Models.Requests.AdditionalContent;
 using MyVideoArchive.Models.Responses;
+using MyVideoArchive.Services.Content;
 
 namespace MyVideoArchive.Services;
 
@@ -55,7 +56,10 @@ public class AdditionalContentService : IAdditionalContentService
         });
 
         return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(
-            items.Select(i => ToDto(i, archiveRoot)).ToList());
+            items
+                .Where(i => !CustomChannelFolderRules.IsIgnoredAdditionalContentPath(i.FilePath))
+                .Select(i => ToDto(i, archiveRoot))
+                .ToList());
     }
 
     public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetItemsForVideoAsync(int videoId)
@@ -76,7 +80,11 @@ public class AdditionalContentService : IAdditionalContentService
                 .ThenInclude(l => l.Playlist)
         });
 
-        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(i => ToDto(i, archiveRoot)).ToList());
+        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(
+            items
+                .Where(i => !CustomChannelFolderRules.IsIgnoredAdditionalContentPath(i.FilePath))
+                .Select(i => ToDto(i, archiveRoot))
+                .ToList());
     }
 
     public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetAvailableItemsForVideoOnPlaylistAsync(
@@ -136,7 +144,12 @@ public class AdditionalContentService : IAdditionalContentService
                 .Include(x => x.VideoLinks)
         });
 
-        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(items.Select(i => ToDto(i, archiveRoot)).ToList());
+        var filtered = items
+            .Where(i => !CustomChannelFolderRules.IsIgnoredAdditionalContentPath(i.FilePath))
+            .Select(i => ToDto(i, archiveRoot))
+            .ToList();
+
+        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(filtered);
     }
 
     public async Task<Result<AdditionalContentItemDto>> UploadAsync(int channelId, IFormFile file, IReadOnlyList<int>? playlistIds)
@@ -311,6 +324,27 @@ public class AdditionalContentService : IAdditionalContentService
         }
     }
 
+    public async Task<Result> DeleteRecordOnlyAsync(int id)
+    {
+        try
+        {
+            var item = await repository.FindOneAsync(id);
+            if (item is null)
+            {
+                return Result.NotFound("Item not found");
+            }
+
+            await repository.DeleteAsync(item);
+            logger.LogInformation("Removed additional content database record {Id} (file left on disk)", id);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error removing additional content record {Id}", id);
+            return Result.Error("An error occurred while removing the item record");
+        }
+    }
+
     public async Task<Result<AdditionalContentDownloadInfo>> GetDownloadInfoAsync(int id)
     {
         var item = await repository.FindOneAsync(id);
@@ -463,6 +497,20 @@ public class AdditionalContentService : IAdditionalContentService
 
     public async Task<bool> ImportFileAsync(string filePath, int channelId, int? playlistId, int? videoId = null, CancellationToken cancellationToken = default)
     {
+        try
+        {
+            filePath = Path.GetFullPath(filePath);
+        }
+        catch
+        {
+            // Keep original path when it cannot be normalized (e.g. invalid chars).
+        }
+
+        if (CustomChannelFolderRules.IsIgnoredAdditionalContentPath(filePath))
+        {
+            return false;
+        }
+
         var exists = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
         {
             CancellationToken = cancellationToken,
@@ -471,6 +519,7 @@ public class AdditionalContentService : IAdditionalContentService
 
         if (exists.Count > 0)
         {
+            await EnsureAssociationsForPathAsync(filePath, channelId, playlistId, videoId, cancellationToken);
             return false;
         }
 
@@ -488,7 +537,45 @@ public class AdditionalContentService : IAdditionalContentService
         };
 
         await repository.InsertAsync(item, ContextOptions.ForCancellationToken(cancellationToken));
+        await ApplyPlaylistAndVideoLinksAsync(item.Id, playlistId, videoId, cancellationToken);
 
+        logger.LogInformation("Imported additional content file {FilePath}", filePath);
+        return true;
+    }
+
+    public async Task EnsureAssociationsForPathAsync(
+        string filePath,
+        int channelId,
+        int? playlistId,
+        int? videoId,
+        CancellationToken cancellationToken = default)
+    {
+        if (CustomChannelFolderRules.IsIgnoredAdditionalContentPath(filePath))
+        {
+            return;
+        }
+
+        var items = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.FilePath == filePath && x.ChannelId == channelId
+        });
+
+        var item = items.FirstOrDefault();
+        if (item is null)
+        {
+            return;
+        }
+
+        await ApplyPlaylistAndVideoLinksAsync(item.Id, playlistId, videoId, cancellationToken);
+    }
+
+    private async Task ApplyPlaylistAndVideoLinksAsync(
+        int itemId,
+        int? playlistId,
+        int? videoId,
+        CancellationToken cancellationToken)
+    {
         var playlistIdsToLink = new HashSet<int>();
         if (playlistId.HasValue)
         {
@@ -497,13 +584,22 @@ public class AdditionalContentService : IAdditionalContentService
 
         if (videoId.HasValue)
         {
-            await videoLinkRepository.InsertAsync(
-                new VideoAdditionalContentItem
-                {
-                    VideoId = videoId.Value,
-                    AdditionalContentItemId = item.Id
-                },
-                ContextOptions.ForCancellationToken(cancellationToken));
+            var existingVideoLink = await videoLinkRepository.FindOneAsync(new SearchOptions<VideoAdditionalContentItem>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.VideoId == videoId.Value && x.AdditionalContentItemId == itemId
+            });
+
+            if (existingVideoLink is null)
+            {
+                await videoLinkRepository.InsertAsync(
+                    new VideoAdditionalContentItem
+                    {
+                        VideoId = videoId.Value,
+                        AdditionalContentItemId = itemId
+                    },
+                    ContextOptions.ForCancellationToken(cancellationToken));
+            }
 
             var playlistIdsForVideo = await playlistVideoRepository.FindAsync(
                 new SearchOptions<PlaylistVideo>
@@ -523,7 +619,7 @@ public class AdditionalContentService : IAdditionalContentService
             var duplicate = await playlistLinkRepository.FindOneAsync(new SearchOptions<PlaylistAdditionalContentItem>
             {
                 CancellationToken = cancellationToken,
-                Query = x => x.PlaylistId == pid && x.AdditionalContentItemId == item.Id
+                Query = x => x.PlaylistId == pid && x.AdditionalContentItemId == itemId
             });
             if (duplicate is not null)
             {
@@ -534,13 +630,10 @@ public class AdditionalContentService : IAdditionalContentService
                 new PlaylistAdditionalContentItem
                 {
                     PlaylistId = pid,
-                    AdditionalContentItemId = item.Id
+                    AdditionalContentItemId = itemId
                 },
                 ContextOptions.ForCancellationToken(cancellationToken));
         }
-
-        logger.LogInformation("Imported additional content file {FilePath}", filePath);
-        return true;
     }
 
     private string GetExtrasDirectoryRoot(Channel channel) =>

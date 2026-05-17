@@ -33,4 +33,40 @@ public class CustomChannelFolderRulesTests
     {
         Assert.True(CustomChannelFolderRules.IsIgnoredDirectoryName(name));
     }
+
+    [Fact]
+    public void IsIgnoredAdditionalContentPath_WhenUnderEaDir_ReturnsTrue()
+    {
+        string path = @"D:\Videos\_Custom\ch\Course\@eaDir\01 - Pong.mp4@SynoEAStream";
+        Assert.True(CustomChannelFolderRules.IsIgnoredAdditionalContentPath(path));
+    }
+
+    [Fact]
+    public void IsIgnoredAdditionalContentPath_WhenUnderExtrasFolder_ReturnsFalse()
+    {
+        string path = @"D:\Videos\_Custom\ch\Course\_extras\01 - Pong\notes.pdf";
+        Assert.False(CustomChannelFolderRules.IsIgnoredAdditionalContentPath(path));
+    }
+
+    [Fact]
+    public void IsIgnoredAdditionalContentPath_WhenOnlyExtrasAndVideoFolder_ReturnsFalse()
+    {
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            "_Custom",
+            "edX",
+            "CS50 Introduction to Game Development",
+            "_extras",
+            "01 - Pong",
+            "readme.pdf");
+        Assert.False(CustomChannelFolderRules.IsIgnoredAdditionalContentPath(path));
+    }
+
+    [Theory]
+    [InlineData("01 - Pong.mp4@SynoEAStream")]
+    [InlineData("readme@SynoEAStream")]
+    public void IsSynologyMetadataFileName_StreamSuffix_ReturnsTrue(string name)
+    {
+        Assert.True(CustomChannelFolderRules.IsSynologyMetadataFileName(name));
+    }
 }

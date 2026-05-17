@@ -29,6 +29,11 @@ public interface IAdditionalContentService
 
     Task<Result> DeleteAsync(int id);
 
+    /// <summary>
+    /// Removes the database row and links only; does not delete the file on disk.
+    /// </summary>
+    Task<Result> DeleteRecordOnlyAsync(int id);
+
     Task<Result<AdditionalContentDownloadInfo>> GetDownloadInfoAsync(int id);
 
     Task<Result> LinkItemsToVideoAsync(int videoId, int playlistId, LinkAdditionalContentToVideoRequest request);
@@ -38,4 +43,14 @@ public interface IAdditionalContentService
     /// <param name="videoId">When set, links the item to this channel video (and to every playlist that contains the video).</param>
     /// <returns><see langword="true"/> when a new <see cref="AdditionalContentItem"/> was created; <see langword="false"/> when the path was already registered.</returns>
     Task<bool> ImportFileAsync(string filePath, int channelId, int? playlistId, int? videoId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// For an already-imported file, ensures playlist/video links exist (e.g. after scan resolves video id from <c>_extras</c> folder name).
+    /// </summary>
+    Task EnsureAssociationsForPathAsync(
+        string filePath,
+        int channelId,
+        int? playlistId,
+        int? videoId,
+        CancellationToken cancellationToken = default);
 }
