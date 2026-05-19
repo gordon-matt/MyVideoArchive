@@ -115,7 +115,7 @@
 
                 @await Html.PartialAsync("_VideoTagsCard")
 
-                @await Html.PartialAsync("_VideoExtrasCard", isAdminUser)
+                @await Html.PartialAsync("_VideoPageExtrasCard", isAdminUser)
 
             </div>
 
@@ -232,6 +232,10 @@
     </div>
 </div>
 
+@{
+    ViewData["ExtrasPickerIntro"] = "Select files from this video's channel to link to this video.";
+}
+@await Html.PartialAsync("_VideoExtrasPickerModal")
 @await Html.PartialAsync("_ExtraViewerModal")
 
 @section Scripts {

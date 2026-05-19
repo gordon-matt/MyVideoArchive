@@ -48,6 +48,15 @@ public class AdditionalContentApiController : ControllerBase
         return result.ToActionResult(this, items => Ok(new { items }));
     }
 
+    [HttpGet("videos/{videoId:int}/additional-content/available")]
+    public async Task<IActionResult> GetAvailableForVideo(
+        int videoId,
+        [FromQuery] bool onlyUnassignedOnChannel = false)
+    {
+        var result = await service.GetAvailableItemsForVideoAsync(videoId, onlyUnassignedOnChannel);
+        return result.ToActionResult(this, items => Ok(new { items }));
+    }
+
     /// <summary>
     /// Serves the raw file. Use <paramref name="isForDownload"/> = true to suggest a filename (attachment);
     /// omit or false to open inline in the browser (e.g. images, PDFs) when possible.
@@ -108,9 +117,17 @@ public class AdditionalContentApiController : ControllerBase
 
     [HttpPost("playlists/{playlistId:int}/videos/{videoId:int}/additional-content")]
     [Authorize(Roles = Constants.Roles.Administrator)]
-    public async Task<IActionResult> LinkToVideo(int playlistId, int videoId, [FromBody] LinkAdditionalContentToVideoRequest request)
+    public async Task<IActionResult> LinkToVideoOnPlaylist(int playlistId, int videoId, [FromBody] LinkAdditionalContentToVideoRequest request)
     {
         var result = await service.LinkItemsToVideoAsync(videoId, playlistId, request);
+        return result.ToActionResult(this, NoContent);
+    }
+
+    [HttpPost("videos/{videoId:int}/additional-content")]
+    [Authorize(Roles = Constants.Roles.Administrator)]
+    public async Task<IActionResult> LinkToVideo(int videoId, [FromBody] LinkAdditionalContentToVideoRequest request)
+    {
+        var result = await service.LinkItemsToVideoAsync(videoId, request);
         return result.ToActionResult(this, NoContent);
     }
 

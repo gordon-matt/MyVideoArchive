@@ -91,7 +91,7 @@
                     </div>
                 </div>
             </div>
-            @await Html.PartialAsync("_VideoExtrasCard", isAdminUser)
+            @await Html.PartialAsync("_CustomPlaylistVideoExtrasCard", isAdminUser)
 
         </div>
 
@@ -196,6 +196,7 @@
     </div>
 </div>
 
+@await Html.PartialAsync("_VideoExtrasPickerModal")
 @await Html.PartialAsync("_ExtraViewerModal")
 
 @section Scripts {

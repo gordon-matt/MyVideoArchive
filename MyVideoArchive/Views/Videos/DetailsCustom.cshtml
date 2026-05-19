@@ -88,7 +88,7 @@
 
                 @await Html.PartialAsync("_VideoTagsCard")
 
-                @await Html.PartialAsync("_VideoExtrasCard", isAdminUser)
+                @await Html.PartialAsync("_VideoPageExtrasCard", isAdminUser)
 
                 <!-- Edit Metadata (collapsible) -->
                 <div class="card" data-bind="visible: showEditForm">
@@ -272,6 +272,7 @@
     </div>
 </div>
 
+@await Html.PartialAsync("_VideoExtrasPickerModal")
 @await Html.PartialAsync("_ExtraViewerModal")
 
 @section Scripts {

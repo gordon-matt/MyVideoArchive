@@ -193,12 +193,148 @@ export function resolveVideoDbId(vm) {
     return video?.Id ?? video?.id ?? null;
 }
 
+export function initVideoExtrasPickerBindings(vm) {
+    if (!vm.extrasPickerItems) {
+        vm.extrasPickerItems = ko.observableArray([]);
+    }
+    if (!vm.extrasPickerLoading) {
+        vm.extrasPickerLoading = ko.observable(false);
+    }
+    if (!vm.extrasPickerSelectedIds) {
+        vm.extrasPickerSelectedIds = ko.observableArray([]);
+    }
+    if (!vm.extrasPickerSaving) {
+        vm.extrasPickerSaving = ko.observable(false);
+    }
+    if (!vm.extrasPickerOnlyUnassigned) {
+        vm.extrasPickerOnlyUnassigned = ko.observable(false);
+    }
+
+    vm.openVideoExtrasPicker = () => openVideoExtrasPicker(vm);
+    vm.reloadExtrasPickerAfterFilterChange = () => reloadVideoExtrasPicker(vm);
+    vm.confirmVideoExtrasPicker = () => confirmVideoExtrasPicker(vm);
+}
+
 export function initVideoExtrasBindings(vm) {
     vm.extrasItems = ko.observableArray([]);
     vm.extrasLoading = ko.observable(false);
     vm.isPreviewableExtraName = name => isPreviewableExtraFileName(name);
     vm.openPreviewExtra = item => openExtraViewerModal(item.id, item.fileName);
     vm.removeVideoExtra = async (item) => removeVideoExtra(vm, item);
+    initVideoExtrasPickerBindings(vm);
+}
+
+function resolvePickerVideoId(vm) {
+    const fromCurrent = typeof vm.currentVideo === 'function' ? vm.currentVideo() : null;
+    if (fromCurrent?.id) {
+        return fromCurrent.id;
+    }
+    return resolveVideoDbId(vm);
+}
+
+/** Channel playlist pages set channelPlaylistId; My Playlists use video-level endpoints only. */
+function usesChannelPlaylistExtrasApi(vm) {
+    return vm.channelPlaylistId != null;
+}
+
+function buildExtrasPickerAvailableUrl(vm, videoId) {
+    const onlyUnassigned =
+        typeof vm.extrasPickerOnlyUnassigned === 'function' && vm.extrasPickerOnlyUnassigned();
+    if (usesChannelPlaylistExtrasApi(vm)) {
+        const query = onlyUnassigned ? '?onlyUnassignedInPlaylist=true' : '';
+        return `/api/playlists/${vm.channelPlaylistId}/videos/${videoId}/additional-content/available${query}`;
+    }
+    const query = onlyUnassigned ? '?onlyUnassignedOnChannel=true' : '';
+    return `/api/videos/${videoId}/additional-content/available${query}`;
+}
+
+function buildExtrasPickerLinkUrl(vm, videoId) {
+    if (usesChannelPlaylistExtrasApi(vm)) {
+        return `/api/playlists/${vm.channelPlaylistId}/videos/${videoId}/additional-content`;
+    }
+    return `/api/videos/${videoId}/additional-content`;
+}
+
+async function loadExtrasPickerItems(vm) {
+    const videoId = resolvePickerVideoId(vm);
+    if (!videoId || globalThis.isAdmin !== true) {
+        return;
+    }
+
+    vm.extrasPickerLoading(true);
+    try {
+        const response = await fetch(buildExtrasPickerAvailableUrl(vm, videoId), { credentials: 'same-origin' });
+        if (response.ok) {
+            const data = await response.json();
+            vm.extrasPickerItems(data.items || []);
+        } else {
+            toast.error('Could not load available files.');
+        }
+    } catch (error) {
+        console.error('Error loading extras picker:', error);
+        toast.error('Could not load available files.');
+    } finally {
+        vm.extrasPickerLoading(false);
+    }
+}
+
+export async function openVideoExtrasPicker(vm) {
+    const videoId = resolvePickerVideoId(vm);
+    if (!videoId || globalThis.isAdmin !== true) {
+        return;
+    }
+
+    if (typeof vm.extrasPickerOnlyUnassigned === 'function') {
+        vm.extrasPickerOnlyUnassigned(false);
+    }
+
+    vm.extrasPickerSelectedIds([]);
+    vm.extrasPickerItems([]);
+    const modal = new bootstrap.Modal(document.getElementById('videoExtrasPickerModal'));
+    modal.show();
+
+    await loadExtrasPickerItems(vm);
+}
+
+export async function reloadVideoExtrasPicker(vm) {
+    const videoId = resolvePickerVideoId(vm);
+    if (!videoId || globalThis.isAdmin !== true) {
+        return;
+    }
+
+    vm.extrasPickerSelectedIds([]);
+    await loadExtrasPickerItems(vm);
+}
+
+export async function confirmVideoExtrasPicker(vm) {
+    const videoId = resolvePickerVideoId(vm);
+    const ids = vm.extrasPickerSelectedIds().slice();
+    if (!videoId || ids.length === 0) {
+        return;
+    }
+
+    vm.extrasPickerSaving(true);
+    try {
+        const response = await fetch(buildExtrasPickerLinkUrl(vm, videoId), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: ids })
+        });
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('videoExtrasPickerModal'))?.hide();
+            vm.extrasPickerSelectedIds([]);
+            await loadVideoExtras(vm, videoId);
+            toast.success('Files associated with this video.');
+        } else {
+            const data = await response.json().catch(() => ({}));
+            toast.error(data.message || 'Failed to associate files.');
+        }
+    } catch (error) {
+        console.error('Error associating extras:', error);
+        toast.error('Failed to associate files.');
+    } finally {
+        vm.extrasPickerSaving(false);
+    }
 }
 
 export async function loadVideoExtras(vm, videoId) {

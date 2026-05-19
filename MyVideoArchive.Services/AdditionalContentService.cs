@@ -153,6 +153,39 @@ public class AdditionalContentService : IAdditionalContentService
         return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(filtered);
     }
 
+    public async Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetAvailableItemsForVideoAsync(
+        int videoId,
+        bool onlyUnassignedOnChannel = false)
+    {
+        var video = await videoRepository.FindOneAsync(videoId);
+        if (video is null)
+        {
+            return Result.NotFound("Video not found");
+        }
+
+        int channelId = video.ChannelId;
+        var channel = await channelRepository.FindOneAsync(channelId);
+        string? archiveRoot = channel is null ? null : GetChannelArchiveRoot(channel);
+
+        var items = await repository.FindAsync(new SearchOptions<AdditionalContentItem>
+        {
+            Query = x => x.ChannelId == channelId &&
+                !x.VideoLinks.Any(v => v.VideoId == videoId) &&
+                (!onlyUnassignedOnChannel || !x.VideoLinks.Any()),
+            Include = query => query
+                .Include(x => x.PlaylistLinks)
+                    .ThenInclude(l => l.Playlist)
+                .Include(x => x.VideoLinks)
+        });
+
+        var filtered = items
+            .Where(i => !CustomChannelFolderRules.IsIgnoredAdditionalContentPath(i.FilePath))
+            .Select(i => ToDto(i, archiveRoot))
+            .ToList();
+
+        return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(filtered);
+    }
+
     public async Task<Result<AdditionalContentItemDto>> UploadAsync(int channelId, IFormFile file, IReadOnlyList<int>? playlistIds)
     {
         try
@@ -370,6 +403,20 @@ public class AdditionalContentService : IAdditionalContentService
     public async Task<Result> LinkItemsToVideoAsync(int videoId, int playlistId, LinkAdditionalContentToVideoRequest request)
     {
         var available = await GetAvailableItemsForVideoOnPlaylistAsync(playlistId, videoId);
+        return await LinkItemsToVideoCoreAsync(videoId, available, request);
+    }
+
+    public async Task<Result> LinkItemsToVideoAsync(int videoId, LinkAdditionalContentToVideoRequest request)
+    {
+        var available = await GetAvailableItemsForVideoAsync(videoId);
+        return await LinkItemsToVideoCoreAsync(videoId, available, request);
+    }
+
+    private async Task<Result> LinkItemsToVideoCoreAsync(
+        int videoId,
+        Result<IReadOnlyList<AdditionalContentItemDto>> available,
+        LinkAdditionalContentToVideoRequest request)
+    {
         if (!available.IsSuccess)
         {
             return available.Status switch

@@ -201,56 +201,10 @@
 
 @await Html.PartialAsync("_AddToSeriesModal")
 
-<!-- Associate extras to current video -->
-<div class="modal fade" id="videoExtrasPickerModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable" style="width: 50vw; max-width: 50vw;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-paperclip me-2"></i>Associate additional files</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted small">Select files that are available for this playlist (channel-wide or linked to this playlist). They will be linked to the current video only.</p>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="extrasPickerOnlyUnassigned"
-                           data-bind="checked: extrasPickerOnlyUnassigned, disable: extrasPickerLoading, event: { change: reloadExtrasPickerAfterFilterChange }" />
-                    <label class="form-check-label" for="extrasPickerOnlyUnassigned">Only show unassigned</label>
-                </div>
-                <div data-bind="visible: extrasPickerLoading" class="text-center py-3">
-                    <div class="spinner-border spinner-border-sm" role="status"></div>
-                </div>
-                <div data-bind="visible: !extrasPickerLoading() && extrasPickerItems().length === 0" class="alert alert-info mb-0">
-                    No files available to associate. Add files on the channel&apos;s Additional Content tab first.
-                </div>
-                <div data-bind="visible: !extrasPickerLoading() && extrasPickerItems().length > 0" class="list-group">
-                    <!-- ko foreach: extrasPickerItems -->
-                    <label class="list-group-item d-flex align-items-start gap-2">
-                        <input type="checkbox" class="form-check-input flex-shrink-0 mt-1"
-                               data-bind="checkedValue: id, checked: $parent.extrasPickerSelectedIds" />
-                        <div class="flex-grow-1 min-w-0">
-                            <a class="d-block text-truncate link-body-emphasis"
-                               data-bind="attr: { href: '/api/additional-content/' + id + '/download' }, text: fileName"
-                               target="_blank" rel="noopener noreferrer"></a>
-                            <div class="text-muted small text-break" data-bind="text: relativePath || '—'"></div>
-                        </div>
-                    </label>
-                    <!-- /ko -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary"
-                        data-bind="click: confirmVideoExtrasPicker, enable: extrasPickerSelectedIds().length > 0 && !extrasPickerSaving()">
-                    <span data-bind="visible: !extrasPickerSaving()">Associate selected</span>
-                    <span data-bind="visible: extrasPickerSaving()">
-                        <span class="spinner-border spinner-border-sm" role="status"></span>
-                    </span>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
+@{
+    ViewData["ExtrasPickerIntro"] = "Select files that are available for this playlist (channel-wide or linked to this playlist). They will be linked to the current video only.";
+}
+@await Html.PartialAsync("_VideoExtrasPickerModal")
 @await Html.PartialAsync("_ExtraViewerModal")
 
 <!-- Edit Playlist Modal -->

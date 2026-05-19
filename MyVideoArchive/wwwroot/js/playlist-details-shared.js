@@ -10,7 +10,10 @@ import {
     clearRemoteTextTracks,
     bindSubtitlePreferenceStorage,
     loadVideoExtras,
-    removeVideoExtra
+    removeVideoExtra,
+    openVideoExtrasPicker,
+    reloadVideoExtrasPicker,
+    confirmVideoExtrasPicker
 } from './video-details-shared.js';
 
 export {
@@ -108,89 +111,16 @@ export async function loadVideoExtrasForPlaylist(vm, videoId) {
     return loadVideoExtras(vm, videoId);
 }
 
-async function loadExtrasPickerItemsForCurrentVideo(vm) {
-    const video = vm.currentVideo();
-    if (!video?.id || globalThis.isAdmin !== true) {
-        return;
-    }
-
-    vm.extrasPickerLoading(true);
-    try {
-        const onlyUnassigned =
-            typeof vm.extrasPickerOnlyUnassigned === 'function' && vm.extrasPickerOnlyUnassigned();
-        const query = onlyUnassigned ? '?onlyUnassignedInPlaylist=true' : '';
-        const response = await fetch(
-            `/api/playlists/${vm.playlistId}/videos/${video.id}/additional-content/available${query}`
-        );
-        if (response.ok) {
-            const data = await response.json();
-            vm.extrasPickerItems(data.items || []);
-        } else {
-            toast.error('Could not load available files.');
-        }
-    } catch (error) {
-        console.error('Error loading extras picker:', error);
-        toast.error('Could not load available files.');
-    } finally {
-        vm.extrasPickerLoading(false);
-    }
-}
-
 export async function openVideoExtrasPickerForPlaylist(vm) {
-    const video = vm.currentVideo();
-    if (!video?.id || globalThis.isAdmin !== true) return;
-
-    if (typeof vm.extrasPickerOnlyUnassigned === 'function') {
-        vm.extrasPickerOnlyUnassigned(false);
-    }
-
-    vm.extrasPickerSelectedIds([]);
-    vm.extrasPickerItems([]);
-    const modal = new bootstrap.Modal(document.getElementById('videoExtrasPickerModal'));
-    modal.show();
-
-    await loadExtrasPickerItemsForCurrentVideo(vm);
+    return openVideoExtrasPicker(vm);
 }
 
-/** Refetch picker list (e.g. after toggling "Only show unassigned"). Clears checkbox selections. */
 export async function reloadVideoExtrasPickerForPlaylist(vm) {
-    const video = vm.currentVideo();
-    if (!video?.id || globalThis.isAdmin !== true) return;
-
-    vm.extrasPickerSelectedIds([]);
-    await loadExtrasPickerItemsForCurrentVideo(vm);
+    return reloadVideoExtrasPicker(vm);
 }
 
 export async function confirmVideoExtrasPickerForPlaylist(vm) {
-    const video = vm.currentVideo();
-    const ids = vm.extrasPickerSelectedIds().slice();
-    if (!video?.id || ids.length === 0) return;
-
-    vm.extrasPickerSaving(true);
-    try {
-        const response = await fetch(
-            `/api/playlists/${vm.playlistId}/videos/${video.id}/additional-content`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ itemIds: ids })
-            }
-        );
-        if (response.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('videoExtrasPickerModal'))?.hide();
-            vm.extrasPickerSelectedIds([]);
-            await loadVideoExtrasForPlaylist(vm, video.id);
-            toast.success('Files associated with this video.');
-        } else {
-            const data = await response.json().catch(() => ({}));
-            toast.error(data.message || 'Failed to associate files.');
-        }
-    } catch (error) {
-        console.error('Error associating extras:', error);
-        toast.error('Failed to associate files.');
-    } finally {
-        vm.extrasPickerSaving(false);
-    }
+    return confirmVideoExtrasPicker(vm);
 }
 
 export async function removeVideoExtraForPlaylist(vm, item) {

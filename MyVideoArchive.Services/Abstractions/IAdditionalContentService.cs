@@ -23,6 +23,13 @@ public interface IAdditionalContentService
         int videoId,
         bool onlyUnassignedInPlaylist = false);
 
+    /// <summary>
+    /// Channel-wide items that can be linked to a video (e.g. video details or custom playlist pages).
+    /// </summary>
+    Task<Result<IReadOnlyList<AdditionalContentItemDto>>> GetAvailableItemsForVideoAsync(
+        int videoId,
+        bool onlyUnassignedOnChannel = false);
+
     Task<Result<AdditionalContentItemDto>> UploadAsync(int channelId, IFormFile file, IReadOnlyList<int>? playlistIds);
 
     Task<Result> UpdateAsync(int id, UpdateAdditionalContentRequest request);
@@ -37,6 +44,9 @@ public interface IAdditionalContentService
     Task<Result<AdditionalContentDownloadInfo>> GetDownloadInfoAsync(int id);
 
     Task<Result> LinkItemsToVideoAsync(int videoId, int playlistId, LinkAdditionalContentToVideoRequest request);
+
+    /// <summary>Links channel additional-content files to a video without a channel-playlist context.</summary>
+    Task<Result> LinkItemsToVideoAsync(int videoId, LinkAdditionalContentToVideoRequest request);
 
     Task<Result> UnlinkItemFromVideoAsync(int videoId, int itemId);
 

@@ -28,6 +28,7 @@ let _availableVideos = [];
 class CustomPlaylistDetailsViewModel {
     constructor(playlistId) {
         this.playlistId = playlistId;
+        this.channelPlaylistId = playlistId;
         this.playlist = ko.observable(null);
         this.playlistVideos = ko.observableArray([]);
         this.currentVideo = ko.observable(null);

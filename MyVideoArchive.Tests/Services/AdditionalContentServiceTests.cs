@@ -346,6 +346,115 @@ public class AdditionalContentServiceTests
     }
 
     [Fact]
+    public async Task GetAvailableItemsForVideoAsync_ReturnsChannelItemsNotLinkedToVideo()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        var channel = await db.ChannelRepository.InsertAsync(new Channel
+        {
+            ChannelId = "ch1",
+            Name = "C",
+            Url = "https://c",
+            Platform = "YT",
+            SubscribedAt = DateTime.UtcNow
+        });
+        var video = await db.VideoRepository.InsertAsync(new Video
+        {
+            VideoId = "v1",
+            Title = "V1",
+            Url = "https://v1",
+            Platform = "YT",
+            ChannelId = channel.Id
+        });
+        var available = await db.AdditionalContentRepository.InsertAsync(new AdditionalContentItem
+        {
+            FileName = "readme.txt",
+            FilePath = @"C:\fake\readme.txt",
+            ChannelId = channel.Id,
+            FileSize = 1,
+            UploadedAt = DateTime.UtcNow
+        });
+        var linked = await db.AdditionalContentRepository.InsertAsync(new AdditionalContentItem
+        {
+            FileName = "linked.pdf",
+            FilePath = @"C:\fake\linked.pdf",
+            ChannelId = channel.Id,
+            FileSize = 2,
+            UploadedAt = DateTime.UtcNow
+        });
+        await db.VideoAdditionalContentRepository.InsertAsync(new VideoAdditionalContentItem
+        {
+            VideoId = video.Id,
+            AdditionalContentItemId = linked.Id
+        });
+
+        var result = await CreateService(db).GetAvailableItemsForVideoAsync(video.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value);
+        Assert.Equal(available.Id, result.Value[0].Id);
+    }
+
+    [Fact]
+    public async Task LinkItemsToVideoAsync_WithoutPlaylist_LinksVideoAndChannelPlaylistsContainingVideo()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        var channel = await db.ChannelRepository.InsertAsync(new Channel
+        {
+            ChannelId = "ch1",
+            Name = "C",
+            Url = "https://c",
+            Platform = "YT",
+            SubscribedAt = DateTime.UtcNow
+        });
+        var playlist = await db.PlaylistRepository.InsertAsync(new Playlist
+        {
+            PlaylistId = "pl",
+            Name = "Pl",
+            Url = "https://pl",
+            Platform = "YT",
+            ChannelId = channel.Id,
+            SubscribedAt = DateTime.UtcNow
+        });
+        var video = await db.VideoRepository.InsertAsync(new Video
+        {
+            VideoId = "v1",
+            Title = "V1",
+            Url = "https://v1",
+            Platform = "YT",
+            ChannelId = channel.Id
+        });
+        await db.PlaylistVideoRepository.InsertAsync(new PlaylistVideo
+        {
+            PlaylistId = playlist.Id,
+            VideoId = video.Id,
+            Order = 0
+        });
+        var item = await db.AdditionalContentRepository.InsertAsync(new AdditionalContentItem
+        {
+            FileName = "extra.zip",
+            FilePath = @"C:\fake\extra.zip",
+            ChannelId = channel.Id,
+            FileSize = 1,
+            UploadedAt = DateTime.UtcNow
+        });
+
+        var svc = CreateService(db);
+        var linkResult = await svc.LinkItemsToVideoAsync(video.Id, new LinkAdditionalContentToVideoRequest([item.Id]));
+
+        Assert.True(linkResult.IsSuccess);
+        var videoLinks = await db.VideoAdditionalContentRepository.FindAsync(new SearchOptions<VideoAdditionalContentItem>
+        {
+            Query = x => x.VideoId == video.Id
+        });
+        Assert.Single(videoLinks);
+        var playlistLinks = await db.PlaylistAdditionalContentRepository.FindAsync(new SearchOptions<PlaylistAdditionalContentItem>
+        {
+            Query = x => x.PlaylistId == playlist.Id && x.AdditionalContentItemId == item.Id
+        });
+        Assert.Single(playlistLinks);
+    }
+
+    [Fact]
     public async Task UploadAsync_WhenChannelMissing_ReturnsNotFound()
     {
         using var db = new InMemoryDatabaseFixture();
