@@ -33,6 +33,12 @@ public interface IPlaylistService
 
     Task<Result> SaveCustomOrderAsync(int playlistId, ReorderVideosRequest request);
 
+    /// <summary>
+    /// Sets the playlist default order (<see cref="Data.Entities.PlaylistVideo.Order"/>) from the given sequence.
+    /// Administrator only.
+    /// </summary>
+    Task<Result> ApplyDefaultOrderAsync(int playlistId, ApplyDefaultOrderRequest request);
+
     Task<Result> SetVideoHiddenAsync(int playlistId, int videoId, SetVideoHiddenRequest request);
 
     /// <summary>

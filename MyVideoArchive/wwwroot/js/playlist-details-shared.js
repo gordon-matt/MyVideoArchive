@@ -71,6 +71,38 @@ export function bindPlaylistSubtitlePreferenceStorage(player) {
     bindSubtitlePreferenceStorage(player);
 }
 
+/**
+ * POST current list order as the playlist default (PlaylistVideo.Order). Admin only.
+ * @param {number} playlistId
+ * @param {Array<{ id: number }>} playlistVideos
+ * @returns {Promise<boolean>}
+ */
+export async function applyPlaylistDefaultOrder(playlistId, playlistVideos) {
+    const videoOrders = playlistVideos.map((v, i) => ({
+        videoId: v.id ?? v.Id,
+        order: i + 1
+    }));
+
+    const response = await fetch(`/api/playlists/${playlistId}/apply-default-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoOrders })
+    });
+
+    if (!response.ok) {
+        let message = 'Failed to apply default order.';
+        try {
+            const data = await response.json();
+            message = data.message || data.title || message;
+        } catch {
+            /* ignore */
+        }
+        throw new Error(message);
+    }
+
+    return true;
+}
+
 export function registerPlaylistButtons() {
     if (videojs.getComponent('PlaylistPrevButton')) return;
 

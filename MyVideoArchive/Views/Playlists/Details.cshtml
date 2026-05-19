@@ -128,6 +128,21 @@
 
                         <div data-bind="visible: useCustomOrder" class="mb-2">
                             <small class="text-muted"><i class="bi bi-info-circle"></i> Drag videos to reorder, or use <i class="bi bi-chevron-double-up"></i> to move to top.</small>
+                            @if (isAdminUser)
+                            {
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-warning"
+                                            data-bind="click: applyAsDefault, enable: !applyingDefaultOrder()">
+                                        <span data-bind="visible: !applyingDefaultOrder()">
+                                            <i class="bi bi-pin-angle"></i> Apply as Default
+                                        </span>
+                                        <span data-bind="visible: applyingDefaultOrder()">
+                                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                            Applying...
+                                        </span>
+                                    </button>
+                                </div>
+                            }
                         </div>
 
                         <!-- Show Hidden Toggle -->

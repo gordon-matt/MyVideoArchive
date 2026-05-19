@@ -29,6 +29,18 @@ public class PlaylistApiController : ControllerBase
     }
 
     /// <summary>
+    /// Permanently set the playlist default order for all users (PlaylistVideo.Order).
+    /// </summary>
+    [Authorize(Roles = Constants.Roles.Administrator)]
+    [HttpPost("{playlistId}/apply-default-order")]
+    public async Task<IActionResult> ApplyDefaultOrder(int playlistId, [FromBody] ApplyDefaultOrderRequest request)
+    {
+        var result = await playlistService.ApplyDefaultOrderAsync(playlistId, request);
+
+        return result.ToActionResult(this, () => Ok(new { message = "Default order updated for all users" }));
+    }
+
+    /// <summary>
     /// Get the current order setting and preference for a playlist
     /// </summary>
     [HttpGet("{playlistId}/order-setting")]

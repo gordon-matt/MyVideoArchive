@@ -8,6 +8,7 @@ import {
     loadSavedPosition,
     clearPosition,
     registerPlaylistButtons,
+    applyPlaylistDefaultOrder,
     loadAndAttachSubtitleTracksForPlaylist,
     bindPlaylistSubtitlePreferenceStorage
 } from './playlist-details-shared.js';
@@ -37,6 +38,8 @@ class PlaylistDetailsViewModel {
         this.loadingVideos = ko.observable(false);
         this.refreshing = ko.observable(false);
         this.useCustomOrder = ko.observable(false);
+        this.isAdmin = window.isAdmin === true;
+        this.applyingDefaultOrder = ko.observable(false);
         this.showHidden = ko.observable(false);
         this.autoAdvance = ko.observable(
             localStorage.getItem(STORAGE_KEY_AUTO_ADVANCE) !== 'false'
@@ -506,6 +509,30 @@ class PlaylistDetailsViewModel {
         } catch (error) {
             console.error('Error saving order:', error);
             toast.error('Error saving custom order: ' + error.message);
+        }
+    };
+
+    applyAsDefault = async () => {
+        if (!this.isAdmin || !this.useCustomOrder() || this.applyingDefaultOrder()) {
+            return;
+        }
+
+        const message =
+            'Set the current order as the default "Original Order" for all users? ' +
+            'Users can still use their own custom order.';
+        if (!confirm(message)) {
+            return;
+        }
+
+        this.applyingDefaultOrder(true);
+        try {
+            await applyPlaylistDefaultOrder(this.playlistId, this.playlistVideos());
+            toast.success('Default order updated for all users.');
+        } catch (error) {
+            console.error('Error applying default order:', error);
+            toast.error(error.message || 'Error applying default order.');
+        } finally {
+            this.applyingDefaultOrder(false);
         }
     };
 

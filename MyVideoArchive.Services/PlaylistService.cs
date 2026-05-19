@@ -512,6 +512,79 @@ public class PlaylistService : IPlaylistService
         }
     }
 
+    public async Task<Result> ApplyDefaultOrderAsync(int playlistId, ApplyDefaultOrderRequest request)
+    {
+        try
+        {
+            if (!userContextService.IsAdministrator())
+            {
+                return Result.Forbidden();
+            }
+
+            if (request.VideoOrders is null || request.VideoOrders.Count == 0)
+            {
+                return Result.Invalid(new ValidationError(nameof(request.VideoOrders), "At least one video is required."));
+            }
+
+            var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+            {
+                Query = x => x.Id == playlistId
+            });
+
+            if (playlist is null)
+            {
+                return Result.NotFound();
+            }
+
+            var playlistVideos = (await playlistVideoRepository.FindAsync(new SearchOptions<PlaylistVideo>
+            {
+                Query = x => x.PlaylistId == playlistId
+            })).ToList();
+
+            if (playlistVideos.Count == 0)
+            {
+                return Result.NotFound();
+            }
+
+            var playlistVideoIds = playlistVideos.Select(x => x.VideoId).ToHashSet();
+            var orderMap = new Dictionary<int, int>();
+
+            foreach (var item in request.VideoOrders)
+            {
+                if (!playlistVideoIds.Contains(item.VideoId))
+                {
+                    return Result.Invalid(new ValidationError(
+                        nameof(request.VideoOrders),
+                        $"Video {item.VideoId} is not in this playlist."));
+                }
+
+                orderMap[item.VideoId] = item.Order;
+            }
+
+            int nextOrder = request.VideoOrders.Max(x => x.Order);
+
+            foreach (var playlistVideo in playlistVideos)
+            {
+                playlistVideo.Order = orderMap.TryGetValue(playlistVideo.VideoId, out int order)
+                    ? order
+                    : ++nextOrder;
+            }
+
+            await playlistVideoRepository.UpdateAsync(playlistVideos);
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error applying default order for playlist {PlaylistId}", playlistId);
+            }
+
+            return Result.Error("An error occurred while applying default order");
+        }
+    }
+
     public async Task<Result> SetVideoHiddenAsync(int playlistId, int videoId, SetVideoHiddenRequest request)
     {
         try
