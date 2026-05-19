@@ -70,6 +70,32 @@ export function formatExtrasPlaylistNames(item) {
     return '—';
 }
 
+export function isExtraUnassigned(item) {
+    const playlistIds = item?.playlistIds;
+    const videoIds = item?.videoIds;
+    return (!playlistIds || playlistIds.length === 0) && (!videoIds || videoIds.length === 0);
+}
+
+/** Search + unassigned filters for the channel Additional Content tab. */
+export function initExtrasFilters(vm) {
+    vm.extrasSearchInput = ko.observable('');
+    vm.extrasOnlyUnassigned = ko.observable(true);
+    vm.filteredExtrasItems = ko.computed(() => {
+        let items = vm.extrasItems();
+        if (vm.extrasOnlyUnassigned()) {
+            items = items.filter(isExtraUnassigned);
+        }
+        const q = vm.extrasSearchInput().trim().toLowerCase();
+        if (q) {
+            items = items.filter(i => (i.fileName || '').toLowerCase().includes(q));
+        }
+        return items;
+    });
+    vm.clearExtrasSearch = () => {
+        vm.extrasSearchInput('');
+    };
+}
+
 export async function loadAdditionalContentForChannel(vm) {
     if (vm.extrasLoaded) return;
     vm.extrasLoading(true);

@@ -93,8 +93,8 @@ export function getVideoDetailsPlayerOptions() {
 }
 
 /** @returns {import('video.js').VideoJsPlayer} */
-export function createVideoDetailsPlayer(elementId = 'videoPlayer') {
-    const player = videojs(elementId, mergeVideoJsPlayerOptions(getVideoDetailsPlayerOptions()));
+export function createVideoDetailsPlayer(elementId = 'videoPlayer', mimeHint) {
+    const player = videojs(elementId, mergeVideoJsPlayerOptions(getVideoDetailsPlayerOptions(), mimeHint));
 
     player.ready(() => {
         const savedRate = parseFloat(localStorage.getItem(STORAGE_KEY_RATE) || '1');
@@ -138,20 +138,31 @@ export function disposeVideoJsPlayer(player) {
  * @param {import('video.js').VideoJsPlayer | null} currentPlayer
  * @returns {import('video.js').VideoJsPlayer | null}
  */
-export function syncVideoDetailsPlayer(currentPlayer, videoDbId, filePath, subtitles) {
+export function syncVideoDetailsPlayer(currentPlayer, videoDbId, filePath, subtitles, streamContentType) {
     if (!filePath) {
         disposeVideoJsPlayer(currentPlayer);
         return null;
     }
 
+    const mimeHint = streamContentType ?? filePath;
+
     let player = currentPlayer;
     if (!player) {
-        player = createVideoDetailsPlayer();
+        player = createVideoDetailsPlayer('videoPlayer', mimeHint);
         bindPlaybackPositionPersistence(player, videoDbId);
     }
 
-    player.src(buildVideoStreamSource(videoDbId, filePath));
-    attachSubtitleTracks(player, subtitles);
+    const setSource = () => {
+        player.src(buildVideoStreamSource(videoDbId, mimeHint));
+        attachSubtitleTracks(player, subtitles);
+    };
+
+    if (player.isReady_) {
+        setSource();
+    } else {
+        player.ready(setSource);
+    }
+
     return player;
 }
 

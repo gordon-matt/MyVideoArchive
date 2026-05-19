@@ -1,3 +1,4 @@
+using MyVideoArchive.Models.Responses;
 using MyVideoArchive.Models.Video;
 
 namespace MyVideoArchive.Controllers.Api;
@@ -109,6 +110,17 @@ public class VideosApiController : ControllerBase
                 totalPages = value.TotalPages
             }
         }));
+    }
+
+    /// <summary>
+    /// Content type for the video stream (for Video.js source selection).
+    /// </summary>
+    [HttpGet("{videoId}/playback-info")]
+    public async Task<IActionResult> GetPlaybackInfo(int videoId)
+    {
+        var result = await videoService.GetVideoStreamInfoAsync(videoId);
+
+        return result.ToActionResult(this, info => Ok(new VideoPlaybackInfoResponse(info.ContentType)));
     }
 
     /// <summary>

@@ -9,7 +9,7 @@ import {
     initVideoExtrasBindings,
     loadVideoExtras
 } from './video-details-shared.js';
-import { buildVideoStreamSource } from './video-player.js';
+import { buildVideoStreamSource, fetchVideoPlaybackContentType } from './video-player.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
@@ -57,7 +57,8 @@ class VideoPlayerViewModel {
 
                 if (data.Id && data.DownloadedAt) {
                     this._pendingVideoUrl = `/api/videos/${data.Id}/stream`;
-                    this._pendingVideoMimeHint = data.FilePath;
+                    this._pendingVideoMimeHint = data.FilePath ?? data.filePath ?? null;
+                    this._pendingStreamContentType = await fetchVideoPlaybackContentType(data.Id);
                     await this.markWatched();
                 }
 
@@ -306,10 +307,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (viewModel._pendingVideoUrl) {
-        player = createVideoDetailsPlayer();
-        player.src(buildVideoStreamSource(videoId, viewModel._pendingVideoMimeHint));
-        attachSubtitleTracks(player, viewModel.subtitles);
+        const mimeHint = viewModel._pendingStreamContentType ?? viewModel._pendingVideoMimeHint;
+        player = createVideoDetailsPlayer('videoPlayer', mimeHint);
         bindPlaybackPositionPersistence(player, videoId);
+        player.ready(() => {
+            player.src(buildVideoStreamSource(videoId, mimeHint));
+            attachSubtitleTracks(player, viewModel.subtitles);
+        });
     }
 
     await Promise.all([

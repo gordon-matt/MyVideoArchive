@@ -39,6 +39,11 @@ export function getVideoJsMimeType(hint) {
     return EXTENSION_MIME[ext] ?? 'video/mp4';
 }
 
+export function isFlvMimeType(hint) {
+    const mime = getVideoJsMimeType(hint);
+    return mime === 'video/x-flv' || mime === 'video/flv';
+}
+
 /**
  * @param {number} videoId
  * @param {string | null | undefined} mimeHint file path, extension, or content type
@@ -51,9 +56,9 @@ export function buildVideoStreamSource(videoId, mimeHint) {
     };
 }
 
-/** Options required for archived FLV files (not live streams). */
+/** Options for archived FLV files (not live streams). */
 export const VIDEOJS_FLV_PLAYER_OPTIONS = {
-    techOrder: ['Html5', 'Flvjs'],
+    techOrder: ['html5', 'Flvjs'],
     flvjs: {
         mediaDataSource: {
             cors: true,
@@ -64,15 +69,41 @@ export const VIDEOJS_FLV_PLAYER_OPTIONS = {
 
 /**
  * @param {Record<string, unknown>} options
+ * @param {string | null | undefined} [mimeHint] When omitted, FLV tech stays enabled (playlist pages).
  * @returns {Record<string, unknown>}
  */
-export function mergeVideoJsPlayerOptions(options) {
+export function mergeVideoJsPlayerOptions(options, mimeHint) {
+    const includeFlv = mimeHint === undefined || mimeHint === null || isFlvMimeType(mimeHint);
+    const flvOptions = includeFlv ? VIDEOJS_FLV_PLAYER_OPTIONS : {};
+
     return {
-        ...VIDEOJS_FLV_PLAYER_OPTIONS,
+        ...flvOptions,
         ...options,
-        flvjs: {
-            ...VIDEOJS_FLV_PLAYER_OPTIONS.flvjs,
-            ...(options.flvjs ?? {})
-        }
+        flvjs: includeFlv
+            ? {
+                ...VIDEOJS_FLV_PLAYER_OPTIONS.flvjs,
+                ...(options.flvjs ?? {})
+            }
+            : options.flvjs
     };
+}
+
+/**
+ * Server content type for stream URL (same source as playlist API streamContentType).
+ * @param {number} videoId
+ * @returns {Promise<string | null>}
+ */
+export async function fetchVideoPlaybackContentType(videoId) {
+    try {
+        const response = await fetch(`/api/videos/${videoId}/playback-info`);
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json();
+        return data.contentType ?? data.ContentType ?? null;
+    } catch (error) {
+        console.error('Error loading playback info:', error);
+        return null;
+    }
 }

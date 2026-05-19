@@ -3,16 +3,27 @@
     bool isAdmin = Model;
 }
 
-<div class="mb-3 d-flex justify-content-between align-items-center">
+<div class="mb-3 d-flex flex-wrap gap-3 justify-content-between align-items-center">
+    <div class="d-flex flex-wrap gap-3 align-items-center flex-grow-1">
+        <div class="input-group" style="max-width: 340px;">
+            <input type="text" id="extrasSearchInput" class="form-control" placeholder="Search by name…"
+                   data-bind="value: extrasSearchInput, valueUpdate: 'input'" />
+            <button class="btn btn-outline-secondary" data-bind="click: clearExtrasSearch, visible: extrasSearchInput().length > 0"
+                    title="Clear search" type="button">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="extrasOnlyUnassigned"
+                   data-bind="checked: extrasOnlyUnassigned" />
+            <label class="form-check-label" for="extrasOnlyUnassigned">Only Show Unassigned</label>
+        </div>
+    </div>
     @if (isAdmin)
     {
         <button class="btn btn-primary" data-bind="click: openUploadExtras">
             <i class="bi bi-upload"></i> Upload
         </button>
-    }
-    else
-    {
-        <span></span>
     }
 </div>
 
@@ -30,7 +41,11 @@
     }
 </div>
 
-<div data-bind="visible: !extrasLoading() && extrasItems().length > 0">
+<div data-bind="visible: !extrasLoading() && extrasItems().length > 0 && filteredExtrasItems().length === 0" class="alert alert-info">
+    No items match the current filters.
+</div>
+
+<div data-bind="visible: !extrasLoading() && filteredExtrasItems().length > 0">
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead class="table-light">
@@ -42,7 +57,7 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody data-bind="foreach: extrasItems">
+            <tbody data-bind="foreach: filteredExtrasItems">
                 <tr>
                     <td>
                         <i class="bi bi-file-earmark me-1 text-muted"></i>

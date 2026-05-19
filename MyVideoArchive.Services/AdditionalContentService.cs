@@ -52,7 +52,8 @@ public class AdditionalContentService : IAdditionalContentService
             Query = x => x.ChannelId == channelId,
             Include = query => query
                 .Include(x => x.PlaylistLinks)
-                .ThenInclude(l => l.Playlist)
+                    .ThenInclude(l => l.Playlist)
+                .Include(x => x.VideoLinks)
         });
 
         return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(
@@ -77,7 +78,7 @@ public class AdditionalContentService : IAdditionalContentService
             Query = x => x.VideoLinks.Any(v => v.VideoId == videoId),
             Include = query => query
                 .Include(x => x.PlaylistLinks)
-                .ThenInclude(l => l.Playlist)
+                    .ThenInclude(l => l.Playlist)
         });
 
         return Result.Success<IReadOnlyList<AdditionalContentItemDto>>(
@@ -140,7 +141,7 @@ public class AdditionalContentService : IAdditionalContentService
                 (!onlyUnassignedInPlaylist || !x.VideoLinks.Any(v => distinctPlaylistVideoIds.Contains(v.VideoId))),
             Include = query => query
                 .Include(x => x.PlaylistLinks)
-                .ThenInclude(l => l.Playlist)
+                    .ThenInclude(l => l.Playlist)
                 .Include(x => x.VideoLinks)
         });
 
@@ -216,7 +217,7 @@ public class AdditionalContentService : IAdditionalContentService
                 Query = x => x.Id == item.Id,
                 Include = query => query
                     .Include(x => x.PlaylistLinks)
-                    .ThenInclude(l => l.Playlist)
+                        .ThenInclude(l => l.Playlist)
             });
 
             logger.LogInformation("Uploaded additional content {FileName} to channel {ChannelId}", item.FileName, channelId);
@@ -660,6 +661,12 @@ public class AdditionalContentService : IAdditionalContentService
             .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var videoIds = item.VideoLinks
+            .Select(l => l.VideoId)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToList();
+
         return new AdditionalContentItemDto(
             item.Id,
             item.FileName,
@@ -669,6 +676,7 @@ public class AdditionalContentService : IAdditionalContentService
             item.ChannelId,
             ordered.Select(t => t.PlaylistId).ToList(),
             ordered.Select(t => t.Name).ToList(),
+            videoIds,
             TryGetRelativePath(item.FilePath, channelArchiveRoot));
     }
 

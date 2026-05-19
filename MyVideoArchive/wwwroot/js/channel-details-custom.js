@@ -5,6 +5,7 @@ import {
     saveChannelTags,
     loadSubscribersForChannel,
     formatExtrasPlaylistNames as formatExtrasPlaylistNamesFn,
+    initExtrasFilters,
     loadAdditionalContentForChannel,
     openUploadExtrasForChannel,
     onExtrasFileSelectedForChannel,
@@ -92,6 +93,7 @@ class CustomChannelViewModel {
         this.extrasEditId = ko.observable(null);
         this.extrasEditFileName = ko.observable('');
         this.extrasEditPlaylistIds = ko.observableArray([]);
+        initExtrasFilters(this);
 
         // Edit channel form
         this.editName = ko.observable('');

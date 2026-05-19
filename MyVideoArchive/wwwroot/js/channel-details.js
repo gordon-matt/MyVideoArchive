@@ -5,6 +5,7 @@ import {
     saveChannelTags,
     loadSubscribersForChannel,
     formatExtrasPlaylistNames as formatExtrasPlaylistNamesFn,
+    initExtrasFilters,
     loadAdditionalContentForChannel,
     openUploadExtrasForChannel,
     onExtrasFileSelectedForChannel,
@@ -169,6 +170,7 @@ class ChannelDetailsViewModel {
         this.extrasEditId = ko.observable(null);
         this.extrasEditFileName = ko.observable('');
         this.extrasEditPlaylistIds = ko.observableArray([]);
+        initExtrasFilters(this);
 
         // ── Thumbnail picker ──────────────────────────────────────────────────
         this.thumbnailPickerMode = ko.observable('banner'); // 'banner' | 'avatar'

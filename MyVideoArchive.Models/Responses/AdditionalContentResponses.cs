@@ -9,6 +9,7 @@ public record AdditionalContentItemDto(
     int ChannelId,
     IReadOnlyList<int> PlaylistIds,
     IReadOnlyList<string> PlaylistNames,
+    IReadOnlyList<int> VideoIds,
     /// <summary>Path relative to the channel archive folder (e.g. <c>_extras/MyVideo/readme.pdf</c>), when known.</summary>
     string? RelativePath);
 

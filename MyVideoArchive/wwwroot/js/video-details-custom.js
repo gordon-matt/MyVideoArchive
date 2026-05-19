@@ -7,6 +7,7 @@ import {
     initVideoExtrasBindings,
     loadVideoExtras
 } from './video-details-shared.js';
+import { fetchVideoPlaybackContentType } from './video-player.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
 let player = null;
@@ -81,9 +82,12 @@ class CustomVideoViewModel {
             this.loading(false);
         }
 
-        const filePath = this.video()?.FilePath;
+        const filePath = this.video()?.FilePath ?? this.video()?.filePath ?? null;
         this.subtitles = filePath ? await fetchVideoSubtitles(this.videoId) : [];
-        player = syncVideoDetailsPlayer(player, this.videoId, filePath, this.subtitles);
+        const streamContentType = filePath
+            ? await fetchVideoPlaybackContentType(this.videoId)
+            : null;
+        player = syncVideoDetailsPlayer(player, this.videoId, filePath, this.subtitles, streamContentType);
         await loadVideoExtras(this, this.videoId);
     };
 
