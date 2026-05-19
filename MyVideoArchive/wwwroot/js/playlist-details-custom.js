@@ -7,15 +7,10 @@ import {
     loadSavedPosition,
     clearPosition,
     registerPlaylistButtons,
-    loadVideoExtrasForPlaylist,
-    openVideoExtrasPickerForPlaylist,
-    reloadVideoExtrasPickerForPlaylist,
-    confirmVideoExtrasPickerForPlaylist,
-    removeVideoExtraForPlaylist,
     loadAndAttachSubtitleTracksForPlaylist,
     bindPlaylistSubtitlePreferenceStorage
 } from './playlist-details-shared.js';
-import { isPreviewableExtraFileName, openExtraViewerModal } from './extras-viewer.js';
+import { initVideoExtras, loadVideoExtras } from './video-details-shared.js';
 import { buildVideoStreamSource, mergeVideoJsPlayerOptions } from './video-player.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
@@ -58,17 +53,8 @@ class CustomPlaylistDetailsViewModel {
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;
 
-        // ── Extras (per current video) ─────────────────────────────────────
-        this.extrasItems = ko.observableArray([]);
-        this.extrasLoading = ko.observable(false);
-        this.extrasPickerItems = ko.observableArray([]);
-        this.extrasPickerLoading = ko.observable(false);
-        this.extrasPickerSelectedIds = ko.observableArray([]);
-        this.extrasPickerSaving = ko.observable(false);
-        this.extrasPickerOnlyUnassigned = ko.observable(false);
-        this.reloadExtrasPickerAfterFilterChange = async () => reloadVideoExtrasPickerForPlaylist(this);
-        this.isPreviewableExtraName = name => isPreviewableExtraFileName(name);
-        this.openPreviewExtra = item => openExtraViewerModal(item.id, item.fileName);
+        initVideoExtras(this);
+        this.loadVideoExtras = (videoId) => loadVideoExtras(this, videoId);
 
         // ── Add to Series ─────────────────────────────────────────────────
         this.addToSeriesLoading = ko.observable(false);
@@ -326,11 +312,6 @@ class CustomPlaylistDetailsViewModel {
     };
 
     // ── Extras (files linked to the current video) ───────────────────────────
-    loadVideoExtras = async (videoId) => loadVideoExtrasForPlaylist(this, videoId);
-    openVideoExtrasPicker = async () => openVideoExtrasPickerForPlaylist(this);
-    confirmVideoExtrasPicker = async () => confirmVideoExtrasPickerForPlaylist(this);
-    removeVideoExtra = async (item) => removeVideoExtraForPlaylist(this, item);
-
     // ── Inline metadata editing ────────────────────────────────────────────────
 
     openVideoMetadataEdit = () => {

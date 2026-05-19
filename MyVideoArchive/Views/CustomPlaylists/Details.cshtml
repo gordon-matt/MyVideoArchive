@@ -2,7 +2,7 @@
     ViewData["Title"] = "Playlist";
     var playlistId = ViewBag.PlaylistId;
     var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
-    ViewData["VideoVisibleBinding"] = "currentVideo()";
+    ViewData["ExtrasContext"] = "user-playlist";
 }
 
 @section Styles {
@@ -91,7 +91,7 @@
                     </div>
                 </div>
             </div>
-            @await Html.PartialAsync("_CustomPlaylistVideoExtrasCard", isAdminUser)
+            @await Html.PartialAsync("_VideoExtrasCard", isAdminUser)
 
         </div>
 
@@ -196,7 +196,7 @@
     </div>
 </div>
 
-@await Html.PartialAsync("_VideoExtrasPickerModal")
+@await Html.PartialAsync("_ExtrasPickerModal")
 @await Html.PartialAsync("_ExtraViewerModal")
 
 @section Scripts {

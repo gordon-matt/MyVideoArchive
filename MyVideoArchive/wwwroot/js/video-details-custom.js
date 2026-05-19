@@ -4,7 +4,7 @@ import {
     saveVideoPageTags,
     fetchVideoSubtitles,
     syncVideoDetailsPlayer,
-    initVideoExtrasBindings,
+    initVideoExtras,
     loadVideoExtras
 } from './video-details-shared.js';
 import { fetchVideoPlaybackContentType } from './video-player.js';
@@ -49,7 +49,7 @@ class CustomVideoViewModel {
 
         this._tagifyInstance = null;
 
-        initVideoExtrasBindings(this);
+        initVideoExtras(this);
 
         this.formatDate = formatDate;
         this.formatDuration = formatDuration;

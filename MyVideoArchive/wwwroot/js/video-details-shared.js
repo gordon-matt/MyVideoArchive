@@ -193,36 +193,31 @@ export function resolveVideoDbId(vm) {
     return video?.Id ?? video?.id ?? null;
 }
 
-export function initVideoExtrasPickerBindings(vm) {
-    if (!vm.extrasPickerItems) {
-        vm.extrasPickerItems = ko.observableArray([]);
-    }
-    if (!vm.extrasPickerLoading) {
-        vm.extrasPickerLoading = ko.observable(false);
-    }
-    if (!vm.extrasPickerSelectedIds) {
-        vm.extrasPickerSelectedIds = ko.observableArray([]);
-    }
-    if (!vm.extrasPickerSaving) {
-        vm.extrasPickerSaving = ko.observable(false);
-    }
-    if (!vm.extrasPickerOnlyUnassigned) {
-        vm.extrasPickerOnlyUnassigned = ko.observable(false);
-    }
-
-    vm.openVideoExtrasPicker = () => openVideoExtrasPicker(vm);
-    vm.reloadExtrasPickerAfterFilterChange = () => reloadVideoExtrasPicker(vm);
-    vm.confirmVideoExtrasPicker = () => confirmVideoExtrasPicker(vm);
+/** Preview modal bindings only (e.g. channel Additional Content tab). */
+export function initExtraPreviewBindings(vm) {
+    vm.isPreviewableExtra = name => isPreviewableExtraFileName(name);
+    vm.openExtraPreview = item => openExtraViewerModal(item.id, item.fileName);
 }
 
-export function initVideoExtrasBindings(vm) {
+/** Card list, associate picker, and in-app preview for the active video on a page. */
+export function initVideoExtras(vm) {
     vm.extrasItems = ko.observableArray([]);
     vm.extrasLoading = ko.observable(false);
-    vm.isPreviewableExtraName = name => isPreviewableExtraFileName(name);
-    vm.openPreviewExtra = item => openExtraViewerModal(item.id, item.fileName);
-    vm.removeVideoExtra = async (item) => removeVideoExtra(vm, item);
-    initVideoExtrasPickerBindings(vm);
+    initExtraPreviewBindings(vm);
+    vm.removeExtraFromVideo = async (item) => removeExtraFromVideo(vm, item);
+
+    vm.extrasPickerItems = ko.observableArray([]);
+    vm.extrasPickerLoading = ko.observable(false);
+    vm.extrasPickerSelectedIds = ko.observableArray([]);
+    vm.extrasPickerSaving = ko.observable(false);
+    vm.extrasPickerOnlyUnassigned = ko.observable(false);
+    vm.openExtrasPicker = () => openExtrasPicker(vm);
+    vm.reloadExtrasPicker = () => reloadExtrasPicker(vm);
+    vm.confirmExtrasPicker = () => confirmExtrasPicker(vm);
 }
+
+/** @deprecated Use initVideoExtras */
+export const initVideoExtrasBindings = initVideoExtras;
 
 function resolvePickerVideoId(vm) {
     const fromCurrent = typeof vm.currentVideo === 'function' ? vm.currentVideo() : null;
@@ -278,7 +273,7 @@ async function loadExtrasPickerItems(vm) {
     }
 }
 
-export async function openVideoExtrasPicker(vm) {
+export async function openExtrasPicker(vm) {
     const videoId = resolvePickerVideoId(vm);
     if (!videoId || globalThis.isAdmin !== true) {
         return;
@@ -290,13 +285,13 @@ export async function openVideoExtrasPicker(vm) {
 
     vm.extrasPickerSelectedIds([]);
     vm.extrasPickerItems([]);
-    const modal = new bootstrap.Modal(document.getElementById('videoExtrasPickerModal'));
+    const modal = new bootstrap.Modal(document.getElementById('extrasPickerModal'));
     modal.show();
 
     await loadExtrasPickerItems(vm);
 }
 
-export async function reloadVideoExtrasPicker(vm) {
+export async function reloadExtrasPicker(vm) {
     const videoId = resolvePickerVideoId(vm);
     if (!videoId || globalThis.isAdmin !== true) {
         return;
@@ -306,7 +301,7 @@ export async function reloadVideoExtrasPicker(vm) {
     await loadExtrasPickerItems(vm);
 }
 
-export async function confirmVideoExtrasPicker(vm) {
+export async function confirmExtrasPicker(vm) {
     const videoId = resolvePickerVideoId(vm);
     const ids = vm.extrasPickerSelectedIds().slice();
     if (!videoId || ids.length === 0) {
@@ -321,7 +316,7 @@ export async function confirmVideoExtrasPicker(vm) {
             body: JSON.stringify({ itemIds: ids })
         });
         if (response.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('videoExtrasPickerModal'))?.hide();
+            bootstrap.Modal.getInstance(document.getElementById('extrasPickerModal'))?.hide();
             vm.extrasPickerSelectedIds([]);
             await loadVideoExtras(vm, videoId);
             toast.success('Files associated with this video.');
@@ -361,7 +356,7 @@ export async function loadVideoExtras(vm, videoId) {
     }
 }
 
-export async function removeVideoExtra(vm, item) {
+export async function removeExtraFromVideo(vm, item) {
     if (globalThis.isAdmin !== true) {
         return;
     }

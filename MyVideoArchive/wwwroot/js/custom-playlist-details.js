@@ -9,7 +9,7 @@ import {
     clearPosition,
     STORAGE_KEY_RATE
 } from './playlist-details-shared.js';
-import { initVideoExtrasBindings, loadVideoExtras } from './video-details-shared.js';
+import { initVideoExtras, loadVideoExtras } from './video-details-shared.js';
 import { buildVideoStreamSource, mergeVideoJsPlayerOptions } from './video-player.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
@@ -55,7 +55,8 @@ class CustomPlaylistDetailsViewModel {
         this.formatDuration = formatDuration;
         this.formatNumber = formatNumber;
 
-        initVideoExtrasBindings(this);
+        initVideoExtras(this);
+        this.loadVideoExtras = (videoId) => loadVideoExtras(this, videoId);
     }
 
     loadPlaylist = async () => {

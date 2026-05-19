@@ -1,5 +1,5 @@
 import { formatDate, formatDuration, formatFileSize } from './utils.js';
-import { isPreviewableExtraFileName, openExtraViewerModal } from './extras-viewer.js';
+import { initExtraPreviewBindings } from './video-details-shared.js';
 import {
     initChannelTags,
     saveChannelTags,
@@ -158,8 +158,7 @@ class ChannelDetailsViewModel {
         this.extrasItems = ko.observableArray([]);
         this.extrasLoading = ko.observable(false);
         this.extrasLoaded = false;
-        this.isPreviewableExtraName = name => isPreviewableExtraFileName(name);
-        this.openPreviewExtra = item => openExtraViewerModal(item.id, item.fileName);
+        initExtraPreviewBindings(this);
 
         // Upload state
         this.extrasUploadFiles = ko.observableArray([]);

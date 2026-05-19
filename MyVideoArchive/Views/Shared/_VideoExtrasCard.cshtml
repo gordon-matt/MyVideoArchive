@@ -1,8 +1,12 @@
 @model bool
 @{
-    var videoVisible = ViewData["VideoVisibleBinding"] as string ?? "video()";
-    var associateHint = ViewData["AssociateEmptyHint"] as string;
-    var showAssociate = Model && associateHint is not null;
+    // channel-playlist | page-video | user-playlist
+    var context = ViewData["ExtrasContext"] as string ?? "page-video";
+    var videoVisible = context is "channel-playlist" or "user-playlist" ? "currentVideo()" : "video()";
+    var associateHint = context == "channel-playlist"
+        ? "Use \"Associate items…\" to pick from files available for this playlist."
+        : "Use \"Associate items…\" to pick from files on this video's channel.";
+    var showAssociate = Model;
 }
 <div class="card mt-3" data-bind="visible: @videoVisible">
     <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -10,7 +14,7 @@
         @if (showAssociate)
         {
             <button type="button" class="btn btn-sm btn-outline-primary"
-                    data-bind="click: openVideoExtrasPicker, disable: extrasPickerLoading">
+                    data-bind="click: openExtrasPicker, disable: extrasPickerLoading">
                 <i class="bi bi-plus-lg me-1"></i>Associate items&hellip;
             </button>
         }
@@ -39,11 +43,11 @@
                         <tr>
                             <td>
                                 <i class="bi bi-file-earmark me-1 text-muted"></i>
-                                <!-- ko if: $parent.isPreviewableExtraName && $parent.isPreviewableExtraName(fileName) -->
+                                <!-- ko if: $parent.isPreviewableExtra && $parent.isPreviewableExtra(fileName) -->
                                 <a href="#" class="link-body-emphasis"
-                                   data-bind="text: fileName, click: function(row) { $parent.openPreviewExtra(row); return false; }"></a>
+                                   data-bind="text: fileName, click: function(row) { $parent.openExtraPreview(row); return false; }"></a>
                                 <!-- /ko -->
-                                <!-- ko ifnot: $parent.isPreviewableExtraName && $parent.isPreviewableExtraName(fileName) -->
+                                <!-- ko ifnot: $parent.isPreviewableExtra && $parent.isPreviewableExtra(fileName) -->
                                 <a data-bind="attr: { href: '/api/additional-content/' + id + '/download' }, text: fileName"
                                    target="_blank" rel="noopener noreferrer"
                                    class="link-body-emphasis"></a>
@@ -58,7 +62,7 @@
                                 @if (Model)
                                 {
                                     <button class="btn btn-sm btn-outline-warning ms-1"
-                                            data-bind="click: $parent.removeVideoExtra" title="Remove from this video">
+                                            data-bind="click: $parent.removeExtraFromVideo" title="Remove from this video">
                                         <i class="bi bi-link-45deg"></i>
                                     </button>
                                 }

@@ -8,12 +8,7 @@ import {
     loadSavedPosition,
     clearPosition,
     clearRemoteTextTracks,
-    bindSubtitlePreferenceStorage,
-    loadVideoExtras,
-    removeVideoExtra,
-    openVideoExtrasPicker,
-    reloadVideoExtrasPicker,
-    confirmVideoExtrasPicker
+    bindSubtitlePreferenceStorage
 } from './video-details-shared.js';
 
 export {
@@ -107,22 +102,3 @@ export function registerPlaylistButtons() {
     videojs.registerComponent('PlaylistNextButton', PlaylistNextButton);
 }
 
-export async function loadVideoExtrasForPlaylist(vm, videoId) {
-    return loadVideoExtras(vm, videoId);
-}
-
-export async function openVideoExtrasPickerForPlaylist(vm) {
-    return openVideoExtrasPicker(vm);
-}
-
-export async function reloadVideoExtrasPickerForPlaylist(vm) {
-    return reloadVideoExtrasPicker(vm);
-}
-
-export async function confirmVideoExtrasPickerForPlaylist(vm) {
-    return confirmVideoExtrasPicker(vm);
-}
-
-export async function removeVideoExtraForPlaylist(vm, item) {
-    return removeVideoExtra(vm, item);
-}

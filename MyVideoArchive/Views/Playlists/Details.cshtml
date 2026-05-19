@@ -2,6 +2,7 @@
     ViewData["Title"] = "Playlist";
     var playlistId = ViewBag.PlaylistId;
     var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
+    ViewData["ExtrasContext"] = "channel-playlist";
 }
 
 @section Styles {
@@ -80,7 +81,7 @@
                 </div>
             </div>
 
-            @await Html.PartialAsync("_PlaylistVideoExtrasCard", isAdminUser)
+            @await Html.PartialAsync("_VideoExtrasCard", isAdminUser)
 
         </div>
         
@@ -249,10 +250,7 @@
     </div>
 </div>
 
-@{
-    ViewData["ExtrasPickerIntro"] = "Select files that are available for this playlist (channel-wide or linked to this playlist). They will be linked to the current video only.";
-}
-@await Html.PartialAsync("_VideoExtrasPickerModal")
+@await Html.PartialAsync("_ExtrasPickerModal")
 @await Html.PartialAsync("_ExtraViewerModal")
 
 @await Html.PartialAsync("_AddToSeriesModal")

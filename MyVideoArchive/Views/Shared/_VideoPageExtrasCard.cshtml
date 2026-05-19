@@ -1,7 +1,0 @@
-@model bool
-@{
-    ViewData["VideoVisibleBinding"] = ViewData["VideoVisibleBinding"] as string ?? "video()";
-    ViewData["AssociateEmptyHint"] = ViewData["AssociateEmptyHint"] as string
-        ?? "Use \"Associate items…\" to pick from files on this video's channel.";
-}
-@await Html.PartialAsync("_VideoExtrasCard", Model)

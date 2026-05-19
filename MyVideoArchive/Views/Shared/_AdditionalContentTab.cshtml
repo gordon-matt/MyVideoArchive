@@ -61,11 +61,11 @@
                 <tr>
                     <td>
                         <i class="bi bi-file-earmark me-1 text-muted"></i>
-                        <!-- ko if: $parent.isPreviewableExtraName && $parent.isPreviewableExtraName(fileName) -->
+                        <!-- ko if: $parent.isPreviewableExtra && $parent.isPreviewableExtra(fileName) -->
                         <a href="#" class="link-body-emphasis"
-                           data-bind="text: fileName, click: function(row) { $parent.openPreviewExtra(row); return false; }"></a>
+                           data-bind="text: fileName, click: function(row) { $parent.openExtraPreview(row); return false; }"></a>
                         <!-- /ko -->
-                        <!-- ko ifnot: $parent.isPreviewableExtraName && $parent.isPreviewableExtraName(fileName) -->
+                        <!-- ko ifnot: $parent.isPreviewableExtra && $parent.isPreviewableExtra(fileName) -->
                         <a data-bind="attr: { href: '/api/additional-content/' + id + '/download' }, text: fileName"
                            target="_blank" rel="noopener noreferrer"
                            class="link-body-emphasis"></a>

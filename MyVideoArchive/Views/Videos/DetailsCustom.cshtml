@@ -2,6 +2,7 @@
     ViewData["Title"] = "Video";
     var videoId = ViewBag.VideoId;
     var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
+    ViewData["ExtrasContext"] = "page-video";
 }
 
 @section Styles {
@@ -88,7 +89,7 @@
 
                 @await Html.PartialAsync("_VideoTagsCard")
 
-                @await Html.PartialAsync("_VideoPageExtrasCard", isAdminUser)
+                @await Html.PartialAsync("_VideoExtrasCard", isAdminUser)
 
                 <!-- Edit Metadata (collapsible) -->
                 <div class="card" data-bind="visible: showEditForm">
@@ -272,7 +273,7 @@
     </div>
 </div>
 
-@await Html.PartialAsync("_VideoExtrasPickerModal")
+@await Html.PartialAsync("_ExtrasPickerModal")
 @await Html.PartialAsync("_ExtraViewerModal")
 
 @section Scripts {

@@ -2,6 +2,7 @@
     ViewData["Title"] = "Video Player";
     var videoId = ViewBag.VideoId;
     var isAdminUser = User.IsInRole(Constants.Roles.Administrator);
+    ViewData["ExtrasContext"] = "page-video";
 }
 
 @section Styles {
@@ -115,7 +116,7 @@
 
                 @await Html.PartialAsync("_VideoTagsCard")
 
-                @await Html.PartialAsync("_VideoPageExtrasCard", isAdminUser)
+                @await Html.PartialAsync("_VideoExtrasCard", isAdminUser)
 
             </div>
 
@@ -232,10 +233,7 @@
     </div>
 </div>
 
-@{
-    ViewData["ExtrasPickerIntro"] = "Select files from this video's channel to link to this video.";
-}
-@await Html.PartialAsync("_VideoExtrasPickerModal")
+@await Html.PartialAsync("_ExtrasPickerModal")
 @await Html.PartialAsync("_ExtraViewerModal")
 
 @section Scripts {

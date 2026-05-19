@@ -6,7 +6,7 @@ import {
     createVideoDetailsPlayer,
     attachSubtitleTracks,
     bindPlaybackPositionPersistence,
-    initVideoExtrasBindings,
+    initVideoExtras,
     loadVideoExtras
 } from './video-details-shared.js';
 import { buildVideoStreamSource, fetchVideoPlaybackContentType } from './video-player.js';
@@ -43,7 +43,7 @@ class VideoPlayerViewModel {
 
         this._tagifyInstance = null;
 
-        initVideoExtrasBindings(this);
+        initVideoExtras(this);
     }
 
     loadVideo = async () => {
