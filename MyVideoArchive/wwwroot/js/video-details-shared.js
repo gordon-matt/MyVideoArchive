@@ -3,7 +3,7 @@
  */
 import { getTagifyOptions } from './tagify-options.js';
 import { buildVideoStreamSource, mergeVideoJsPlayerOptions } from './video-player.js';
-import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
+import { isPreviewableExtraFileName, openExtraViewerModal } from './extras-viewer.js';
 
 export const STORAGE_KEY_RATE = 'mva-playback-rate';
 export const STORAGE_KEY_SUBTITLE_LANG = 'mva-subtitle-lang';
@@ -196,8 +196,8 @@ export function resolveVideoDbId(vm) {
 export function initVideoExtrasBindings(vm) {
     vm.extrasItems = ko.observableArray([]);
     vm.extrasLoading = ko.observable(false);
-    vm.isTextualExtraName = name => isTextualExtraFileName(name);
-    vm.openTextExtra = item => openExtraTextViewerModal(item.id, item.fileName);
+    vm.isPreviewableExtraName = name => isPreviewableExtraFileName(name);
+    vm.openPreviewExtra = item => openExtraViewerModal(item.id, item.fileName);
     vm.removeVideoExtra = async (item) => removeVideoExtra(vm, item);
 }
 

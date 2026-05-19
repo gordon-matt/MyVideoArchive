@@ -16,7 +16,7 @@ import {
     loadAndAttachSubtitleTracksForPlaylist,
     bindPlaylistSubtitlePreferenceStorage
 } from './playlist-details-shared.js';
-import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
+import { isPreviewableExtraFileName, openExtraViewerModal } from './extras-viewer.js';
 import { buildVideoStreamSource, mergeVideoJsPlayerOptions } from './video-player.js';
 
 /** @type {import('video.js').VideoJsPlayer | null} */
@@ -93,8 +93,8 @@ class PlaylistDetailsViewModel {
         this.extrasPickerSaving = ko.observable(false);
         this.extrasPickerOnlyUnassigned = ko.observable(false);
         this.reloadExtrasPickerAfterFilterChange = async () => reloadVideoExtrasPickerForPlaylist(this);
-        this.isTextualExtraName = name => isTextualExtraFileName(name);
-        this.openTextExtra = item => openExtraTextViewerModal(item.id, item.fileName);
+        this.isPreviewableExtraName = name => isPreviewableExtraFileName(name);
+        this.openPreviewExtra = item => openExtraViewerModal(item.id, item.fileName);
 
         // ── Add to Series ─────────────────────────────────────────────────
         this.addToSeriesLoading = ko.observable(false);

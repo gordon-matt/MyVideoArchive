@@ -1,5 +1,5 @@
 import { formatDate, formatFileSize, encodeArchiveUrlForHtml } from './utils.js';
-import { isTextualExtraFileName, openExtraTextViewerModal } from './extras-text-viewer.js';
+import { isPreviewableExtraFileName, openExtraViewerModal } from './extras-viewer.js';
 import {
     initChannelTags,
     saveChannelTags,
@@ -81,8 +81,8 @@ class CustomChannelViewModel {
         this.extrasItems = ko.observableArray([]);
         this.extrasLoading = ko.observable(false);
         this.extrasLoaded = false;
-        this.isTextualExtraName = name => isTextualExtraFileName(name);
-        this.openTextExtra = item => openExtraTextViewerModal(item.id, item.fileName);
+        this.isPreviewableExtraName = name => isPreviewableExtraFileName(name);
+        this.openPreviewExtra = item => openExtraViewerModal(item.id, item.fileName);
 
         // Upload state
         this.extrasUploadFiles = ko.observableArray([]);
