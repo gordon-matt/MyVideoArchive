@@ -4,6 +4,9 @@ import {
     loadAndAttachSubtitleTracksForPlaylist,
     bindPlaylistSubtitlePreferenceStorage,
     registerPlaylistButtons,
+    applyProgrammaticPlaylistReorder,
+    destroyPlaylistSortable,
+    readPlaylistOrderFromDom,
     savePosition,
     loadSavedPosition,
     clearPosition,
@@ -37,6 +40,7 @@ class CustomPlaylistDetailsViewModel {
         this.autoAdvance = ko.observable(
             localStorage.getItem(STORAGE_KEY_AUTO_ADVANCE) !== 'false'
         );
+        this.sortableInstance = null;
 
         this.autoAdvance.subscribe(val => {
             localStorage.setItem(STORAGE_KEY_AUTO_ADVANCE, val);
@@ -76,6 +80,7 @@ class CustomPlaylistDetailsViewModel {
 
             document.title = `${data.playlist?.name ?? 'Playlist'} - MyVideoArchive`;
 
+            setTimeout(() => this.initializeSortable(), 100);
             this._syncPlayerPlaylist(prevVideoId, prevTime);
         } catch (error) {
             console.error('Error loading playlist:', error);
@@ -232,6 +237,79 @@ class CustomPlaylistDetailsViewModel {
         if (video) window.location.href = `/videos/${video.id}`;
     };
 
+    initializeSortable = () => {
+        const container = document.getElementById('videoListContainer');
+        if (!container) return;
+        this.sortableInstance = destroyPlaylistSortable(this.sortableInstance);
+
+        this.sortableInstance = new Sortable(container, {
+            handle: '.drag-handle',
+            filter: '.mva-move-to-top',
+            preventOnFilter: false,
+            animation: 150,
+            onEnd: async () => {
+                const newOrder = readPlaylistOrderFromDom(container, videoId =>
+                    this.playlistVideos().find(v => v.video.id === videoId)
+                );
+                if (newOrder.length === 0) {
+                    return;
+                }
+                applyProgrammaticPlaylistReorder(this, 'videoListContainer', newOrder, v => v.video.id);
+                const prevVideoId = this.currentVideo()?.id;
+                const prevTime = player ? Math.floor(player.currentTime()) : 0;
+                this._syncPlayerPlaylist(prevVideoId, prevTime);
+                await this.savePlaylistOrder();
+                this.initializeSortable();
+            }
+        });
+    };
+
+    moveVideoToTop = async (item) => {
+        if (!item?.video) return;
+        const arr = this.playlistVideos().slice();
+        const idx = arr.findIndex(v => v.video.id === item.video.id);
+        if (idx <= 0) return;
+        arr.splice(idx, 1);
+        arr.unshift(item);
+
+        applyProgrammaticPlaylistReorder(this, 'videoListContainer', arr, v => v.video.id);
+
+        const prevVideoId = this.currentVideo()?.id;
+        const prevTime = player ? Math.floor(player.currentTime()) : 0;
+        this._syncPlayerPlaylist(prevVideoId, prevTime);
+
+        await this.savePlaylistOrder();
+        this.initializeSortable();
+    };
+
+    savePlaylistOrder = async () => {
+        const videoOrders = this.playlistVideos().map((item, i) => ({
+            videoId: item.video.id,
+            order: i + 1
+        }));
+
+        try {
+            const response = await fetch(`/api/custom-playlists/${this.playlistId}/reorder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoOrders })
+            });
+            if (!response.ok) {
+                let message = 'Failed to save playlist order.';
+                try {
+                    const data = await response.json();
+                    message = data.message || data.title || message;
+                } catch {
+                    /* ignore */
+                }
+                throw new Error(message);
+            }
+        } catch (error) {
+            console.error('Error saving playlist order:', error);
+            toast.error(error.message || 'Error saving playlist order.');
+        }
+    };
+
     removeVideo = async (item) => {
         if (!confirm(`Remove "${item.video.title}" from this playlist?`)) return;
 
@@ -249,6 +327,7 @@ class CustomPlaylistDetailsViewModel {
                 const newPrevId = wasCurrentVideo ? null : this.currentVideo()?.id;
                 const newPrevTime = wasCurrentVideo || !player ? 0 : Math.floor(player.currentTime());
                 this._syncPlayerPlaylist(newPrevId, newPrevTime);
+                setTimeout(() => this.initializeSortable(), 100);
             } else {
                 toast.error('Failed to remove video from playlist.');
             }

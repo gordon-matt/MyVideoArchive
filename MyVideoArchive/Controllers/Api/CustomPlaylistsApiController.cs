@@ -124,6 +124,16 @@ public class CustomPlaylistsApiController : ControllerBase
         return result.ToActionResult(this, NoContent);
     }
 
+    /// <summary>
+    /// Update video order for a custom playlist (CustomPlaylistVideo.Order).
+    /// </summary>
+    [HttpPost("{id}/reorder")]
+    public async Task<IActionResult> ReorderPlaylistVideos(int id, [FromBody] ReorderCustomPlaylistRequest request)
+    {
+        var result = await customPlaylistService.ReorderPlaylistVideosAsync(id, request);
+        return result.ToActionResult(this, () => Ok(new { message = "Playlist order saved" }));
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdatePlaylist(int id, [FromBody] CreateCustomPlaylistRequest request)
     {

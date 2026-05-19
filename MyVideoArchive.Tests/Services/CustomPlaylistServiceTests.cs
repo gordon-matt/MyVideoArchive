@@ -1,5 +1,6 @@
 using Hangfire;
 using MyVideoArchive.Models.Requests.Playlist;
+using MyVideoArchive.Models.Responses;
 
 namespace MyVideoArchive.Tests.Services;
 
@@ -138,6 +139,99 @@ public class CustomPlaylistServiceTests
         var service = CreateService(db);
         var result = await service.AddVideoToPlaylistAsync(playlist.Id, video.Id);
         Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ReorderPlaylistVideosAsync_WhenNotOwner_ReturnsForbidden()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        var playlist = await db.CustomPlaylistRepository.InsertAsync(new CustomPlaylist
+        {
+            UserId = "other",
+            Name = "P",
+            Description = null,
+            CreatedAt = DateTime.UtcNow
+        });
+        var service = CreateService(db);
+        var result = await service.ReorderPlaylistVideosAsync(playlist.Id, new ReorderCustomPlaylistRequest
+        {
+            VideoOrders = [new VideoOrderItem(1, 1)]
+        });
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
+    }
+
+    [Fact]
+    public async Task ReorderPlaylistVideosAsync_WhenOwner_UpdatesOrder()
+    {
+        using var db = new InMemoryDatabaseFixture();
+        var playlist = await db.CustomPlaylistRepository.InsertAsync(new CustomPlaylist
+        {
+            UserId = "user1",
+            Name = "P",
+            Description = null,
+            CreatedAt = DateTime.UtcNow
+        });
+        var channel = await db.ChannelRepository.InsertAsync(new Channel
+        {
+            ChannelId = "ch1",
+            Name = "C",
+            Url = "https://c",
+            Platform = "YT",
+            SubscribedAt = DateTime.UtcNow
+        });
+        var video1 = await db.VideoRepository.InsertAsync(new Video
+        {
+            VideoId = "v1",
+            Title = "V1",
+            Url = "https://v1",
+            Platform = "YT",
+            ChannelId = channel.Id,
+            IsIgnored = false,
+            IsQueued = false,
+            NeedsMetadataReview = false
+        });
+        var video2 = await db.VideoRepository.InsertAsync(new Video
+        {
+            VideoId = "v2",
+            Title = "V2",
+            Url = "https://v2",
+            Platform = "YT",
+            ChannelId = channel.Id,
+            IsIgnored = false,
+            IsQueued = false,
+            NeedsMetadataReview = false
+        });
+        await db.CustomPlaylistVideoRepository.InsertAsync(new CustomPlaylistVideo
+        {
+            CustomPlaylistId = playlist.Id,
+            VideoId = video1.Id,
+            Order = 0
+        });
+        await db.CustomPlaylistVideoRepository.InsertAsync(new CustomPlaylistVideo
+        {
+            CustomPlaylistId = playlist.Id,
+            VideoId = video2.Id,
+            Order = 1
+        });
+
+        var service = CreateService(db);
+        var result = await service.ReorderPlaylistVideosAsync(playlist.Id, new ReorderCustomPlaylistRequest
+        {
+            VideoOrders =
+            [
+                new VideoOrderItem(video2.Id, 1),
+                new VideoOrderItem(video1.Id, 2)
+            ]
+        });
+
+        Assert.True(result.IsSuccess);
+
+        var updated = await db.CustomPlaylistVideoRepository.FindAsync(new SearchOptions<CustomPlaylistVideo>
+        {
+            Query = x => x.CustomPlaylistId == playlist.Id
+        });
+        Assert.Equal(1, updated.First(x => x.VideoId == video2.Id).Order);
+        Assert.Equal(2, updated.First(x => x.VideoId == video1.Id).Order);
     }
 
     [Fact]

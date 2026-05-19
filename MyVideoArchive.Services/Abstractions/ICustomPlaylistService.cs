@@ -30,6 +30,8 @@ public interface ICustomPlaylistService
 
     Task<Result> RemoveVideoFromPlaylistAsync(int id, int videoId);
 
+    Task<Result> ReorderPlaylistVideosAsync(int id, ReorderCustomPlaylistRequest request);
+
     Task<Result<UpdatePlaylistResponse>> UpdatePlaylistAsync(int id, CreateCustomPlaylistRequest request);
 
     Task<Result<string>> UploadThumbnailAsync(int id, Stream fileStream, string fileName);

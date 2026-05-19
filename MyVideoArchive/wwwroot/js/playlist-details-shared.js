@@ -29,6 +29,73 @@ export function setPlaylistVideoJsPlayerGetter(fn) {
 export const STORAGE_KEY_AUTO_ADVANCE = 'mva-auto-advance';
 
 /**
+ * Tear down Sortable so Knockout/DOM updates are not fighting direct child moves.
+ * @param {import('sortablejs').default | null | undefined} instance
+ * @returns {null}
+ */
+export function destroyPlaylistSortable(instance) {
+    if (instance) {
+        instance.destroy();
+    }
+    return null;
+}
+
+/**
+ * Re-append list rows so DOM order matches the observable (after programmatic reorder).
+ * @param {HTMLElement | null} container
+ * @param {Array<unknown>} orderedItems
+ * @param {(item: unknown) => number | string} getVideoId
+ */
+export function syncPlaylistListDomOrder(container, orderedItems, getVideoId) {
+    if (!container || !orderedItems?.length) {
+        return;
+    }
+
+    for (const item of orderedItems) {
+        const id = getVideoId(item);
+        const el = container.querySelector(
+            `.playlist-video-item[data-video-id="${CSS.escape(String(id))}"]`
+        );
+        if (el) {
+            container.appendChild(el);
+        }
+    }
+}
+
+/**
+ * Read playlist row order from the DOM (after a Sortable drag).
+ * @param {HTMLElement} container
+ * @param {(videoId: number) => unknown | undefined} findItem
+ */
+export function readPlaylistOrderFromDom(container, findItem) {
+    const newOrder = [];
+    container.querySelectorAll('.playlist-video-item').forEach(el => {
+        const videoId = parseInt(el.getAttribute('data-video-id') ?? '', 10);
+        if (!Number.isFinite(videoId)) {
+            return;
+        }
+        const entry = findItem(videoId);
+        if (entry) {
+            newOrder.push(entry);
+        }
+    });
+    return newOrder;
+}
+
+/**
+ * Apply a new playlist order to Knockout and sync the DOM (use after "move to top", etc.).
+ * @param {{ playlistVideos: (v: unknown[]) => void, sortableInstance?: import('sortablejs').default | null }} vm
+ * @param {string} containerId
+ * @param {Array<unknown>} newOrder
+ * @param {(item: unknown) => number | string} getVideoId
+ */
+export function applyProgrammaticPlaylistReorder(vm, containerId, newOrder, getVideoId) {
+    vm.sortableInstance = destroyPlaylistSortable(vm.sortableInstance);
+    vm.playlistVideos(newOrder);
+    syncPlaylistListDomOrder(document.getElementById(containerId), newOrder, getVideoId);
+}
+
+/**
  * Loads sidecar WebVTT tracks for a library video and attaches them to the Video.js player.
  */
 export async function loadAndAttachSubtitleTracksForPlaylist(player, videoDbId) {

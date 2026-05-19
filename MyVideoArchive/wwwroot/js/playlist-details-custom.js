@@ -8,6 +8,9 @@ import {
     clearPosition,
     registerPlaylistButtons,
     applyPlaylistDefaultOrder,
+    applyProgrammaticPlaylistReorder,
+    destroyPlaylistSortable,
+    readPlaylistOrderFromDom,
     loadAndAttachSubtitleTracksForPlaylist,
     bindPlaylistSubtitlePreferenceStorage
 } from './playlist-details-shared.js';
@@ -230,7 +233,7 @@ class CustomPlaylistDetailsViewModel {
     initializeSortable = () => {
         const container = document.getElementById('videoListContainer');
         if (!container) return;
-        if (this.sortableInstance) this.sortableInstance.destroy();
+        this.sortableInstance = destroyPlaylistSortable(this.sortableInstance);
 
         this.sortableInstance = new Sortable(container, {
             handle: '.drag-handle',
@@ -239,15 +242,18 @@ class CustomPlaylistDetailsViewModel {
             animation: 150,
             disabled: !this.useCustomOrder(),
             onEnd: async () => {
-                const items = container.querySelectorAll('.playlist-video-item');
-                const newOrder = [];
-                items.forEach(item => {
-                    const videoId = parseInt(item.getAttribute('data-video-id'));
-                    const video = this.playlistVideos().find(v => v.id === videoId);
-                    if (video) newOrder.push(video);
-                });
-                this.playlistVideos(newOrder);
+                const newOrder = readPlaylistOrderFromDom(container, videoId =>
+                    this.playlistVideos().find(v => v.id === videoId)
+                );
+                if (newOrder.length === 0) {
+                    return;
+                }
+                applyProgrammaticPlaylistReorder(this, 'videoListContainer', newOrder, v => v.id);
+                const prevVideoId = this.currentVideo()?.id;
+                const prevTime = player ? Math.floor(player.currentTime()) : 0;
+                this._syncPlayerPlaylist(prevVideoId, prevTime);
                 await this.saveCustomOrder();
+                this.initializeSortable();
             }
         });
     };
@@ -261,9 +267,15 @@ class CustomPlaylistDetailsViewModel {
         if (idx <= 0) return;
         arr.splice(idx, 1);
         arr.unshift(video);
-        this.playlistVideos(arr);
+
+        applyProgrammaticPlaylistReorder(this, 'videoListContainer', arr, v => v.id ?? v.Id);
+
+        const prevVideoId = this.currentVideo()?.id;
+        const prevTime = player ? Math.floor(player.currentTime()) : 0;
+        this._syncPlayerPlaylist(prevVideoId, prevTime);
+
         await this.saveCustomOrder();
-        setTimeout(() => this.initializeSortable(), 50);
+        this.initializeSortable();
     };
 
     saveCustomOrder = async (reloadAfterSave = false) => {

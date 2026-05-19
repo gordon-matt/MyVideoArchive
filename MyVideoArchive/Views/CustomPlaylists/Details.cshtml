@@ -121,8 +121,12 @@
                             <!-- ko ifnot: playlistVideos().length === 1 -->videos<!-- /ko -->
                         </span>
 
+                        <div class="mb-2 mt-3">
+                            <small class="text-muted"><i class="bi bi-info-circle"></i> Drag videos to reorder, or use <i class="bi bi-chevron-double-up"></i> to move to top.</small>
+                        </div>
+
                         <!-- Auto-advance Toggle -->
-                        <div class="form-check form-switch mt-3 mb-3">
+                        <div class="form-check form-switch mb-3">
                             <input class="form-check-input" type="checkbox" id="autoAdvanceSwitch" data-bind="checked: autoAdvance">
                             <label class="form-check-label" for="autoAdvanceSwitch">
                                 <i class="bi bi-skip-end-fill me-1"></i> Auto-advance
@@ -139,21 +143,26 @@
                 </div>
 
                 <div class="video-list">
-                    <div data-bind="visible: loadingVideos" class="text-center py-3">
-                        <div class="spinner-border spinner-border-sm" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                    </div>
-
-                    <div data-bind="visible: !loadingVideos() && playlistVideos().length === 0" class="alert alert-info mx-2">
+                    <div data-bind="visible: !loading() && playlistVideos().length === 0" class="alert alert-info mx-2">
                         <p class="small mb-0">No videos in this playlist yet.</p>
                     </div>
 
-                    <div data-bind="visible: !loadingVideos() && playlistVideos().length > 0, foreach: playlistVideos">
+                    <div id="videoListContainer" data-bind="visible: !loading() && playlistVideos().length > 0, foreach: playlistVideos">
                         <div class="playlist-video-item"
                              data-bind="click: $parent.playVideo,
                                         css: { active: $parent.currentVideo() && $parent.currentVideo().id === video.id,
-                                               'not-downloaded': !video.downloadedAt }">
+                                               'not-downloaded': !video.downloadedAt },
+                                        attr: { 'data-video-id': video.id }">
+                            <div class="mva-reorder-tools d-flex flex-column align-items-center flex-shrink-0"
+                                 data-bind="click: function(data, event) { event.stopPropagation(); }">
+                                <button type="button" class="btn btn-link btn-sm p-0 mva-move-to-top" title="Move to top" aria-label="Move to top"
+                                        data-bind="visible: $index() > 0, click: function(d, event) { event.stopPropagation(); $root.moveVideoToTop(d); }">
+                                    <i class="bi bi-chevron-double-up"></i>
+                                </button>
+                                <span class="drag-handle">
+                                    <i class="bi bi-grip-vertical"></i>
+                                </span>
+                            </div>
                             <img data-bind="attr: { src: video.thumbnailUrl || 'https://placehold.co/120x68?text=No+Thumbnail', alt: video.title }"
                                  class="playlist-video-thumbnail" />
                             <div class="playlist-video-info flex-grow-1">
@@ -200,6 +209,13 @@
 @await Html.PartialAsync("_ExtraViewerModal")
 
 @section Scripts {
+    <environment include="Development">
+        <script src="~/lib/sortablejs/Sortable.js"></script>
+    </environment>
+    <environment exclude="Development">
+        <script src="~/lib/sortablejs/Sortable.min.js"></script>
+    </environment>
+
     <script type="text/javascript">
         const playlistId = @playlistId;
         window.isAdmin = @(isAdminUser ? "true" : "false");

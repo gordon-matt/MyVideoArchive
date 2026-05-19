@@ -666,6 +666,81 @@ public class CustomPlaylistService : ICustomPlaylistService
         }
     }
 
+    public async Task<Result> ReorderPlaylistVideosAsync(int id, ReorderCustomPlaylistRequest request)
+    {
+        try
+        {
+            string? userId = userContextService.GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Result.Unauthorized();
+            }
+
+            if (request.VideoOrders is null || request.VideoOrders.Count == 0)
+            {
+                return Result.Invalid(new ValidationError(nameof(request.VideoOrders), "At least one video is required."));
+            }
+
+            var playlist = await customPlaylistRepository.FindOneAsync(id);
+            if (playlist is null)
+            {
+                return Result.NotFound("Playlist not found");
+            }
+
+            if (playlist.UserId != userId)
+            {
+                return Result.Forbidden();
+            }
+
+            var playlistVideos = (await customPlaylistVideoRepository.FindAsync(new SearchOptions<CustomPlaylistVideo>
+            {
+                Query = x => x.CustomPlaylistId == id
+            })).ToList();
+
+            if (playlistVideos.Count == 0)
+            {
+                return Result.NotFound("Playlist not found");
+            }
+
+            var playlistVideoIds = playlistVideos.Select(x => x.VideoId).ToHashSet();
+            var orderMap = new Dictionary<int, int>();
+
+            foreach (var item in request.VideoOrders)
+            {
+                if (!playlistVideoIds.Contains(item.VideoId))
+                {
+                    return Result.Invalid(new ValidationError(
+                        nameof(request.VideoOrders),
+                        $"Video {item.VideoId} is not in this playlist."));
+                }
+
+                orderMap[item.VideoId] = item.Order;
+            }
+
+            int nextOrder = request.VideoOrders.Max(x => x.Order);
+
+            foreach (var playlistVideo in playlistVideos)
+            {
+                playlistVideo.Order = orderMap.TryGetValue(playlistVideo.VideoId, out int order)
+                    ? order
+                    : ++nextOrder;
+            }
+
+            await customPlaylistVideoRepository.UpdateAsync(playlistVideos);
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error reordering custom playlist {PlaylistId}", id);
+            }
+
+            return Result.Error("An error occurred while saving playlist order");
+        }
+    }
+
     public async Task<Result> RemoveVideoFromPlaylistAsync(int id, int videoId)
     {
         try
