@@ -7,6 +7,7 @@ import {
     applyProgrammaticPlaylistReorder,
     destroyPlaylistSortable,
     readPlaylistOrderFromDom,
+    rebuildVideoJsPlaylist,
     savePosition,
     loadSavedPosition,
     clearPosition,
@@ -192,31 +193,20 @@ class CustomPlaylistDetailsViewModel {
     };
 
     _syncPlayerPlaylist = (prevVideoId, prevTime) => {
-        if (!player?.playlist) return;
-
-        // Items with a downloaded video (not hidden — custom playlists don't have hidden)
-        _availableItems = this.playlistVideos().filter(item => item.video.downloadedAt);
-
-        const items = _availableItems.map(item => ({
-            sources: [buildVideoStreamSource(item.video.id, item.video.streamContentType)],
-            poster: item.video.thumbnailUrl || undefined,
-            name: item.video.title
-        }));
-
-        player.playlist(items);
-        player.playlist.autoadvance(this.autoAdvance() ? 0 : null);
-
-        if (_availableItems.length === 0) return;
-
-        if (prevVideoId) {
-            const idx = _availableItems.findIndex(i => i.video.id === prevVideoId);
-            if (idx > 0) {
-                if (prevTime > 5) localStorage.setItem(`mva-pos-${prevVideoId}`, prevTime);
-                player.playlist.currentItem(idx);
-            } else if (idx === 0 && prevTime > 5) {
-                localStorage.setItem(`mva-pos-${prevVideoId}`, prevTime);
-            }
-        }
+        const entries = this.playlistVideos().filter(item => item.video.downloadedAt);
+        const { entries: playable } = rebuildVideoJsPlaylist(player, {
+            entries,
+            toPlaylistItem: item => ({
+                sources: [buildVideoStreamSource(item.video.id, item.video.streamContentType)],
+                poster: item.video.thumbnailUrl || undefined,
+                name: item.video.title
+            }),
+            getVideoId: item => item.video.id,
+            prevVideoId,
+            prevTime,
+            autoAdvance: this.autoAdvance()
+        });
+        _availableItems = playable;
     };
 
     /** Called when the user clicks a video in the sidebar. */

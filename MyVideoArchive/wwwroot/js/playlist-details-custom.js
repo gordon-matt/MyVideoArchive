@@ -11,6 +11,7 @@ import {
     applyProgrammaticPlaylistReorder,
     destroyPlaylistSortable,
     readPlaylistOrderFromDom,
+    rebuildVideoJsPlaylist,
     loadAndAttachSubtitleTracksForPlaylist,
     bindPlaylistSubtitlePreferenceStorage
 } from './playlist-details-shared.js';
@@ -154,30 +155,20 @@ class CustomPlaylistDetailsViewModel {
     };
 
     _syncPlayerPlaylist = (prevVideoId, prevTime) => {
-        if (!player?.playlist) return;
-
-        _availableVideos = this.playlistVideos().filter(v => v.downloadedAt && !v.isHidden);
-
-        const items = _availableVideos.map(v => ({
-            sources: [buildVideoStreamSource(v.id, v.streamContentType)],
-            poster: v.thumbnailUrl || undefined,
-            name: v.title
-        }));
-
-        player.playlist(items);
-        player.playlist.autoadvance(this.autoAdvance() ? 0 : null);
-
-        if (_availableVideos.length === 0) return;
-
-        if (prevVideoId) {
-            const idx = _availableVideos.findIndex(v => v.id === prevVideoId);
-            if (idx > 0) {
-                if (prevTime > 5) localStorage.setItem(`mva-pos-${prevVideoId}`, prevTime);
-                player.playlist.currentItem(idx);
-            } else if (idx === 0 && prevTime > 5) {
-                localStorage.setItem(`mva-pos-${prevVideoId}`, prevTime);
-            }
-        }
+        const entries = this.playlistVideos().filter(v => v.downloadedAt && !v.isHidden);
+        const { entries: playable } = rebuildVideoJsPlaylist(player, {
+            entries,
+            toPlaylistItem: v => ({
+                sources: [buildVideoStreamSource(v.id, v.streamContentType)],
+                poster: v.thumbnailUrl || undefined,
+                name: v.title
+            }),
+            getVideoId: v => v.id,
+            prevVideoId,
+            prevTime,
+            autoAdvance: this.autoAdvance()
+        });
+        _availableVideos = playable;
     };
 
     playVideo = (video) => {

@@ -96,6 +96,63 @@ export function applyProgrammaticPlaylistReorder(vm, containerId, newOrder, getV
 }
 
 /**
+ * Rebuild the Video.js playlist and keep the same video playing when possible.
+ * Uses the playlist setter's initial index (avoids loading item 0 then switching).
+ *
+ * @param {import('video.js').VideoJsPlayer | null | undefined} player
+ * @param {object} options
+ * @param {Array<unknown>} options.entries - playable items in display order
+ * @param {(entry: unknown) => object} options.toPlaylistItem
+ * @param {(entry: unknown) => number} options.getVideoId
+ * @param {number | null | undefined} [options.prevVideoId]
+ * @param {number} [options.prevTime]
+ * @param {boolean} options.autoAdvance
+ * @returns {{ entries: Array<unknown>, startIndex: number }}
+ */
+export function rebuildVideoJsPlaylist(player, {
+    entries,
+    toPlaylistItem,
+    getVideoId,
+    prevVideoId,
+    prevTime = 0,
+    autoAdvance
+}) {
+    if (!player?.playlist) {
+        return { entries, startIndex: -1 };
+    }
+
+    const items = entries.map(toPlaylistItem);
+    let startIndex = 0;
+
+    if (prevVideoId != null) {
+        const idx = entries.findIndex(e => getVideoId(e) === prevVideoId);
+        if (idx >= 0) {
+            startIndex = idx;
+        }
+    } else if (typeof player.playlist.currentItem === 'function') {
+        const current = player.playlist.currentItem();
+        if (current >= 0 && current < entries.length) {
+            startIndex = current;
+        }
+    }
+
+    if (items.length === 0) {
+        player.playlist([], -1);
+        player.playlist.autoadvance(autoAdvance ? 0 : null);
+        return { entries, startIndex: -1 };
+    }
+
+    if (prevVideoId != null && prevTime > 5) {
+        localStorage.setItem(`mva-pos-${prevVideoId}`, prevTime);
+    }
+
+    player.playlist(items, startIndex);
+    player.playlist.autoadvance(autoAdvance ? 0 : null);
+
+    return { entries, startIndex };
+}
+
+/**
  * Loads sidecar WebVTT tracks for a library video and attaches them to the Video.js player.
  */
 export async function loadAndAttachSubtitleTracksForPlaylist(player, videoDbId) {
