@@ -26,7 +26,17 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+# Copy every csproj the web app references so `dotnet restore` can resolve the full
+# project graph before the rest of the source is copied (keeps the restore layer cached).
 COPY ["MyVideoArchive/MyVideoArchive.csproj", "MyVideoArchive/"]
+COPY ["MyVideoArchive.Core/MyVideoArchive.Core.csproj", "MyVideoArchive.Core/"]
+COPY ["MyVideoArchive.Data/MyVideoArchive.Data.csproj", "MyVideoArchive.Data/"]
+COPY ["MyVideoArchive.Data.Npgsql/MyVideoArchive.Data.Npgsql.csproj", "MyVideoArchive.Data.Npgsql/"]
+COPY ["MyVideoArchive.Data.MySql/MyVideoArchive.Data.MySql.csproj", "MyVideoArchive.Data.MySql/"]
+COPY ["MyVideoArchive.Data.Sqlite/MyVideoArchive.Data.Sqlite.csproj", "MyVideoArchive.Data.Sqlite/"]
+COPY ["MyVideoArchive.Data.Sql/MyVideoArchive.Data.Sql.csproj", "MyVideoArchive.Data.Sql/"]
+COPY ["MyVideoArchive.Models/MyVideoArchive.Models.csproj", "MyVideoArchive.Models/"]
+COPY ["MyVideoArchive.Services/MyVideoArchive.Services.csproj", "MyVideoArchive.Services/"]
 RUN dotnet restore "./MyVideoArchive/MyVideoArchive.csproj"
 COPY . .
 WORKDIR "/src/MyVideoArchive"

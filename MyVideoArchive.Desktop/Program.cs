@@ -15,7 +15,6 @@ using MyVideoArchive.Infrastructure;
 using MyVideoArchive.Services.Content;
 using Sejil;
 using Serilog;
-using Serilog.Sinks.PostgreSQL.ColumnWriters;
 
 // ────────────────────────────────────────────────────────────────────────────────
 // Desktop entry point. This is the Electron-wrapped variant of MyVideoArchive.
@@ -53,27 +52,14 @@ if (string.IsNullOrEmpty(connectionString))
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .WriteTo.Console()
-    .WriteTo.PostgreSQL(
-        connectionString: connectionString!,
-        tableName: "Log",
-        columnOptions: new Dictionary<string, ColumnWriterBase>
-        {
-            { "message", new RenderedMessageColumnWriter() },
-            { "message_template", new MessageTemplateColumnWriter() },
-            { "level", new LevelColumnWriter() },
-            { "timestamp", new TimestampColumnWriter() },
-            { "exception", new ExceptionColumnWriter() },
-            { "properties", new LogEventSerializedColumnWriter() }
-        },
-        needAutoCreateTable: true)
+    .WriteToMvaDatabase(builder.Configuration)
     .CreateLogger();
 
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 builder.Host.UseSerilog();
 builder.Host.UseSejil(writeToProviders: true);
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.MvaAddDatabase(builder.Configuration);
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -109,7 +95,7 @@ builder.Services.AddControllersWithViews()
 builder.Services.AddRazorPages();
 builder.Services.AddEntityFrameworkRepository();
 
-builder.Services.MvaAddHangfire(connectionString);
+builder.Services.MvaAddHangfire(builder.Configuration);
 
 builder.Services.AddHttpClient();
 
@@ -123,8 +109,8 @@ builder.UseElectron(args, OnElectronAppReadyAsync);
 
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 {
-    containerBuilder.RegisterType<ApplicationDbContextFactory>().As<IDbContextFactory>().SingleInstance();
-
+    // The IDbContextFactory is registered by the selected MyVideoArchive.Data.{Provider} project
+    // (see MvaAddDatabase). Autofac picks it up from the populated service collection.
     containerBuilder.RegisterGeneric(typeof(EntityFrameworkRepository<>))
         .As(typeof(IRepository<>))
         .InstancePerLifetimeScope();
@@ -252,14 +238,12 @@ using (var scope = app.Services.CreateScope())
             }
         }
 
-        var context = services.GetRequiredService<ApplicationDbContext>();
+        var context = services.GetRequiredService<ApplicationDbContextBase>();
         await context.Database.MigrateAsync();
 
         if (!useKeycloak)
         {
-            var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-            var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
-            await DbInitializer.InitializeAsync(context, userManager, roleManager, configuration);
+            await DbInitializer.InitializeAsync(services, configuration);
         }
     }
     catch (Exception ex)

@@ -1,6 +1,5 @@
 using System.Net;
 using Hangfire;
-using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -8,6 +7,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using MyVideoArchive.Data;
+using MyVideoArchive.Data.MySql;
+using MyVideoArchive.Data.Npgsql;
+using MyVideoArchive.Data.Sql;
+using MyVideoArchive.Data.Sqlite;
 
 namespace MyVideoArchive.Infrastructure;
 
@@ -165,7 +168,7 @@ internal static class ServiceCollectionExtensions
 
                 // ── ASP.NET Core Identity (default) ──────────────────────────────────────
                 services.AddIdentity<ApplicationUser, ApplicationRole>()
-                    .AddEntityFrameworkStores<ApplicationDbContext>()
+                    .AddEntityFrameworkStores<ApplicationDbContextBase>()
                     .AddDefaultTokenProviders()
                     .AddDefaultUI();
 
@@ -173,17 +176,63 @@ internal static class ServiceCollectionExtensions
             }
         }
 
-        public void MvaAddHangfire(string connectionString)
+        /// <summary>
+        /// Wires up the database provider selected by <c>Database:Provider</c> in configuration.
+        /// Defaults to <see cref="Constants.DatabaseProviders.Npgsql"/> to preserve behaviour for
+        /// existing PostgreSQL deployments. The matching <c>MyVideoArchive.Data.{Provider}</c> project
+        /// registers the concrete <c>ApplicationDbContext</c>, the <see cref="IDbContextFactory"/> and
+        /// the abstract <see cref="ApplicationDbContextBase"/>.
+        /// </summary>
+        public IServiceCollection MvaAddDatabase(IConfiguration configuration)
         {
-            services.AddHangfire(configuration => configuration
-                .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-                .UseSimpleAssemblyNameTypeSerializer()
-                .UseRecommendedSerializerSettings()
-                .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString),
-                new PostgreSqlStorageOptions
-                {
-                    QueuePollInterval = TimeSpan.FromSeconds(15)
-                }));
+            string provider = configuration["Database:Provider"] ?? Constants.DatabaseProviders.Npgsql;
+
+            return provider switch
+            {
+                Constants.DatabaseProviders.Npgsql => services.AddMvaNpgsql(configuration),
+                Constants.DatabaseProviders.SqlServer => services.AddMvaSqlServer(configuration),
+                Constants.DatabaseProviders.MySql => services.AddMvaMySql(configuration),
+                Constants.DatabaseProviders.Sqlite => services.AddMvaSqlite(configuration),
+                _ => throw new InvalidOperationException(
+                    $"Unknown Database:Provider '{provider}'. Valid values: Npgsql, SqlServer, MySql, Sqlite.")
+            };
+        }
+
+        /// <summary>
+        /// Registers Hangfire backed by the same provider as the application database (selected via
+        /// <c>Database:Provider</c>), then adds the shared Hangfire servers. SQLite uses a separate
+        /// file (<c>Hangfire:SqlitePath</c>); the other providers reuse the application connection
+        /// string unless <c>ConnectionStrings:Hangfire</c> is set.
+        /// </summary>
+        public void MvaAddHangfire(IConfiguration configuration)
+        {
+            string provider = configuration["Database:Provider"] ?? Constants.DatabaseProviders.Npgsql;
+            string? hangfireExplicit = configuration.GetConnectionString("Hangfire");
+            string? connectionString = string.IsNullOrWhiteSpace(hangfireExplicit)
+                ? configuration.GetConnectionString("DefaultConnection")
+                : hangfireExplicit;
+
+            switch (provider)
+            {
+                case Constants.DatabaseProviders.Sqlite:
+                    services.AddMvaSqliteHangfireStorage(configuration["Hangfire:SqlitePath"]);
+                    break;
+
+                case Constants.DatabaseProviders.SqlServer:
+                    services.AddMvaSqlServerHangfireStorage(RequireHangfireConnection(connectionString, provider));
+                    break;
+
+                case Constants.DatabaseProviders.Npgsql:
+                    services.AddMvaNpgsqlHangfireStorage(RequireHangfireConnection(connectionString, provider));
+                    break;
+
+                case Constants.DatabaseProviders.MySql:
+                    services.AddMvaMySqlHangfireStorage(RequireHangfireConnection(connectionString, provider));
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Unknown Database:Provider '{provider}'.");
+            }
 
             // Main server: handles all queues except "downloads"
             services.AddHangfireServer(options =>
@@ -254,4 +303,9 @@ internal static class ServiceCollectionExtensions
             services.AddSingleton<IVideoService, VideoService>();
         }
     }
+
+    private static string RequireHangfireConnection(string? connectionString, string provider)
+        => string.IsNullOrEmpty(connectionString)
+            ? throw new InvalidOperationException($"Hangfire requires a connection string when using {provider}.")
+            : connectionString;
 }

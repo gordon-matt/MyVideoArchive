@@ -15,13 +15,21 @@ public static class DbInitializer
     public const string SeedAdminPasswordKey = "SeedAdmin:Password";
 
     public static async Task InitializeAsync(
-        ApplicationDbContext context,
-        UserManager<ApplicationUser> userManager,
-        RoleManager<ApplicationRole> roleManager,
+        IServiceProvider services,
         IConfiguration configuration)
     {
-        // Ensure database is created
-        await context.Database.MigrateAsync();
+        var context = services.GetRequiredService<ApplicationDbContextBase>();
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
+
+        if (context.Database.IsRelational())
+        {
+            await context.Database.MigrateAsync();
+        }
+        else
+        {
+            await context.Database.EnsureCreatedAsync();
+        }
 
         // Seed roles
         bool isFirstRun = await SeedRolesAsync(roleManager);

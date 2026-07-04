@@ -9,13 +9,13 @@ namespace MyVideoArchive.Tests.TestHelpers;
 public sealed class InMemoryDatabaseFixture : IDisposable
 {
     private readonly string _databaseName;
-    private readonly DbContextOptions<ApplicationDbContext> _options;
+    private readonly DbContextOptions<TestApplicationDbContext> _options;
     private readonly TestDbContextFactory _factory;
 
     public InMemoryDatabaseFixture(string? databaseName = null)
     {
         _databaseName = databaseName ?? Guid.NewGuid().ToString();
-        _options = new DbContextOptionsBuilder<ApplicationDbContext>()
+        _options = new DbContextOptionsBuilder<TestApplicationDbContext>()
             .UseInMemoryDatabase(_databaseName)
             .Options;
         _factory = new TestDbContextFactory(_options);
@@ -71,22 +71,31 @@ public sealed class InMemoryDatabaseFixture : IDisposable
     /// <summary>
     /// Get a context instance for seeding data or assertions. Call SaveChangesAsync after changes.
     /// </summary>
-    public ApplicationDbContext CreateContext() => new(_options);
+    public ApplicationDbContextBase CreateContext() => new TestApplicationDbContext(_options);
 
     public void Dispose()
     { }
 
     private sealed class TestDbContextFactory : IDbContextFactory
     {
-        private readonly DbContextOptions<ApplicationDbContext> _options;
+        private readonly DbContextOptions<TestApplicationDbContext> _options;
 
-        public TestDbContextFactory(DbContextOptions<ApplicationDbContext> options)
+        public TestDbContextFactory(DbContextOptions<TestApplicationDbContext> options)
         {
             _options = options;
         }
 
-        public DbContext GetContext() => new ApplicationDbContext(_options);
+        public DbContext GetContext() => new TestApplicationDbContext(_options);
 
         public DbContext GetContext(string connectionString) => GetContext();
     }
+}
+
+/// <summary>
+/// Concrete <see cref="ApplicationDbContextBase"/> used only by tests. The real contexts live in
+/// the provider projects (<c>MyVideoArchive.Data.{Provider}</c>); tests use the EF Core in-memory
+/// provider, so no provider-specific context is needed.
+/// </summary>
+public sealed class TestApplicationDbContext(DbContextOptions options) : ApplicationDbContextBase(options)
+{
 }

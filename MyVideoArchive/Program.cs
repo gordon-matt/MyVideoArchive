@@ -10,7 +10,6 @@ using MyVideoArchive.Infrastructure;
 using MyVideoArchive.Services.Content;
 using Sejil;
 using Serilog;
-using Serilog.Sinks.PostgreSQL.ColumnWriters;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,19 +27,7 @@ if (string.IsNullOrEmpty(connectionString))
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .WriteTo.Console()
-    .WriteTo.PostgreSQL(
-        connectionString: connectionString!,
-        tableName: "Log",
-        columnOptions: new Dictionary<string, ColumnWriterBase>
-        {
-            { "message", new RenderedMessageColumnWriter() },
-            { "message_template", new MessageTemplateColumnWriter() },
-            { "level", new LevelColumnWriter() },
-            { "timestamp", new TimestampColumnWriter() },
-            { "exception", new ExceptionColumnWriter() },
-            { "properties", new LogEventSerializedColumnWriter() }
-        },
-        needAutoCreateTable: true)
+    .WriteToMvaDatabase(builder.Configuration)
     .CreateLogger();
 
 // Use Autofac as DI container
@@ -48,8 +35,7 @@ builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 builder.Host.UseSerilog();
 builder.Host.UseSejil(writeToProviders: true);
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.MvaAddDatabase(builder.Configuration);
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -89,7 +75,7 @@ builder.Services.AddControllersWithViews()
 builder.Services.AddRazorPages();
 builder.Services.AddEntityFrameworkRepository();
 
-builder.Services.MvaAddHangfire(connectionString);
+builder.Services.MvaAddHangfire(builder.Configuration);
 
 // Register HTTP client (used by ThumbnailService)
 builder.Services.AddHttpClient();
@@ -99,8 +85,8 @@ builder.Services.MvaAddServices();
 // Configure Autofac
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 {
-    containerBuilder.RegisterType<ApplicationDbContextFactory>().As<IDbContextFactory>().SingleInstance();
-
+    // The IDbContextFactory is registered by the selected MyVideoArchive.Data.{Provider} project
+    // (see MvaAddDatabase). Autofac picks it up from the populated service collection.
     containerBuilder.RegisterGeneric(typeof(EntityFrameworkRepository<>))
         .As(typeof(IRepository<>))
         .InstancePerLifetimeScope();
@@ -213,41 +199,38 @@ if (app.Environment.IsDevelopment())
 
 ScheduledTaskInitializer.Initialize();
 
-using var scope = app.Services.CreateScope();
-var services = scope.ServiceProvider;
-try
+await using (var scope = app.Services.CreateAsyncScope())
 {
-    var configuration = services.GetRequiredService<IConfiguration>();
-    var startupLogger = services.GetRequiredService<ILogger<Program>>();
-
+    var services = scope.ServiceProvider;
     try
     {
-        await FfmpegToolsBootstrapper.ConfigureXabeAsync(configuration, startupLogger, CancellationToken.None);
-    }
-    catch (Exception ex) when (ex is not OperationCanceledException)
-    {
-        if (startupLogger.IsEnabled(LogLevel.Warning))
+        var configuration = services.GetRequiredService<IConfiguration>();
+        var startupLogger = services.GetRequiredService<ILogger<Program>>();
+
+        try
         {
-            startupLogger.LogWarning(ex, "FFmpeg bootstrap failed; Xabe thumbnail generation may not work until ffmpeg+ffprobe are available.");
+            await FfmpegToolsBootstrapper.ConfigureXabeAsync(configuration, startupLogger, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            if (startupLogger.IsEnabled(LogLevel.Warning))
+            {
+                startupLogger.LogWarning(ex, "FFmpeg bootstrap failed; Xabe thumbnail generation may not work until ffmpeg+ffprobe are available.");
+            }
+        }
+
+        if (!useKeycloak)
+        {
+            await DbInitializer.InitializeAsync(scope.ServiceProvider, configuration);
         }
     }
-
-    var context = services.GetRequiredService<ApplicationDbContext>();
-    await context.Database.MigrateAsync();
-
-    if (!useKeycloak)
+    catch (Exception ex)
     {
-        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-        var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
-        await DbInitializer.InitializeAsync(context, userManager, roleManager, configuration);
-    }
-}
-catch (Exception ex)
-{
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    if (logger.IsEnabled(LogLevel.Error))
-    {
-        logger.LogError(ex, "An error occurred while seeding the database.");
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        if (logger.IsEnabled(LogLevel.Error))
+        {
+            logger.LogError(ex, "An error occurred while seeding the database.");
+        }
     }
 }
 

@@ -32,11 +32,18 @@
 		<PackageReference Include="Sejil" Version="3.0.4" />
 		<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
 		<PackageReference Include="Serilog.Sinks.Postgresql.Alternative" Version="4.2.0" />
+		<PackageReference Include="Serilog.Sinks.MSSqlServer" Version="9.0.3" />
+		<PackageReference Include="Serilog.Sinks.MySQL" Version="5.0.0" />
+		<PackageReference Include="Serilog.Sinks.SQLite" Version="6.0.0" />
 		<PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\MyVideoArchive.Data\MyVideoArchive.Data.csproj" />
+		<ProjectReference Include="..\MyVideoArchive.Data.Npgsql\MyVideoArchive.Data.Npgsql.csproj" />
+		<ProjectReference Include="..\MyVideoArchive.Data.MySql\MyVideoArchive.Data.MySql.csproj" />
+		<ProjectReference Include="..\MyVideoArchive.Data.Sqlite\MyVideoArchive.Data.Sqlite.csproj" />
+		<ProjectReference Include="..\MyVideoArchive.Data.Sql\MyVideoArchive.Data.Sql.csproj" />
 		<ProjectReference Include="..\MyVideoArchive.Models\MyVideoArchive.Models.csproj" />
 		<ProjectReference Include="..\MyVideoArchive.Services\MyVideoArchive.Services.csproj" />
 	</ItemGroup>

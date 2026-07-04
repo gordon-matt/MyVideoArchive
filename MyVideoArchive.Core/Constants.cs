@@ -20,4 +20,17 @@ public static class Constants
         public const string Administrator = "Administrator";
         public const string User = "User";
     }
+
+    /// <summary>
+    /// Supported database providers, selected via the <c>Database:Provider</c> configuration key.
+    /// Each value maps to a <c>MyVideoArchive.Data.{Provider}</c> project. Defaults to
+    /// <see cref="Npgsql"/> to preserve behaviour for existing PostgreSQL deployments.
+    /// </summary>
+    public static class DatabaseProviders
+    {
+        public const string MySql = "MySql";
+        public const string Npgsql = "Npgsql";
+        public const string Sqlite = "Sqlite";
+        public const string SqlServer = "SqlServer";
+    }
 }

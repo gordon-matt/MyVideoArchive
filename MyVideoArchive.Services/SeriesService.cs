@@ -35,6 +35,8 @@ public class SeriesService : ISeriesService
             Include = q => q
                 .Include(s => s.SeriesPlaylists)
                     .ThenInclude(sp => sp.Playlist)
+                        .ThenInclude(p => p.PlaylistVideos.OrderBy(pv => pv.Order).Take(1))
+                            .ThenInclude(pv => pv.Video)
         });
 
         var dtos = seriesList
@@ -54,6 +56,8 @@ public class SeriesService : ISeriesService
             Include = q => q
                 .Include(s => s.SeriesPlaylists)
                     .ThenInclude(sp => sp.Playlist)
+                        .ThenInclude(p => p.PlaylistVideos.OrderBy(pv => pv.Order).Take(1))
+                            .ThenInclude(pv => pv.Video)
         });
 
         if (series is null)
@@ -184,7 +188,29 @@ public class SeriesService : ISeriesService
             .Select(sp => new SeriesPlaylistDto(
                 sp.PlaylistId,
                 sp.Playlist?.Name ?? string.Empty,
-                sp.Playlist?.ThumbnailUrl,
+                GetPlaylistThumbnail(sp.Playlist),
                 sp.SortOrder))
             .ToList());
+
+    /// <summary>
+    /// Playlists often have no image of their own (they inherit the first video's thumbnail on the
+    /// platform). Fall back to the first video's thumbnail so the series collage isn't just placeholders.
+    /// </summary>
+    private static string? GetPlaylistThumbnail(Playlist? playlist)
+    {
+        if (playlist is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(playlist.ThumbnailUrl))
+        {
+            return playlist.ThumbnailUrl;
+        }
+
+        return playlist.PlaylistVideos
+            .OrderBy(pv => pv.Order)
+            .Select(pv => pv.Video?.ThumbnailUrl)
+            .FirstOrDefault(url => !string.IsNullOrEmpty(url));
+    }
 }

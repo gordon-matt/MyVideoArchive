@@ -23,9 +23,9 @@
     <p>No videos downloaded yet.</p>
 </div>
 
-<div class="row" data-bind="visible: !loading() && videos().length > 0">
+<div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3" data-bind="visible: !loading() && videos().length > 0">
     <!-- ko foreach: videos -->
-    <div class="col-md-3 col-sm-6 mb-4">
+    <div class="col mb-4">
         <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
             <div class="video-card">
                 <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }" class="video-thumbnail" />

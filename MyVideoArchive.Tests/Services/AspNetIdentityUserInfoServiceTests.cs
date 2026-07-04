@@ -30,7 +30,7 @@ public class AspNetIdentityUserInfoServiceTests
     public async Task GetUserInfoAsync_ReturnsMatchingUsersOnly()
     {
         using var db = new InMemoryDatabaseFixture();
-        await using (var ctx = (ApplicationDbContext)db.DbContextFactory.GetContext())
+        await using (var ctx = (ApplicationDbContextBase)db.DbContextFactory.GetContext())
         {
             ctx.Users.AddRange(
                 SeedUser("u1", "alice", "a@a.com"),
@@ -50,7 +50,7 @@ public class AspNetIdentityUserInfoServiceTests
     public async Task GetAllUsersAsync_ReturnsUsersOrderedByUserName()
     {
         using var db = new InMemoryDatabaseFixture();
-        await using (var ctx = (ApplicationDbContext)db.DbContextFactory.GetContext())
+        await using (var ctx = (ApplicationDbContextBase)db.DbContextFactory.GetContext())
         {
             ctx.Users.AddRange(
                 SeedUser("u1", "charlie", "c@c.com"),

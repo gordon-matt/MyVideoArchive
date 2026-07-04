@@ -56,7 +56,7 @@ class DownloadsViewModel {
     fetchVideos = async () => {
         this.loading(true);
 
-        var filter = `DownloadedAt eq null and IsIgnored eq false and Platform ne 'Custom' and Title ne '[Private video]'`;
+        var filter = `DownloadedAt eq null and IsIgnored eq false and Platform ne 'Custom' and Title ne '[Private video]' and Title ne '[Deleted video]' and Title ne 'Unknown Title'`;
 
         // Add status filter
         if (this.statusFilter() === 'available') {

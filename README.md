@@ -108,7 +108,7 @@ Results are paginated. Combined with tags and custom playlists, you can organise
 ## Technology Stack
 
 - **ASP.NET Core 10.0**
-- **PostgreSQL** — Database
+- **Database** — PostgreSQL, SQL Server, MySQL, or SQLite (selectable via `Database:Provider`; defaults to PostgreSQL). Each provider lives in its own `MyVideoArchive.Data.{Provider}` project with its own migrations.
 - **OData** — RESTful API for data access using Extenso.AspNetCore.OData
 - **Entity Framework Core** — Data access with repository pattern using Extenso.Data.Entity
 - **YoutubeDLSharp** — C# wrapper for yt-dlp video downloader
@@ -201,6 +201,11 @@ where `your_email_replace_at` is the `@` signed replaced by an underscore `_` fo
 
 ### Configuration
 
+- **Database provider:** Choose the engine with `Database:Provider` (or the `Database__Provider` environment variable). Valid values are `Npgsql` (PostgreSQL, the default), `SqlServer`, `MySql`, and `Sqlite`. Set `ConnectionStrings:DefaultConnection` to a connection string matching the chosen provider. Examples:
+  - **PostgreSQL:** `Host=db;Port=5432;Database=myvideoarchive;Username=postgres;Password=your_password`
+  - **SQL Server:** `Server=db;Database=myvideoarchive;User Id=sa;Password=your_password;TrustServerCertificate=True`
+  - **MySQL:** `Server=db;Database=myvideoarchive;User=root;Password=your_password;Allow User Variables=True`
+  - **SQLite:** `Data Source=/app/data/myvideoarchive.db`
 - **Local development:** Use **User Secrets** for the connection string (Visual Studio: right-click project → **Manage User Secrets**).
 
 - **Docker:** The container reads settings from environment variables in `docker-compose.yml` or from a `.env` file.
