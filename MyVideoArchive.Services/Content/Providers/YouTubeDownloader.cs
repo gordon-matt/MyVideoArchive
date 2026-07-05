@@ -67,6 +67,7 @@ public partial class YouTubeDownloader : IVideoDownloader
             };
 
             SubtitleOptionsExtensions.ApplySubtitleOptions(options, configuration);
+            options.ApplyConfiguredExtractorArgs(configuration);
 
             // Note: Progress reporting via OutputReceived is not available in this version of YoutubeDLSharp
             // Progress will be logged but not reported via IProgress

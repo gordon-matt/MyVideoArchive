@@ -670,10 +670,19 @@ public class TagService : ITagService
     {
         try
         {
+            // Resolve the channel's video IDs first and filter on the local VideoId column rather
+            // than joining through the Video.Channel navigation properties. EF Core's ExecuteDelete
+            // translates navigation-based predicates into a DELETE whose WHERE clause subqueries the
+            // very table being deleted from, which MySQL rejects with "can't specify target table
+            // '...' for update in FROM clause".
+            var channelVideoIds = (await videoRepository.FindAsync(
+                new SearchOptions<Video> { Query = x => x.ChannelId == channelDbId },
+                x => x.Id)).ToList();
+
             // Remove standalone VideoTag entries for those videos
             int removedCount = await videoTagRepository.DeleteAsync(x =>
                 x.TagId == tagId &&
-                x.Video.Channel.Id == channelDbId);
+                channelVideoIds.Contains(x.VideoId));
 
             if (logger.IsEnabled(LogLevel.Information) && removedCount > 0)
             {

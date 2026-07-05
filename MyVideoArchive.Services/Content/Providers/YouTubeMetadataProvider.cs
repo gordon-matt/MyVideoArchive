@@ -12,12 +12,64 @@ namespace MyVideoArchive.Services.Content.Providers;
 public partial class YouTubeMetadataProvider : IVideoMetadataProvider
 {
     private readonly ILogger<YouTubeMetadataProvider> logger;
+    private readonly IConfiguration configuration;
     private readonly YoutubeDL ytdl;
 
-    public YouTubeMetadataProvider(ILogger<YouTubeMetadataProvider> logger, YoutubeDL ytdl)
+    // Serializes all metadata fetches (channel/playlist/video "info" lookups) across every
+    // caller — ChannelSyncJob, PlaylistSyncJob, MetadataReviewJob, etc. all resolve the same
+    // singleton instance of this provider. Without this, e.g. subscribing to many playlists at
+    // once (PlaylistService.SubscribeToPlaylistsAsync) fires one Hangfire job per playlist onto
+    // the "default" queue, which has no worker-count cap, so dozens of yt-dlp "browse" requests
+    // can hit YouTube in parallel from the same IP. That burst is what YouTube's bot detection
+    // reacts to with "HTTP Error 404" (webpage) followed by "HTTP Error 400: Request contains an
+    // invalid argument" (API) — the same protection already exists for downloads (see the
+    // dedicated single-worker "downloads" Hangfire queue) but wasn't applied to metadata lookups.
+    private static readonly SemaphoreSlim requestGate = new(1, 1);
+
+    public YouTubeMetadataProvider(
+        ILogger<YouTubeMetadataProvider> logger,
+        IConfiguration configuration,
+        YoutubeDL ytdl)
     {
         this.logger = logger;
+        this.configuration = configuration;
         this.ytdl = ytdl;
+    }
+
+    /// <summary>
+    /// Runs a yt-dlp metadata fetch, serialized against every other metadata fetch and paced
+    /// with a short randomized delay afterwards so consecutive requests (e.g. across many
+    /// playlists in a channel) don't look like a scripted burst to YouTube.
+    /// </summary>
+    private async Task<RunResult<VideoData>> FetchDataAsync(
+        string url, OptionSet? overrideOptions, CancellationToken cancellationToken)
+    {
+        var options = overrideOptions ?? new OptionSet();
+        options.ApplyConfiguredExtractorArgs(configuration);
+
+        await requestGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await ytdl.RunVideoDataFetch(url, ct: cancellationToken, overrideOptions: options);
+        }
+        finally
+        {
+            int minDelay = configuration.GetValue<int>("YoutubeDL:MetadataThrottle:MinDelaySeconds", 3);
+            int maxDelay = configuration.GetValue<int>("YoutubeDL:MetadataThrottle:MaxDelaySeconds", 8);
+            if (maxDelay > minDelay)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(Random.Shared.Next(minDelay, maxDelay + 1)), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Only paces the *next* request; don't fail the caller that already succeeded.
+                }
+            }
+
+            requestGate.Release();
+        }
     }
 
     public string PlatformName => "YouTube";
@@ -35,7 +87,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 logger.LogInformation("Fetching channel metadata for: {Url}", channelUrl);
             }
 
-            var result = await ytdl.RunVideoDataFetch(channelUrl);
+            var result = await FetchDataAsync(channelUrl, overrideOptions: null, cancellationToken);
 
             if (!result.Success || result.Data is null)
             {
@@ -134,7 +186,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 DumpSingleJson = true
             };
 
-            var result = await ytdl.RunVideoDataFetch(videosUrl, overrideOptions: options);
+            var result = await FetchDataAsync(videosUrl, options, cancellationToken);
 
             if (!result.Success || result.Data is null)
             {
@@ -191,7 +243,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 DumpSingleJson = true
             };
 
-            var result = await ytdl.RunVideoDataFetch(playlistUrl, overrideOptions: options);
+            var result = await FetchDataAsync(playlistUrl, options, cancellationToken);
 
             if (!result.Success || result.Data is null)
             {
@@ -244,7 +296,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 DumpSingleJson = true
             };
 
-            var result = await ytdl.RunVideoDataFetch(playlistUrl, overrideOptions: options);
+            var result = await FetchDataAsync(playlistUrl, options, cancellationToken);
 
             if (!result.Success || result.Data is null)
             {
@@ -291,7 +343,7 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
                 logger.LogInformation("Fetching video metadata for: {Url}", videoUrl);
             }
 
-            var result = await ytdl.RunVideoDataFetch(videoUrl);
+            var result = await FetchDataAsync(videoUrl, overrideOptions: null, cancellationToken);
 
             if (!result.Success || result.Data is null)
             {
@@ -394,11 +446,13 @@ public partial class YouTubeMetadataProvider : IVideoMetadataProvider
 
     private async Task<List<PlaylistMetadata>> GetChannelPlaylistsInternalAsync(string channelUrl, string playlistsUrl, CancellationToken cancellationToken = default)
     {
-        var result = await ytdl.RunVideoDataFetch(playlistsUrl, overrideOptions: new OptionSet
+        var options = new OptionSet
         {
             FlatPlaylist = true,
             DumpSingleJson = true
-        });
+        };
+
+        var result = await FetchDataAsync(playlistsUrl, options, cancellationToken);
 
         if (!result.Success || result.Data is null)
         {

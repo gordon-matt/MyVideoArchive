@@ -652,7 +652,17 @@ public class CustomPlaylistService : ICustomPlaylistService
     {
         try
         {
-            await customPlaylistVideoRepository.DeleteAsync(x => x.VideoId == videoId && x.CustomPlaylist.UserId == userId);
+            // Resolve the user's playlist IDs first and filter on the local CustomPlaylistId column
+            // rather than joining through the CustomPlaylist navigation property. EF Core's
+            // ExecuteDelete translates navigation-based predicates into a DELETE whose WHERE clause
+            // subqueries the very table being deleted from, which MySQL rejects with "can't specify
+            // target table '...' for update in FROM clause".
+            var userPlaylistIds = (await customPlaylistRepository.FindAsync(
+                new SearchOptions<CustomPlaylist> { Query = x => x.UserId == userId },
+                x => x.Id)).ToList();
+
+            await customPlaylistVideoRepository.DeleteAsync(
+                x => x.VideoId == videoId && userPlaylistIds.Contains(x.CustomPlaylistId));
             return Result.Success();
         }
         catch (Exception ex)

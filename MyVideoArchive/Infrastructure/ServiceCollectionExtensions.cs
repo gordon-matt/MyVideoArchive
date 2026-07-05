@@ -281,7 +281,10 @@ internal static class ServiceCollectionExtensions
             services.AddTransient<FileSystemScanJob>();
             services.AddTransient<MetadataReviewJob>();
             services.AddTransient<PlaylistSyncJob>();
+            services.AddTransient<SubtitleBackfillJob>();
+            services.AddTransient<TagGarbageCollectorJob>();
             services.AddTransient<VideoDownloadJob>();
+            services.AddTransient<YtDlpUpdateJob>();
 
             // Register file system scan state (singleton - tracks progress across requests)
             services.AddSingleton<FileSystemScanStateService>();

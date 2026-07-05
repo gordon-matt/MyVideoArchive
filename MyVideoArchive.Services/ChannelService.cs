@@ -76,11 +76,24 @@ public class ChannelService : IChannelService
                 return Result.NotFound("Channel not found");
             }
 
+            // Resolve video/playlist IDs up front and delete junction rows via `Contains` on these
+            // ID lists rather than predicates that join through navigation properties (e.g.
+            // `x.Video.ChannelId == id`). EF Core's ExecuteDelete translates the latter into a DELETE
+            // whose WHERE clause subqueries the very table being deleted from, which MySQL rejects
+            // with "You can't specify target table '...' for update in FROM clause".
+            var channelVideoIds = (await videoRepository.FindAsync(
+                new SearchOptions<Video> { Query = x => x.ChannelId == id },
+                x => x.Id)).ToList();
+
+            var channelPlaylistIds = (await playlistRepository.FindAsync(
+                new SearchOptions<Playlist> { Query = x => x.ChannelId == id },
+                x => x.Id)).ToList();
+
             // Always: remove all user subscriptions & related playlist/video associations for the channel
-            await customPlaylistVideoRepository.DeleteAsync(x => x.Video.ChannelId == id);
-            await userPlaylistVideoRepository.DeleteAsync(x => x.Video.ChannelId == id);
-            await userPlaylistRepository.DeleteAsync(x => x.Playlist.ChannelId == id);
-            await userVideoRepository.DeleteAsync(x => x.Video.ChannelId == id);
+            await customPlaylistVideoRepository.DeleteAsync(x => channelVideoIds.Contains(x.VideoId));
+            await userPlaylistVideoRepository.DeleteAsync(x => channelVideoIds.Contains(x.VideoId));
+            await userPlaylistRepository.DeleteAsync(x => channelPlaylistIds.Contains(x.PlaylistId));
+            await userVideoRepository.DeleteAsync(x => channelVideoIds.Contains(x.VideoId));
 
             int subscriptionCount = await userChannelRepository.DeleteAsync(x => x.ChannelId == id);
 
@@ -131,10 +144,10 @@ public class ChannelService : IChannelService
 
             if (deleteMetadata)
             {
-                await videoTagRepository.DeleteAsync(x => x.Video.ChannelId == id);
-                await playlistVideoRepository.DeleteAsync(x => x.Video.ChannelId == id);
+                await videoTagRepository.DeleteAsync(x => channelVideoIds.Contains(x.VideoId));
+                await playlistVideoRepository.DeleteAsync(x => channelVideoIds.Contains(x.VideoId));
                 await videoRepository.DeleteAsync(x => x.ChannelId == id);
-                await playlistTagRepository.DeleteAsync(x => x.Playlist.ChannelId == id);
+                await playlistTagRepository.DeleteAsync(x => channelPlaylistIds.Contains(x.PlaylistId));
                 await playlistRepository.DeleteAsync(x => x.ChannelId == id);
                 await channelTagRepository.DeleteAsync(x => x.ChannelId == id);
                 await channelRepository.DeleteAsync(channel);
