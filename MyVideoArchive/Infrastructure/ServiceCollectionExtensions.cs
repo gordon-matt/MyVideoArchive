@@ -264,10 +264,14 @@ internal static class ServiceCollectionExtensions
             // Register metadata providers
             services.AddSingleton<IVideoMetadataProvider, YouTubeMetadataProvider>();
             services.AddSingleton<IVideoMetadataProvider, BitChuteMetadataProvider>();
+            services.AddSingleton<IVideoMetadataProvider, OdyseeMetadataProvider>();
+            services.AddSingleton<IVideoMetadataProvider, RumbleMetadataProvider>();
 
             // Register downloaders
             services.AddSingleton<IVideoDownloader, YouTubeDownloader>();
             services.AddSingleton<IVideoDownloader, BitChuteDownloader>();
+            services.AddSingleton<IVideoDownloader, OdyseeDownloader>();
+            services.AddSingleton<IVideoDownloader, RumbleDownloader>();
 
             // Register factories
             services.AddSingleton<VideoMetadataProviderFactory>();

@@ -2,17 +2,19 @@
 
 # MyVideoArchive
 
-A video archiving application inspired by [TubeArchivist](https://github.com/tubearchivist/tubearchivist). Archive your favourite videos, channels, and playlists from YouTube and BitChute, or create custom channels and upload your own. Built with ASP.NET Core.
+A video archiving application inspired by [TubeArchivist](https://github.com/tubearchivist/tubearchivist). Archive your favourite videos, channels, and playlists from YouTube, BitChute, Odysee and Rumble, or create custom channels and upload your own. Built with ASP.NET Core.
 
 ## Features
 
-### Channels: YouTube, BitChute & Custom
+### Channels: YouTube, BitChute, Odysee, Rumble & Custom
 
 - **YouTube** — Subscribe to channels by URL; metadata and thumbnails are fetched via yt-dlp. Videos and playlists sync on a schedule.
 - **BitChute** — Same workflow as YouTube: add a channel URL, and the app fetches metadata and supports downloading. Playlists are not yet supported, but watch this space...
+- **Odysee** — Add a channel URL (e.g. `https://odysee.com/@Channel:id`); metadata and videos are fetched via yt-dlp.
+- **Rumble** — Add a channel URL (e.g. `https://rumble.com/c/Channel` or `https://rumble.com/user/Name`); metadata and videos are fetched via yt-dlp.
 - **Custom channels** — Create your own channels. Add playlists and videos manually, upload or copy files into the configured folder, and use the file system scan to import them.
 
-The **Channels** page lists all channels (or “My Channels” for non-admins) with filters by platform (YouTube, BitChute, Custom) and view modes (banner or avatar grid). Add new channels via the **Add Channel** modal.
+The **Channels** page lists all channels (or “My Channels” for non-admins) with filters by platform (YouTube, BitChute, Odysee, Rumble, Custom) and view modes (banner or avatar grid). Add new channels via the **Add Channel** modal.
 
 <img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/_Misc/Screenshots/channel-index.png" alt="Channel Index" />
 
