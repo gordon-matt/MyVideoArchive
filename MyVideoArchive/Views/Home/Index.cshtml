@@ -1,49 +1,355 @@
 @{
     ViewData["Title"] = "Home";
+    bool isAdmin = User.IsInRole(Constants.Roles.Administrator);
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/home.css" asp-append-version="true" />
+    @if (isAdmin)
+    {
+        <link rel="stylesheet" href="~/css/home-admin.css" asp-append-version="true" />
+    }
+    else
+    {
+        <link rel="stylesheet" href="~/css/home.css" asp-append-version="true" />
+    }
 }
 
-<div class="row mb-4">
-    <div class="col-12">
-        <h2>Latest Videos</h2>
-        <p class="text-muted">Recently downloaded videos from your subscribed channels</p>
+@if (isAdmin)
+{
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+            <p class="text-muted">Overview of your archive</p>
+        </div>
+        <div class="col-auto">
+            <a href="/admin" class="btn btn-outline-secondary"><i class="bi bi-gear-fill"></i> Admin Tools</a>
+        </div>
     </div>
-</div>
 
-<div data-bind="visible: loading" class="text-center">
-    <div class="spinner-border" role="status">
-        <span class="visually-hidden">Loading...</span>
+    <div data-bind="visible: loading" class="text-center py-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
     </div>
-</div>
 
-<div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
-    <p>No videos downloaded yet.</p>
-</div>
+    <div data-bind="visible: !loading() && error()" class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle-fill"></i> Failed to load dashboard statistics.
+    </div>
 
-<div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3" data-bind="visible: !loading() && videos().length > 0">
-    <!-- ko foreach: videos -->
-    <div class="col mb-4">
-        <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
-            <div class="video-card">
-                <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }" class="video-thumbnail" />
-                <div class="video-info">
-                    <div class="video-title" data-bind="text: Title, attr: { title: Title }"></div>
-                    <div class="video-channel" data-bind="text: Channel ? Channel.Name : 'Unknown Channel'"></div>
-                    <div class="video-meta">
-                        <span data-bind="text: $parent.formatDuration(Duration)"></span>
-                        <br/>
-                        <span data-bind="text: $parent.formatFileSize(FileSize)"></span>
+    <!-- ko if: !loading() && !error() && stats() -->
+    <div>
+
+        <!-- ── Attention needed ─────────────────────────────────────────────── -->
+        <!-- ko if: hasAlerts() -->
+        <div class="row mb-4 g-3">
+            <!-- ko if: stats().failedDownloadsCount > 0 -->
+            <div class="col-md-4">
+                <a href="/admin#failed">
+                    <div class="alert alert-danger d-flex align-items-center mb-0 dashboard-alert-card">
+                        <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
+                        <div>
+                            <div class="fw-bold fs-5" data-bind="text: formatNumber(stats().failedDownloadsCount)"></div>
+                            <div class="small">Failed Download(s)</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <!-- /ko -->
+            <!-- ko if: stats().needsMetadataReviewCount > 0 -->
+            <div class="col-md-4">
+                <div class="alert alert-warning d-flex align-items-center mb-0 dashboard-alert-card">
+                    <i class="bi bi-flag-fill fs-3 me-3"></i>
+                    <div>
+                        <div class="fw-bold fs-5" data-bind="text: formatNumber(stats().needsMetadataReviewCount)"></div>
+                        <div class="small">Need Metadata Review</div>
                     </div>
                 </div>
             </div>
-        </a>
+            <!-- /ko -->
+            <!-- ko if: stats().queuedDownloadsCount > 0 -->
+            <div class="col-md-4">
+                <div class="alert alert-info d-flex align-items-center mb-0 dashboard-alert-card">
+                    <i class="bi bi-hourglass-split fs-3 me-3"></i>
+                    <div>
+                        <div class="fw-bold fs-5" data-bind="text: formatNumber(stats().queuedDownloadsCount)"></div>
+                        <div class="small">Queued for Download</div>
+                    </div>
+                </div>
+            </div>
+            <!-- /ko -->
+        </div>
+        <!-- /ko -->
+
+        <!-- ── Primary stat cards ───────────────────────────────────────────── -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="dashboard-stat-card">
+                    <div class="dashboard-stat-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-camera-reels-fill"></i></div>
+                    <div class="dashboard-stat-value" data-bind="text: formatNumber(stats().totalVideosDownloaded)"></div>
+                    <div class="dashboard-stat-label">Videos Downloaded</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="dashboard-stat-card">
+                    <div class="dashboard-stat-icon bg-secondary bg-opacity-10 text-secondary"><i class="bi bi-collection-play-fill"></i></div>
+                    <div class="dashboard-stat-value" data-bind="text: formatNumber(stats().totalVideosAvailable)"></div>
+                    <div class="dashboard-stat-label">Videos Known</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="dashboard-stat-card">
+                    <div class="dashboard-stat-icon bg-success bg-opacity-10 text-success"><i class="bi bi-hdd-fill"></i></div>
+                    <div class="dashboard-stat-value" data-bind="text: formatFileSize(stats().totalStorageBytes)"></div>
+                    <div class="dashboard-stat-label">Storage Used</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="dashboard-stat-card">
+                    <div class="dashboard-stat-icon bg-info bg-opacity-10 text-info"><i class="bi bi-broadcast"></i></div>
+                    <div class="dashboard-stat-value" data-bind="text: formatNumber(stats().totalChannels)"></div>
+                    <div class="dashboard-stat-label">Channels</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="dashboard-stat-card">
+                    <div class="dashboard-stat-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-people-fill"></i></div>
+                    <div class="dashboard-stat-value" data-bind="text: formatNumber(stats().totalUsers)"></div>
+                    <div class="dashboard-stat-label">Users</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="dashboard-stat-card">
+                    <div class="dashboard-stat-icon bg-danger bg-opacity-10 text-danger"><i class="bi bi-clock-history"></i></div>
+                    <div class="dashboard-stat-value" data-bind="text: totalDurationText"></div>
+                    <div class="dashboard-stat-label">Total Runtime</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Secondary stat cards ─────────────────────────────────────────── -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="dashboard-mini-stat">
+                    <span class="dashboard-mini-stat-label">Platform Playlists</span>
+                    <span class="dashboard-mini-stat-value" data-bind="text: formatNumber(stats().totalPlaylists)"></span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="dashboard-mini-stat">
+                    <span class="dashboard-mini-stat-label">Custom Playlists</span>
+                    <span class="dashboard-mini-stat-value" data-bind="text: formatNumber(stats().totalCustomPlaylists)"></span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="dashboard-mini-stat">
+                    <span class="dashboard-mini-stat-label">Series</span>
+                    <span class="dashboard-mini-stat-value" data-bind="text: formatNumber(stats().totalSeries)"></span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="dashboard-mini-stat">
+                    <span class="dashboard-mini-stat-label">Global Tags</span>
+                    <span class="dashboard-mini-stat-value" data-bind="text: formatNumber(stats().totalGlobalTags)"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <!-- ── Download activity ────────────────────────────────────────── -->
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-graph-up"></i> Download Activity</h5></div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-muted">Last 7 days</span>
+                            <span class="fw-bold fs-5" data-bind="text: formatNumber(stats().videosDownloadedLast7Days)"></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted">Last 30 days</span>
+                            <span class="fw-bold fs-5" data-bind="text: formatNumber(stats().videosDownloadedLast30Days)"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Platform breakdown ───────────────────────────────────────── -->
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-pie-chart-fill"></i> Content by Platform</h5></div>
+                    <div class="card-body">
+                        <!-- ko if: stats().channelsByPlatform.length === 0 -->
+                        <p class="text-muted mb-0">No channels yet.</p>
+                        <!-- /ko -->
+                        <!-- ko foreach: stats().channelsByPlatform -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>
+                                    <i class="bi" data-bind="css: $parent.platformIcon(platform)"></i>
+                                    <span class="fw-semibold" data-bind="text: platform"></span>
+                                    <span class="text-muted small" data-bind="text: '(' + channelCount + ' channel' + (channelCount !== 1 ? 's' : '') + ')'"></span>
+                                </span>
+                                <span class="text-muted small">
+                                    <span data-bind="text: $parent.formatNumber(videoCount)"></span> videos &middot;
+                                    <span data-bind="text: $parent.formatFileSize(storageBytes)"></span>
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar" data-bind="css: $parent.platformBarClass(platform), style: { width: (videoCount / $parent.maxPlatformVideoCount() * 100) + '%' }"></div>
+                            </div>
+                        </div>
+                        <!-- /ko -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <!-- ── Top channels ─────────────────────────────────────────────── -->
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-trophy-fill"></i> Top Channels</h5></div>
+                    <div class="card-body p-0">
+                        <!-- ko if: stats().topChannelsByVideoCount.length === 0 -->
+                        <p class="text-muted p-3 mb-0">No downloaded videos yet.</p>
+                        <!-- /ko -->
+                        <ul class="list-group list-group-flush" data-bind="foreach: stats().topChannelsByVideoCount">
+                            <li class="list-group-item d-flex align-items-center gap-3">
+                                <img data-bind="attr: { src: avatarUrl || bannerUrl || 'https://placehold.co/48x48?text=' + name.charAt(0) }" class="dashboard-channel-avatar" />
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold" data-bind="text: name"></div>
+                                    <span class="badge bg-light text-dark border" data-bind="text: platform"></span>
+                                </div>
+                                <span class="badge bg-primary rounded-pill" data-bind="text: videoCount"></span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Recently added channels ──────────────────────────────────── -->
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-clock-fill"></i> Recently Added Channels</h5></div>
+                    <div class="card-body p-0">
+                        <!-- ko if: stats().recentlyAddedChannels.length === 0 -->
+                        <p class="text-muted p-3 mb-0">No channels yet.</p>
+                        <!-- /ko -->
+                        <ul class="list-group list-group-flush" data-bind="foreach: stats().recentlyAddedChannels">
+                            <li class="list-group-item d-flex align-items-center gap-3">
+                                <img data-bind="attr: { src: avatarUrl || 'https://placehold.co/48x48?text=' + name.charAt(0) }" class="dashboard-channel-avatar" />
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold" data-bind="text: name"></div>
+                                    <span class="badge bg-light text-dark border" data-bind="text: platform"></span>
+                                </div>
+                                <span class="text-muted small" data-bind="text: $root.formatDate(subscribedAt)"></span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Recently downloaded videos ───────────────────────────────────── -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-film"></i> Recently Downloaded</h5>
+                        <a asp-controller="Videos" asp-action="Index" class="small">View all videos &raquo;</a>
+                    </div>
+                    <div class="card-body">
+                        <div data-bind="visible: recentVideosLoading" class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                        </div>
+                        <div data-bind="visible: !recentVideosLoading() && recentVideos().length === 0" class="text-muted">
+                            No videos downloaded yet.
+                        </div>
+                        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3" data-bind="visible: !recentVideosLoading() && recentVideos().length > 0">
+                            <!-- ko foreach: recentVideos -->
+                            <div class="col">
+                                <a data-bind="attr: { href: '/videos/' + Id }">
+                                    <div class="dashboard-video-card">
+                                        <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }" class="dashboard-video-thumbnail" />
+                                        <div class="dashboard-video-info">
+                                            <div class="dashboard-video-title" data-bind="text: Title, attr: { title: Title }"></div>
+                                            <div class="dashboard-video-channel" data-bind="text: Channel ? Channel.Name : 'Unknown Channel'"></div>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                            <!-- /ko -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Quick links ──────────────────────────────────────────────────── -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header"><h5 class="mb-0"><i class="bi bi-lightning-fill"></i> Quick Links</h5></div>
+                    <div class="card-body d-flex flex-wrap gap-2">
+                        <a href="/admin" class="btn btn-outline-primary"><i class="bi bi-tools"></i> Admin Tools</a>
+                        <a href="/admin#tags" class="btn btn-outline-secondary"><i class="bi bi-tags"></i> Global Tags</a>
+                        <a href="/admin#users" class="btn btn-outline-secondary"><i class="bi bi-people"></i> Manage Users</a>
+                        <a href="/hangfire" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary"><i class="bi bi-clock-history"></i> Hangfire Dashboard</a>
+                        <a href="/sejil" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary"><i class="bi bi-journal-text"></i> Log Dashboard</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <!-- /ko -->
-</div>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>Latest Videos</h2>
+            <p class="text-muted">Recently downloaded videos from your subscribed channels</p>
+        </div>
+    </div>
+
+    <div data-bind="visible: loading" class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <div data-bind="visible: !loading() && videos().length === 0" class="alert alert-info">
+        <p>No videos downloaded yet.</p>
+    </div>
+
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3" data-bind="visible: !loading() && videos().length > 0">
+        <!-- ko foreach: videos -->
+        <div class="col mb-4">
+            <a data-bind="attr: { href: '/videos/' + Id }" class="text-decoration-none">
+                <div class="video-card">
+                    <img data-bind="attr: { src: ThumbnailUrl || 'https://placehold.co/320x180?text=No+Thumbnail', alt: Title }" class="video-thumbnail" />
+                    <div class="video-info">
+                        <div class="video-title" data-bind="text: Title, attr: { title: Title }"></div>
+                        <div class="video-channel" data-bind="text: Channel ? Channel.Name : 'Unknown Channel'"></div>
+                        <div class="video-meta">
+                            <span data-bind="text: $parent.formatDuration(Duration)"></span>
+                            <br/>
+                            <span data-bind="text: $parent.formatFileSize(FileSize)"></span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <!-- /ko -->
+    </div>
+}
 
 @section Scripts {
-    <script type="module" src="~/js/home.js" asp-append-version="true"></script>
+    @if (isAdmin)
+    {
+        <script type="module" src="~/js/home-admin.js" asp-append-version="true"></script>
+    }
+    else
+    {
+        <script type="module" src="~/js/home.js" asp-append-version="true"></script>
+    }
 }

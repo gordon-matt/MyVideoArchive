@@ -13,13 +13,26 @@ public class AdminApiController : ControllerBase
 {
     private readonly IFileSystemScanService fileSystemScanService;
     private readonly IVideoService videoService;
+    private readonly IAdminDashboardService adminDashboardService;
 
     public AdminApiController(
         IFileSystemScanService fileSystemScanService,
-        IVideoService videoService)
+        IVideoService videoService,
+        IAdminDashboardService adminDashboardService)
     {
         this.fileSystemScanService = fileSystemScanService;
         this.videoService = videoService;
+        this.adminDashboardService = adminDashboardService;
+    }
+
+    /// <summary>
+    /// Returns archive-wide statistics for the admin dashboard (home page for administrators).
+    /// </summary>
+    [HttpGet("dashboard-stats")]
+    public async Task<IActionResult> GetDashboardStats(CancellationToken cancellationToken)
+    {
+        var result = await adminDashboardService.GetStatsAsync(cancellationToken);
+        return result.ToActionResult(this, Ok);
     }
 
     /// <summary>

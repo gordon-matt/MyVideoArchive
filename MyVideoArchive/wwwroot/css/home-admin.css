@@ -1,0 +1,117 @@
+.dashboard-stat-card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    padding: 1.1rem 1rem;
+    text-align: center;
+    height: 100%;
+}
+
+.dashboard-stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.dashboard-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.dashboard-stat-label {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
+.dashboard-mini-stat {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+}
+
+.dashboard-mini-stat-value {
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.dashboard-mini-stat-label {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
+.dashboard-alert-card {
+    width: 100%;
+    transition: transform 0.15s;
+}
+
+a:has(.dashboard-alert-card) {
+    text-decoration: none;
+}
+
+a:has(.dashboard-alert-card):hover .dashboard-alert-card {
+    transform: translateY(-2px);
+}
+
+.dashboard-channel-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #f0f0f0;
+    flex-shrink: 0;
+}
+
+.dashboard-video-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.2s;
+    color: inherit;
+}
+
+    .dashboard-video-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        transform: translateY(-3px);
+    }
+
+a:has(.dashboard-video-card) {
+    text-decoration: none;
+    color: inherit;
+}
+
+.dashboard-video-thumbnail {
+    width: 100%;
+    height: 110px;
+    object-fit: cover;
+    background-color: #000;
+}
+
+.dashboard-video-info {
+    padding: 8px 10px;
+}
+
+.dashboard-video-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.dashboard-video-channel {
+    color: #606060;
+    font-size: 0.75rem;
+}

@@ -529,6 +529,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const viewModel = new AdminViewModel();
     ko.applyBindings(viewModel);
 
+    // Deep-link support: /admin#tags, /admin#failed, /admin#users activate the matching tab
+    // (dispatched as a real click so both Bootstrap's tab switching and the KO-bound loader run).
+    const hash = window.location.hash.replace('#', '');
+    if (['tags', 'failed', 'users'].includes(hash)) {
+        document.getElementById(`${hash}-tab`)?.click();
+    }
+
     // Load the failed download count for the badge (non-blocking)
     fetch('/api/admin/failed-downloads')
         .then(r => r.ok ? r.json() : null)
