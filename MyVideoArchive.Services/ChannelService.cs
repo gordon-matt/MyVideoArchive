@@ -76,6 +76,33 @@ public class ChannelService : IChannelService
                 return Result.NotFound("Channel not found");
             }
 
+            string? channelFilesPath = null;
+            if (deleteFiles)
+            {
+                string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
+                    ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
+
+                if (!CustomChannelPathHelper.TryResolveChannelDownloadDirectory(
+                        downloadPath,
+                        channel.Platform,
+                        channel.ChannelId,
+                        out channelFilesPath)
+                    || channelFilesPath is null)
+                {
+                    if (logger.IsEnabled(LogLevel.Warning))
+                    {
+                        logger.LogWarning(
+                            "Skipped deleting files for channel {ChannelDbId} (platform {Platform}, channelId {ChannelId}): unsafe or invalid download path",
+                            id,
+                            channel.Platform,
+                            channel.ChannelId);
+                    }
+
+                    return Result.Error(
+                        "Could not determine a safe folder path for this channel's files. No files were deleted.");
+                }
+            }
+
             // Resolve video/playlist IDs up front and delete junction rows via `Contains` on these
             // ID lists rather than predicates that join through navigation properties (e.g.
             // `x.Video.ChannelId == id`). EF Core's ExecuteDelete translates the latter into a DELETE
@@ -103,18 +130,13 @@ public class ChannelService : IChannelService
                     subscriptionCount, id);
             }
 
-            if (deleteFiles)
+            if (deleteFiles && !string.IsNullOrEmpty(channelFilesPath))
             {
-                string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
-                    ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
-
-                string channelPath = Path.Combine(downloadPath, channel.ChannelId);
-
                 int deletedFileCount = 0;
 
-                if (!string.IsNullOrEmpty(channelPath) && Directory.Exists(channelPath))
+                if (Directory.Exists(channelFilesPath))
                 {
-                    var files = Directory.EnumerateFiles(channelPath, "*", SearchOption.AllDirectories).ToList();
+                    var files = Directory.EnumerateFiles(channelFilesPath, "*", SearchOption.AllDirectories).ToList();
                     deletedFileCount = files.Count;
 
                     foreach (string file in files)
@@ -122,12 +144,15 @@ public class ChannelService : IChannelService
                         File.SetAttributes(file, FileAttributes.Normal);
                     }
 
-                    Directory.Delete(channelPath, recursive: true);
+                    Directory.Delete(channelFilesPath, recursive: true);
 
                     if (logger.IsEnabled(LogLevel.Information))
                     {
-                        logger.LogInformation("Admin deleted {Count} video file(s) for channel {ChannelId}",
-                            deletedFileCount, id);
+                        logger.LogInformation(
+                            "Admin deleted channel folder {ChannelPath} ({Count} file(s)) for channel {ChannelDbId}",
+                            channelFilesPath,
+                            deletedFileCount,
+                            id);
                     }
                 }
 
