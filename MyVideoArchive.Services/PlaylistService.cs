@@ -1,11 +1,15 @@
 using Ardalis.Result;
 using Extenso.Collections.Generic;
 using Hangfire;
+using Hangfire.Common;
+using Hangfire.Storage;
+using Hangfire.Storage.Monitoring;
 using Microsoft.AspNetCore.Http;
 using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Models.Requests.Playlist;
 using MyVideoArchive.Models.Responses;
 using MyVideoArchive.Services.Content;
+using MyVideoArchive.Services.Jobs;
 
 namespace MyVideoArchive.Services;
 
@@ -977,6 +981,63 @@ public class PlaylistService : IPlaylistService
             }
 
             return Result.Error("An error occurred while queueing the playlist sync job");
+        }
+    }
+
+    public async Task<bool?> GetSyncStatusAsync(int playlistId, CancellationToken cancellationToken = default)
+    {
+        var playlist = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>
+        {
+            CancellationToken = cancellationToken,
+            Query = x => x.Id == playlistId,
+            Include = query => query.Include(x => x.Channel)
+        });
+
+        if (playlist is null)
+        {
+            return null;
+        }
+
+        if (!await UserHasAccessToChannelAsync(playlist.ChannelId))
+        {
+            return null;
+        }
+
+        if (playlist.Channel?.Platform is "Custom")
+        {
+            return false;
+        }
+
+        try
+        {
+            var monitoring = JobStorage.Current.GetMonitoringApi();
+            const int maxJobs = 500;
+
+            bool IsPlaylistSyncJobForThisPlaylist(Job? job) =>
+                job is not null &&
+                job.Type == typeof(PlaylistSyncJob) &&
+                string.Equals(job.Method.Name, nameof(PlaylistSyncJob.ExecuteAsync), StringComparison.Ordinal) &&
+                job.Args is { Count: > 0 } &&
+                job.Args[0] is int id &&
+                id == playlistId;
+
+            var processing = monitoring.ProcessingJobs(0, maxJobs);
+            if (processing.Any(entry => IsPlaylistSyncJobForThisPlaylist(entry.Value?.Job)))
+            {
+                return true;
+            }
+
+            var enqueued = monitoring.EnqueuedJobs("default", 0, maxJobs);
+            return enqueued.Any(entry => IsPlaylistSyncJobForThisPlaylist(entry.Value?.Job));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Failed to check Hangfire for playlist sync status");
+            }
+
+            return false;
         }
     }
 

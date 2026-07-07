@@ -10,6 +10,17 @@
 }
 
 <div class="container-fluid px-0">
+    <!-- Sync status banner -->
+    <!-- ko if: isSyncing -->
+    <div class="alert alert-info d-flex align-items-center gap-2 mb-3">
+        <span class="spinner-border spinner-border-sm flex-shrink-0" role="status" aria-hidden="true"></span>
+        <span>
+            <strong>Syncing playlist&hellip;</strong>
+            This playlist is being refreshed from the platform. New videos and metadata will appear automatically when complete.
+        </span>
+    </div>
+    <!-- /ko -->
+
     <div class="row g-0" data-bind="visible: playlist()">
         <div class="col-lg-8">
             <!-- Current Video Player -->
