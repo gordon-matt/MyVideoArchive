@@ -1,6 +1,4 @@
-using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
@@ -12,23 +10,9 @@ using YoutubeDLSharp.Options;
 namespace MyVideoArchive.Services.Content.Providers;
 
 /// <summary>
-/// Rumble implementation of metadata provider.
-/// Supports channel URLs (rumble.com/c/{id} and rumble.com/user/{id}), playlist URLs
-/// (rumble.com/playlists/{id}) and single video URLs.
-///
-/// yt-dlp's Rumble channel extractor no longer works: Rumble's channel video grid is rendered
-/// client-side now, so the static HTML it downloads contains no video links at all (except for
-/// one server-rendered "Featured" video pinned to the top, which is all yt-dlp ever finds,
-/// regardless of how many videos the channel actually has). The real video grid ships instead as
-/// JSON embedded in a &lt;script type="application/json"&gt; block on the /videos tab, so this
-/// provider scrapes and paginates that directly. The /playlists tab and playlist detail pages
-/// are server-rendered HTML cards, scraped with HtmlAgilityPack. yt-dlp is kept only as a
-/// last-resort fallback.
-///
-/// All scraping goes through the named "<see cref="HttpClientName"/>" HttpClient, which is
-/// configured (in ServiceCollectionExtensions) with a full browser-like header set and gzip
-/// decompression — Rumble's Cloudflare protection returns 403 to requests that carry only a
-/// User-Agent with no Accept/Accept-Language/Accept-Encoding headers.
+/// Rumble metadata provider. Channel video grids and playlist pages are scraped via
+/// <see cref="RumblePageParser"/> because yt-dlp's Rumble channel extractor no longer sees
+/// client-rendered listings. yt-dlp is kept only as a fallback for single-video metadata.
 /// </summary>
 public partial class RumbleMetadataProvider : IVideoMetadataProvider
 {
@@ -72,7 +56,7 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                 RumbleChannelIdRegex().Match(channelUrl).Groups[1].Value,
                 channelUrl.TrimEnd('/').Split('/').LastOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? string.Empty);
 
-            string baseUrl = NormalizeChannelBaseUrl(channelUrl);
+            string baseUrl = RumblePageParser.NormalizeChannelBaseUrl(channelUrl);
             string? html = await FetchHtmlAsync($"{baseUrl}/videos?page=1", cancellationToken);
 
             if (html is not null)
@@ -80,23 +64,24 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                 string? channelName = null;
                 string? firstVideoThumbnail = null;
 
-                var items = ExtractGridItems(html);
+                var items = RumblePageParser.ExtractFirstGridItems(html);
                 if (items is not null)
                 {
                     foreach (var item in items)
                     {
-                        if (!IsVideoItem(item))
+                        var video = RumblePageParser.MapGridItemToVideo(item, channelId, "Unknown Channel", PlatformName);
+                        if (video is null)
                         {
                             continue;
                         }
 
-                        channelName = AsString(item?["by"]?["name"]);
-                        firstVideoThumbnail = AsString(item?["thumb"]);
+                        channelName = video.ChannelName;
+                        firstVideoThumbnail = video.ThumbnailUrl;
                         break;
                     }
                 }
 
-                var (avatarUrl, bannerUrl) = ExtractHeaderImages(html);
+                var (avatarUrl, bannerUrl) = RumblePageParser.ExtractHeaderImages(html);
 
                 if (!string.IsNullOrEmpty(channelName) || !string.IsNullOrEmpty(avatarUrl) || !string.IsNullOrEmpty(bannerUrl))
                 {
@@ -110,7 +95,7 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                         Description = null,
                         BannerUrl = FirstNonEmpty(bannerUrl, avatarUrl, firstVideoThumbnail),
                         AvatarUrl = FirstNonEmpty(avatarUrl, bannerUrl, firstVideoThumbnail),
-                        Thumbnails = BuildThumbnailList(avatarUrl, bannerUrl, firstVideoThumbnail),
+                        Thumbnails = RumblePageParser.BuildThumbnailList(avatarUrl, bannerUrl, firstVideoThumbnail),
                         SubscriberCount = null,
                         Platform = PlatformName
                     };
@@ -134,10 +119,6 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
         }
     }
 
-    /// <summary>
-    /// Scrapes the channel's /playlists tab (server-rendered HTML cards; yt-dlp has no Rumble
-    /// playlist extractor at all). Paginates with ?page=N until a page adds nothing new.
-    /// </summary>
     public async Task<List<PlaylistMetadata>> GetChannelPlaylistsAsync(string channelUrl, CancellationToken cancellationToken = default)
     {
         try
@@ -151,7 +132,7 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                 RumbleChannelIdRegex().Match(channelUrl).Groups[1].Value,
                 channelUrl.TrimEnd('/').Split('/').LastOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? string.Empty);
 
-            string baseUrl = NormalizeChannelBaseUrl(channelUrl);
+            string baseUrl = RumblePageParser.NormalizeChannelBaseUrl(channelUrl);
             var playlists = new Dictionary<string, PlaylistMetadata>(StringComparer.Ordinal);
 
             for (int page = 1; page <= MaxChannelPages; page++)
@@ -164,7 +145,7 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                     break;
                 }
 
-                int addedThisPage = ParsePlaylistCards(html, channelId, playlists);
+                int addedThisPage = RumblePageParser.ParsePlaylistCards(html, channelId, PlatformName, playlists);
                 if (addedThisPage == 0)
                 {
                     break;
@@ -176,7 +157,9 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                 logger.LogInformation("Scraped {Count} playlists for Rumble channel: {Url}", playlists.Count, channelUrl);
             }
 
-            return [.. playlists.Values];
+            await EnrichMissingPlaylistThumbnailsAsync(playlists.Values, cancellationToken);
+
+            return playlists.Values.Where(p => !RumblePageParser.IsSystemPlaylist(p.Name)).ToList();
         }
         catch (Exception ex)
         {
@@ -201,7 +184,7 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                 RumbleChannelIdRegex().Match(channelUrl).Groups[1].Value,
                 channelUrl.TrimEnd('/').Split('/').LastOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? string.Empty);
 
-            var videos = await ScrapeChannelGridAsync(NormalizeChannelBaseUrl(channelUrl), channelId, cancellationToken);
+            var videos = await ScrapeChannelGridAsync(RumblePageParser.NormalizeChannelBaseUrl(channelUrl), channelId, cancellationToken);
 
             if (videos.Count > 0)
             {
@@ -231,11 +214,6 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
         }
     }
 
-    /// <summary>
-    /// Scrapes a playlist detail page (rumble.com/playlists/{id}) for its metadata. yt-dlp has no
-    /// Rumble playlist extractor, so scraping is the only option; the page is server-rendered and
-    /// carries standard OpenGraph meta tags.
-    /// </summary>
     public async Task<PlaylistMetadata?> GetPlaylistMetadataAsync(string playlistUrl, CancellationToken cancellationToken = default)
     {
         try
@@ -247,7 +225,7 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
 
             string playlistId = RumblePlaylistIdRegex().Match(playlistUrl).Groups[1].Value;
 
-            string? html = await FetchHtmlAsync(StripQuery(playlistUrl), cancellationToken);
+            string? html = await FetchHtmlAsync(RumblePageParser.StripQuery(playlistUrl), cancellationToken);
             if (html is null)
             {
                 return null;
@@ -256,25 +234,31 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            string? title = GetMetaContent(doc, "og:title")
+            string? title = RumblePageParser.GetMetaContent(doc, "og:title")
                 ?? HtmlEntity.DeEntitize(doc.DocumentNode.SelectSingleNode("//h1")?.InnerText ?? string.Empty).Trim();
-            string? description = GetMetaContent(doc, "og:description");
-            string? thumbnailUrl = GetMetaContent(doc, "og:image");
+            string? description = RumblePageParser.GetMetaContent(doc, "og:description");
+            string? thumbnailUrl = FirstNonEmptyOrNull(
+                RumblePageParser.GetMetaContent(doc, "og:image"),
+                RumblePageParser.GetMetaContent(doc, "twitter:image"));
 
-            // The channel link on a playlist page points back at /c/{id} or /user/{id}.
+            string channelName = RumblePageParser.ExtractPlaylistChannelName(doc) ?? string.Empty;
             var channelAnchor = doc.DocumentNode.SelectSingleNode("//a[starts-with(@href, '/c/') or starts-with(@href, '/user/')]");
             string channelId = channelAnchor is not null
                 ? RumbleChannelIdRegex().Match("https://rumble.com" + channelAnchor.GetAttributeValue("href", string.Empty)).Groups[1].Value
                 : string.Empty;
-            string channelName = channelAnchor is not null
-                ? HtmlEntity.DeEntitize(channelAnchor.InnerText).Trim()
-                : string.Empty;
+
+            if (string.IsNullOrEmpty(thumbnailUrl) && !string.IsNullOrEmpty(playlistId))
+            {
+                thumbnailUrl = RumblePageParser.ParsePlaylistVideos(html, playlistId, channelName, PlatformName)
+                    .Select(v => v.ThumbnailUrl)
+                    .FirstOrDefault(url => !string.IsNullOrEmpty(url));
+            }
 
             return new PlaylistMetadata
             {
-                PlaylistId = string.IsNullOrEmpty(playlistId) ? StripQuery(playlistUrl).Split('/').Last() : playlistId,
+                PlaylistId = string.IsNullOrEmpty(playlistId) ? RumblePageParser.StripQuery(playlistUrl).Split('/').Last() : playlistId,
                 Name = string.IsNullOrWhiteSpace(title) ? "Unknown Playlist" : title,
-                Url = StripQuery(playlistUrl),
+                Url = RumblePageParser.StripQuery(playlistUrl),
                 ThumbnailUrl = thumbnailUrl,
                 Description = string.IsNullOrWhiteSpace(description) ? null : description,
                 ChannelId = channelId,
@@ -293,13 +277,6 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
         }
     }
 
-    /// <summary>
-    /// Scrapes a playlist detail page for its videos. Prefers the embedded JSON grid (same shape
-    /// as channel /videos pages) when present; otherwise falls back to parsing the
-    /// server-rendered video cards. Paginates with ?page=N until a page adds nothing new (the
-    /// page serves the same first batch for out-of-range page numbers, so the dedup check
-    /// terminates the loop).
-    /// </summary>
     public async Task<List<VideoMetadata>> GetPlaylistVideosAsync(string playlistUrl, CancellationToken cancellationToken = default)
     {
         try
@@ -309,10 +286,26 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                 logger.LogInformation("Fetching Rumble playlist videos for: {Url}", playlistUrl);
             }
 
-            string baseUrl = StripQuery(playlistUrl);
+            string playlistId = FirstNonEmpty(
+                RumblePlaylistIdRegex().Match(playlistUrl).Groups[1].Value,
+                RumblePageParser.StripQuery(playlistUrl).Split('/').LastOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? string.Empty);
+
+            if (string.IsNullOrEmpty(playlistId))
+            {
+                if (logger.IsEnabled(LogLevel.Warning))
+                {
+                    logger.LogWarning("Could not extract Rumble playlist id from {Url}", playlistUrl);
+                }
+
+                return [];
+            }
+
+            var metadata = await GetPlaylistMetadataAsync(playlistUrl, cancellationToken);
+            string? channelName = metadata?.ChannelName;
+
+            string baseUrl = RumblePageParser.StripQuery(playlistUrl);
             var videos = new List<VideoMetadata>();
             var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            string? channelName = null;
 
             for (int page = 1; page <= MaxChannelPages; page++)
             {
@@ -325,42 +318,31 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                 }
 
                 int addedThisPage = 0;
-
-                var items = ExtractGridItems(html);
-                if (items is not null)
+                foreach (var video in RumblePageParser.ParsePlaylistVideos(html, playlistId, channelName, PlatformName))
                 {
-                    foreach (var item in items)
+                    if (!seenIds.Add(video.VideoId))
                     {
-                        var video = MapGridItemToVideo(item, string.Empty, channelName ?? "Unknown Channel");
-                        if (video is null || !seenIds.Add(video.VideoId))
-                        {
-                            continue;
-                        }
-
-                        channelName ??= video.ChannelName;
-                        videos.Add(video);
-                        addedThisPage++;
+                        continue;
                     }
-                }
-                else
-                {
-                    foreach (var video in ParseVideoCards(html, channelName ?? "Unknown Channel"))
-                    {
-                        if (!seenIds.Add(video.VideoId))
-                        {
-                            continue;
-                        }
 
-                        channelName ??= video.ChannelName;
-                        videos.Add(video);
-                        addedThisPage++;
-                    }
+                    videos.Add(video);
+                    addedThisPage++;
                 }
 
                 if (addedThisPage == 0)
                 {
                     break;
                 }
+            }
+
+            await EnrichMissingVideoThumbnailsViaOEmbedAsync(videos, cancellationToken);
+
+            int? expectedCount = metadata is not null ? TryParseExpectedVideoCount(await FetchHtmlAsync(baseUrl, cancellationToken)) : null;
+            if (expectedCount.HasValue && videos.Count < expectedCount.Value && logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(
+                    "Rumble playlist {PlaylistId} page advertises {Expected} videos but only {Actual} were scraped from {Url}",
+                    playlistId, expectedCount.Value, videos.Count, playlistUrl);
             }
 
             if (logger.IsEnabled(LogLevel.Information))
@@ -406,7 +388,7 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
 
             string videoId = !string.IsNullOrEmpty(data.ID)
                 ? data.ID
-                : ExtractRumbleVideoId(data.WebpageUrl ?? videoUrl);
+                : RumblePageParser.ExtractRumbleVideoId(data.WebpageUrl ?? videoUrl);
 
             return new VideoMetadata
             {
@@ -435,14 +417,6 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
         }
     }
 
-    // ── Grid scraping (primary path for channel videos/images) ─────────────────────────────────
-
-    /// <summary>
-    /// Pages through a Rumble channel's video grid (<c>?page=1,2,3…</c>) until a page yields no
-    /// video items, collecting every video along the way. This is the only way to see more than
-    /// the single server-rendered "Featured" video, since the rest of the grid is populated
-    /// client-side and invisible to yt-dlp's plain HTML fetch.
-    /// </summary>
     private async Task<List<VideoMetadata>> ScrapeChannelGridAsync(string baseChannelUrl, string channelId, CancellationToken cancellationToken)
     {
         var videos = new List<VideoMetadata>();
@@ -459,7 +433,7 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
                 break;
             }
 
-            var items = ExtractGridItems(html);
+            var items = RumblePageParser.ExtractFirstGridItems(html);
             if (items is null)
             {
                 break;
@@ -468,7 +442,7 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
             int addedThisPage = 0;
             foreach (var item in items)
             {
-                var video = MapGridItemToVideo(item, channelId, channelName ?? "Unknown Channel");
+                var video = RumblePageParser.MapGridItemToVideo(item, channelId, channelName ?? "Unknown Channel", PlatformName);
                 if (video is null || !seenIds.Add(video.VideoId))
                 {
                     continue;
@@ -488,10 +462,6 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
         return videos;
     }
 
-    /// <summary>
-    /// Downloads a page's HTML with a browser-like User-Agent (required — Rumble blocks
-    /// non-browser clients). Returns null on any failure so callers can fall back gracefully.
-    /// </summary>
     private async Task<string?> FetchHtmlAsync(string url, CancellationToken cancellationToken)
     {
         try
@@ -518,394 +488,63 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
         }
     }
 
-    /// <summary>
-    /// Rumble's channel/videos grid is rendered client-side; the actual video list ships as JSON
-    /// inside one of several embedded <c>&lt;script type="application/json"&gt;</c> blocks on the
-    /// page (an object with an "items" array). This finds that block, if present.
-    /// </summary>
-    private static JsonArray? ExtractGridItems(string html)
+    private async Task EnrichMissingPlaylistThumbnailsAsync(
+        IEnumerable<PlaylistMetadata> playlists,
+        CancellationToken cancellationToken)
     {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        var scriptNodes = doc.DocumentNode.SelectNodes("//script[@type='application/json']");
-        if (scriptNodes is null)
+        foreach (var playlist in playlists)
         {
-            return null;
-        }
-
-        foreach (var node in scriptNodes)
-        {
-            string json = node.InnerHtml;
-            if (string.IsNullOrWhiteSpace(json) || !json.Contains("\"items\"", StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(playlist.ThumbnailUrl))
             {
                 continue;
             }
 
-            JsonNode? root;
-            try
-            {
-                root = JsonNode.Parse(json);
-            }
-            catch (JsonException)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string? html = await FetchHtmlAsync(playlist.Url, cancellationToken);
+            if (html is null)
             {
                 continue;
             }
 
-            if (root?["items"] is JsonArray items)
-            {
-                return items;
-            }
-        }
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
 
-        return null;
+            playlist.ThumbnailUrl = FirstNonEmptyOrNull(
+                RumblePageParser.GetMetaContent(doc, "og:image"),
+                RumblePageParser.GetMetaContent(doc, "twitter:image"),
+                RumblePageParser.ParsePlaylistVideos(html, playlist.PlaylistId, playlist.ChannelName, PlatformName)
+                    .Select(v => v.ThumbnailUrl)
+                    .FirstOrDefault(url => !string.IsNullOrEmpty(url)));
+        }
     }
 
-    private static bool IsVideoItem(JsonNode? item) =>
-        item is not null && string.Equals(AsString(item["object_type"]), "video", StringComparison.OrdinalIgnoreCase);
-
-    private VideoMetadata? MapGridItemToVideo(JsonNode? item, string channelId, string fallbackChannelName)
+    private async Task EnrichMissingVideoThumbnailsViaOEmbedAsync(
+        List<VideoMetadata> videos,
+        CancellationToken cancellationToken)
     {
-        if (!IsVideoItem(item))
+        foreach (var video in videos)
         {
-            return null;
-        }
-
-        string relativeUrl = AsString(item!["url"]) ?? string.Empty;
-        if (string.IsNullOrEmpty(relativeUrl))
-        {
-            return null;
-        }
-
-        string url = relativeUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? relativeUrl
-            : "https://rumble.com" + relativeUrl;
-
-        string videoId = ExtractRumbleVideoId(url);
-        if (string.IsNullOrEmpty(videoId))
-        {
-            return null;
-        }
-
-        double? duration = AsDouble(item["duration"]);
-        double? views = AsDouble(item["views"]);
-        string? itemChannelName = AsString(item["by"]?["name"]);
-        DateTime? uploadDate = ParseIsoDate(AsString(item["upload_date"]));
-
-        return new VideoMetadata
-        {
-            VideoId = videoId,
-            Title = AsString(item["title"]) ?? DeriveTitleFromRumbleUrl(url) ?? "Unknown Title",
-            Description = null,
-            Url = url,
-            ThumbnailUrl = AsString(item["thumb"]),
-            Duration = duration.HasValue && duration.Value > 0 ? TimeSpan.FromSeconds(duration.Value) : null,
-            UploadDate = uploadDate,
-            ViewCount = views.HasValue ? (int?)views.Value : null,
-            LikeCount = null,
-            ChannelId = channelId,
-            ChannelName = itemChannelName ?? fallbackChannelName,
-            Platform = PlatformName,
-            PlaylistId = null
-        };
-    }
-
-    /// <summary>
-    /// Best-effort scrape of the channel header's cover/avatar images for the "Select Channel
-    /// Images" picker. These two images are server-rendered (unlike the video grid) and are
-    /// served from Rumble's user-content CDN (<c>1a-1791.com</c> / <c>*.rmbl.ws</c>), which
-    /// distinguishes them from logos/ad assets elsewhere on the page.
-    /// </summary>
-    private static (string? AvatarUrl, string? BannerUrl) ExtractHeaderImages(string html)
-    {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        var imgNodes = doc.DocumentNode.SelectNodes("//img[@src]");
-        if (imgNodes is null)
-        {
-            return (null, null);
-        }
-
-        var candidates = imgNodes
-            .Select(n => n.GetAttributeValue("src", string.Empty))
-            .Where(src => !string.IsNullOrWhiteSpace(src) && IsChannelCdnImage(src))
-            .Distinct()
-            .ToList();
-
-        // Rumble renders exactly two header images in this order: cover (banner) then avatar.
-        string? bannerUrl = candidates.ElementAtOrDefault(0);
-        string? avatarUrl = candidates.ElementAtOrDefault(1) ?? bannerUrl;
-
-        return (avatarUrl, bannerUrl);
-    }
-
-    private static bool IsChannelCdnImage(string src) =>
-        src.Contains("1a-1791.com", StringComparison.OrdinalIgnoreCase)
-        || src.Contains(".rmbl.ws", StringComparison.OrdinalIgnoreCase);
-
-    private static List<ThumbnailInfo> BuildThumbnailList(string? avatarUrl, string? bannerUrl, string? fallbackUrl)
-    {
-        var list = new List<ThumbnailInfo>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        void AddIfNew(string id, string? url)
-        {
-            if (!string.IsNullOrEmpty(url) && seen.Add(url))
-            {
-                list.Add(new ThumbnailInfo(id, url, null, null, null));
-            }
-        }
-
-        AddIfNew("banner", bannerUrl);
-        AddIfNew("avatar", avatarUrl);
-        AddIfNew("default", fallbackUrl);
-
-        return list;
-    }
-
-    private static string? AsString(JsonNode? node) =>
-        node is JsonValue value && value.TryGetValue<string>(out string? s) ? s : null;
-
-    private static double? AsDouble(JsonNode? node)
-    {
-        if (node is not JsonValue value)
-        {
-            return null;
-        }
-
-        if (value.TryGetValue<double>(out double d))
-        {
-            return d;
-        }
-
-        return value.TryGetValue<string>(out string? s) && double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out double parsed)
-            ? parsed
-            : null;
-    }
-
-    private static DateTime? ParseIsoDate(string? value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return null;
-        }
-
-        return DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
-            ? parsed.UtcDateTime
-            : null;
-    }
-
-    private static string StripQuery(string url) => url.Split('?', '#')[0].TrimEnd('/');
-
-    /// <summary>
-    /// Normalizes a channel URL to its bare form (no query, no trailing tab segment) so tab
-    /// paths like /videos and /playlists can be appended safely, whether the stored channel URL
-    /// is "…/c/Name", "…/c/Name/videos" or has query parameters.
-    /// </summary>
-    private static string NormalizeChannelBaseUrl(string channelUrl)
-    {
-        string url = StripQuery(channelUrl);
-
-        foreach (string tab in new[] { "/videos", "/playlists", "/livestreams", "/shorts", "/about" })
-        {
-            if (url.EndsWith(tab, StringComparison.OrdinalIgnoreCase))
-            {
-                url = url[..^tab.Length];
-                break;
-            }
-        }
-
-        return url.TrimEnd('/');
-    }
-
-    /// <summary>
-    /// Parses the server-rendered playlist cards on a channel's /playlists tab. Each card links
-    /// to /playlists/{id} (several times — thumbnail and title anchors), so results are keyed by
-    /// playlist id and the best title/thumbnail found across anchors wins. Returns the number of
-    /// playlists newly added from this page.
-    /// </summary>
-    private int ParsePlaylistCards(string html, string channelId, Dictionary<string, PlaylistMetadata> playlists)
-    {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        var anchors = doc.DocumentNode.SelectNodes("//a[contains(@href, '/playlists/')]");
-        if (anchors is null)
-        {
-            return 0;
-        }
-
-        // Each card links to its playlist several times (thumbnail anchor, title anchor, …). The
-        // thumbnail anchor's text is junk like "125 videos", so only a heading or an explicit
-        // title attribute counts as a "strong" title; bare anchor text is a last resort that a
-        // later strong title may overwrite.
-        var strongTitled = new HashSet<string>(StringComparer.Ordinal);
-
-        int added = 0;
-        foreach (var anchor in anchors)
-        {
-            string href = anchor.GetAttributeValue("href", string.Empty);
-            var match = RumblePlaylistIdRegex().Match(href.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                ? href
-                : "https://rumble.com" + href);
-            if (!match.Success)
+            if (!string.IsNullOrEmpty(video.ThumbnailUrl))
             {
                 continue;
             }
 
-            string playlistId = match.Groups[1].Value;
-            var (strongTitle, weakTitle) = GetAnchorTitles(anchor);
-            string? thumbnailUrl = anchor.SelectSingleNode(".//img[@src]")?.GetAttributeValue("src", null);
-
-            if (!playlists.TryGetValue(playlistId, out var existing))
-            {
-                playlists[playlistId] = new PlaylistMetadata
-                {
-                    PlaylistId = playlistId,
-                    Name = strongTitle ?? weakTitle ?? "Unknown Playlist",
-                    Url = $"https://rumble.com/playlists/{playlistId}",
-                    ThumbnailUrl = thumbnailUrl,
-                    Description = null,
-                    ChannelId = channelId,
-                    ChannelName = channelId,
-                    Platform = PlatformName
-                };
-
-                if (strongTitle is not null)
-                {
-                    strongTitled.Add(playlistId);
-                }
-
-                added++;
-            }
-            else
-            {
-                if (strongTitle is not null && strongTitled.Add(playlistId))
-                {
-                    existing.Name = strongTitle;
-                }
-
-                existing.ThumbnailUrl ??= thumbnailUrl;
-            }
+            var oembed = await GetOEmbedAsync(video.Url, cancellationToken);
+            video.ThumbnailUrl = oembed?.ThumbnailUrl;
         }
-
-        return added;
     }
 
-    private static readonly string[] HeadingTags = ["h1", "h2", "h3", "h4"];
-
-    /// <summary>
-    /// Extracts title candidates from a card anchor: "strong" (explicit title attribute, a
-    /// heading element inside the anchor, or the anchor itself sitting inside a heading) vs
-    /// "weak" (the anchor's bare text, which on thumbnail anchors is junk like a video count or
-    /// duration).
-    /// </summary>
-    private static (string? Strong, string? Weak) GetAnchorTitles(HtmlNode anchor)
+    private static int? TryParseExpectedVideoCount(string? html)
     {
-        bool inHeading = anchor.Ancestors().Any(a => HeadingTags.Contains(a.Name, StringComparer.OrdinalIgnoreCase));
-
-        string? strong = FirstNonEmptyOrNull(
-            anchor.GetAttributeValue("title", null),
-            HtmlEntity.DeEntitize(anchor.SelectSingleNode(".//h1|.//h2|.//h3|.//h4")?.InnerText ?? string.Empty).Trim(),
-            inHeading ? HtmlEntity.DeEntitize(anchor.InnerText).Trim() : null);
-
-        string? weak = FirstNonEmptyOrNull(HtmlEntity.DeEntitize(anchor.InnerText).Trim());
-
-        return (strong, weak);
-    }
-
-    /// <summary>
-    /// Parses server-rendered video cards (used on playlist detail pages, which — unlike channel
-    /// /videos tabs — do not embed a JSON grid). Cards link to /v{id}-{slug}.html multiple times;
-    /// results are grouped by video id with the best title/thumbnail/duration found.
-    /// </summary>
-    private List<VideoMetadata> ParseVideoCards(string html, string fallbackChannelName)
-    {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        var anchors = doc.DocumentNode.SelectNodes("//a[@href]");
-        if (anchors is null)
+        if (string.IsNullOrEmpty(html))
         {
-            return [];
+            return null;
         }
 
-        var byId = new Dictionary<string, VideoMetadata>(StringComparer.OrdinalIgnoreCase);
-        var strongTitled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var anchor in anchors)
-        {
-            string href = anchor.GetAttributeValue("href", string.Empty);
-            string absolute = href.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-                ? href
-                : "https://rumble.com" + href;
-
-            string videoId = ExtractRumbleVideoId(absolute);
-            if (string.IsNullOrEmpty(videoId))
-            {
-                continue;
-            }
-
-            string url = StripQuery(absolute);
-            var (strongTitle, _) = GetAnchorTitles(anchor);
-            string? thumbnailUrl = anchor.SelectSingleNode(".//img[@src]")?.GetAttributeValue("src", null);
-
-            if (!byId.TryGetValue(videoId, out var existing))
-            {
-                // No weak-title fallback here: the URL slug gives a decent title, while a
-                // thumbnail anchor's bare text is a duration/view count.
-                byId[videoId] = new VideoMetadata
-                {
-                    VideoId = videoId,
-                    Title = strongTitle ?? DeriveTitleFromRumbleUrl(url) ?? "Unknown Title",
-                    Description = null,
-                    Url = url,
-                    ThumbnailUrl = thumbnailUrl,
-                    Duration = null,
-                    UploadDate = null,
-                    ViewCount = null,
-                    LikeCount = null,
-                    ChannelId = string.Empty,
-                    ChannelName = fallbackChannelName,
-                    Platform = PlatformName,
-                    PlaylistId = null
-                };
-
-                if (strongTitle is not null)
-                {
-                    strongTitled.Add(videoId);
-                }
-            }
-            else
-            {
-                if (strongTitle is not null && strongTitled.Add(videoId))
-                {
-                    existing.Title = strongTitle;
-                }
-
-                existing.ThumbnailUrl ??= thumbnailUrl;
-            }
-        }
-
-        return [.. byId.Values];
+        var match = PlaylistVideoCountRegex().Match(html);
+        return match.Success && int.TryParse(match.Groups[1].Value, out int count) ? count : null;
     }
-
-    private static string? GetMetaContent(HtmlDocument doc, string property)
-    {
-        var node = doc.DocumentNode.SelectSingleNode($"//meta[@property='{property}']")
-            ?? doc.DocumentNode.SelectSingleNode($"//meta[@name='{property}']");
-        string? content = node?.GetAttributeValue("content", null);
-        return string.IsNullOrWhiteSpace(content) ? null : HtmlEntity.DeEntitize(content).Trim();
-    }
-
-    private static string? FirstNonEmptyOrNull(params string?[] values)
-    {
-        string result = FirstNonEmpty(values);
-        return string.IsNullOrEmpty(result) ? null : result;
-    }
-
-    // ── yt-dlp fallback path (used only if the grid scrape above finds nothing at all) ─────────
 
     private async Task<ChannelMetadata?> GetChannelMetadataViaYtDlpAsync(string channelUrl, CancellationToken cancellationToken)
     {
@@ -994,89 +633,6 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
         return await MapEntriesToVideoMetadataAsync(result.Data.Entries, channelId, channelName, cancellationToken);
     }
 
-    [GeneratedRegex(@"rumble\.com/(?:c|user)/([^/?#]+)", RegexOptions.IgnoreCase)]
-    private static partial Regex RumbleChannelIdRegex();
-
-    [GeneratedRegex(@"rumble\.com", RegexOptions.IgnoreCase)]
-    private static partial Regex RumbleUrlRegex();
-
-    // Rumble video URLs look like https://rumble.com/v6abc12-some-title-slug.html
-    // (or /embed/v6abc12/). The native video id is the leading "v…" token.
-    [GeneratedRegex(@"rumble\.com/(?:embed/)?(v[0-9a-z]+)", RegexOptions.IgnoreCase)]
-    private static partial Regex RumbleVideoIdRegex();
-
-    // Playlist URLs look like https://rumble.com/playlists/Rq8vmQLCz-Q (base64url-style id).
-    [GeneratedRegex(@"rumble\.com/playlists/([A-Za-z0-9_-]+)", RegexOptions.IgnoreCase)]
-    private static partial Regex RumblePlaylistIdRegex();
-
-    private static string FirstNonEmpty(params string?[] values)
-    {
-        foreach (string? value in values)
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-        }
-
-        return string.Empty;
-    }
-
-    private static string ExtractRumbleVideoId(string url)
-    {
-        if (string.IsNullOrEmpty(url))
-        {
-            return string.Empty;
-        }
-
-        var match = RumbleVideoIdRegex().Match(url);
-        return match.Success ? match.Groups[1].Value : string.Empty;
-    }
-
-    /// <summary>
-    /// Builds a readable title from a Rumble video URL slug, used only as a last-resort fallback
-    /// when the grid JSON (or, in the yt-dlp fallback path, oEmbed) doesn't provide one. e.g.
-    /// ".../v6abc12-some-great-title.html" -> "Some great title".
-    /// </summary>
-    private static string? DeriveTitleFromRumbleUrl(string url)
-    {
-        if (string.IsNullOrEmpty(url))
-        {
-            return null;
-        }
-
-        string segment = url.Split('?', '#')[0].TrimEnd('/');
-        int lastSlash = segment.LastIndexOf('/');
-        if (lastSlash >= 0)
-        {
-            segment = segment[(lastSlash + 1)..];
-        }
-
-        if (segment.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
-        {
-            segment = segment[..^5];
-        }
-
-        // Drop the leading "v<id>-" token so only the human-readable slug remains.
-        int dash = segment.IndexOf('-');
-        if (dash < 0)
-        {
-            return null;
-        }
-
-        string slug = segment[(dash + 1)..].Replace('-', ' ').Trim();
-        if (string.IsNullOrWhiteSpace(slug))
-        {
-            return null;
-        }
-
-        return char.ToUpperInvariant(slug[0]) + slug[1..];
-    }
-
-    /// <summary>
-    /// Calls Rumble's public oEmbed endpoint for a video URL to retrieve its title, channel
-    /// (author) name, thumbnail and duration. Only used by the yt-dlp fallback path.
-    /// </summary>
     private async Task<RumbleOEmbedResult?> GetOEmbedAsync(string videoUrl, CancellationToken cancellationToken)
     {
         try
@@ -1125,10 +681,6 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
         return string.IsNullOrEmpty(singleThumbnail) ? null : singleThumbnail;
     }
 
-    /// <summary>
-    /// Builds the thumbnail candidate list shown in the "Select Channel Images" picker, for the
-    /// yt-dlp fallback path.
-    /// </summary>
     private static List<ThumbnailInfo> MapThumbnails(ThumbnailData[]? thumbnails, string? fallbackUrl)
     {
         var list = thumbnails.IsNullOrEmpty()
@@ -1157,32 +709,27 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
             return [];
         }
 
-        // Sequential by design (polite to Rumble + avoids bursting the oEmbed endpoint).
         var results = new List<VideoMetadata>(entries.Length);
         foreach (var x in entries)
         {
-            // yt-dlp's Rumble channel extractor can yield null placeholder entries
-            // (e.g. when a page is blocked); skip anything we can't identify.
             if (x is null)
             {
                 continue;
             }
 
             string url = x.WebpageUrl ?? x.Url ?? string.Empty;
-            string videoId = !string.IsNullOrEmpty(x.ID) ? x.ID : ExtractRumbleVideoId(url);
+            string videoId = !string.IsNullOrEmpty(x.ID) ? x.ID : RumblePageParser.ExtractRumbleVideoId(url);
             if (string.IsNullOrEmpty(videoId))
             {
                 continue;
             }
 
-            // Flat-playlist entries from Rumble's channel extractor carry nothing but a URL, so
-            // enrich each one via oEmbed to get a real title/thumbnail/duration.
             var oembed = string.IsNullOrEmpty(url) ? null : await GetOEmbedAsync(url, cancellationToken);
 
             results.Add(new VideoMetadata
             {
                 VideoId = videoId,
-                Title = x.Title ?? oembed?.Title ?? DeriveTitleFromRumbleUrl(url) ?? "Unknown Title",
+                Title = x.Title ?? oembed?.Title ?? RumblePageParser.DeriveTitleFromRumbleUrl(url) ?? "Unknown Title",
                 Description = x.Description,
                 Url = url,
                 ThumbnailUrl = PickThumbnail(x.Thumbnails, x.Thumbnail ?? oembed?.ThumbnailUrl),
@@ -1202,9 +749,37 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
         return results;
     }
 
-    /// <summary>
-    /// Shape of https://rumble.com/api/Media/oembed.json — standard oEmbed fields use snake_case.
-    /// </summary>
+    [GeneratedRegex(@"rumble\.com/(?:c|user)/([^/?#]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex RumbleChannelIdRegex();
+
+    [GeneratedRegex(@"rumble\.com", RegexOptions.IgnoreCase)]
+    private static partial Regex RumbleUrlRegex();
+
+    [GeneratedRegex(@"rumble\.com/playlists/([A-Za-z0-9_-]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex RumblePlaylistIdRegex();
+
+    [GeneratedRegex(@"(\d+)\s+videos", RegexOptions.IgnoreCase)]
+    private static partial Regex PlaylistVideoCountRegex();
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        foreach (string? value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string? FirstNonEmptyOrNull(params string?[] values)
+    {
+        string result = FirstNonEmpty(values);
+        return string.IsNullOrEmpty(result) ? null : result;
+    }
+
     private sealed class RumbleOEmbedResult
     {
         public string? Title { get; set; }
