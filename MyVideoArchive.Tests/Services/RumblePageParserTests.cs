@@ -79,6 +79,18 @@ public class RumblePageParserTests
         Assert.Equal("v79rkwa", videos[0].VideoId);
     }
 
+    [Fact]
+    public void TryParsePlaylistHtmxPagination_ReadsConfig_FromCapturedPlaylistHtml()
+    {
+        string html = File.ReadAllText(GetFixturePath("rumble-deus-ex-playlist.html"));
+
+        Assert.True(RumblePageParser.TryParsePlaylistHtmxPagination(html, out var htmx));
+        Assert.Equal("DQGhNlJnoBU", htmx.PlaylistId);
+        Assert.Equal("eaxa7m11uu9", htmx.ShuffleParam);
+        Assert.Equal(10, htmx.PageSize);
+        Assert.Equal(1, htmx.Pagination);
+    }
+
     private static string GetFixturePath(string fileName)
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "Rumble", fileName);

@@ -166,7 +166,8 @@ public class VideoDownloadJob
             string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
-            string channelPath = Path.Combine(downloadPath, video.Channel.ChannelId);
+            string channelPath = CustomChannelPathHelper.GetChannelDirectory(
+                downloadPath, video.Channel.Platform, video.Channel.ChannelId);
 
             var progress = new Progress<double>(p =>
             {

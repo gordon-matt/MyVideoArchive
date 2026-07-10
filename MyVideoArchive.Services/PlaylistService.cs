@@ -363,7 +363,9 @@ public class PlaylistService : IPlaylistService
 
             foreach (var playlistMetadata in playlistMetadataList)
             {
-                string playlistThumbnailDir = Path.Combine(downloadPath, channel.ChannelId, "Playlists");
+                string playlistThumbnailDir = Path.Combine(
+                    CustomChannelPathHelper.GetChannelDirectory(downloadPath, channel.Platform, channel.ChannelId),
+                    "Playlists");
 
                 if (existingPlaylistIds.Contains(playlistMetadata.PlaylistId))
                 {
@@ -722,8 +724,11 @@ public class PlaylistService : IPlaylistService
             string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
-            string channelDirId = playlist.Channel?.ChannelId ?? playlist.ChannelId.ToString();
-            string playlistThumbnailDir = Path.Combine(downloadPath, channelDirId, "Playlists");
+            string channelDir = CustomChannelPathHelper.GetChannelDirectory(
+                downloadPath,
+                playlist.Channel?.Platform ?? playlist.Platform,
+                playlist.Channel?.ChannelId ?? playlist.ChannelId.ToString());
+            string playlistThumbnailDir = Path.Combine(channelDir, "Playlists");
             Directory.CreateDirectory(playlistThumbnailDir);
 
             string ext = Path.GetExtension(file.FileName);
@@ -1373,7 +1378,9 @@ public class PlaylistService : IPlaylistService
             string? userId = userContextService.GetCurrentUserId();
             string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
-            string playlistThumbnailDir = Path.Combine(downloadPath, channel.ChannelId, "Playlists");
+            string playlistThumbnailDir = Path.Combine(
+                CustomChannelPathHelper.GetChannelDirectory(downloadPath, channel.Platform, channel.ChannelId),
+                "Playlists");
 
             // Find or create the playlist record
             var existing = await playlistRepository.FindOneAsync(new SearchOptions<Playlist>

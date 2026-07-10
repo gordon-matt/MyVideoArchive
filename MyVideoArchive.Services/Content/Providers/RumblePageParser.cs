@@ -895,4 +895,70 @@ internal static partial class RumblePageParser
 
     [GeneratedRegex(@"background-image\s*:\s*url\(\s*['""]?([^'"")]+)", RegexOptions.IgnoreCase)]
     private static partial Regex BackgroundImageUrlRegex();
+
+    internal readonly record struct RumblePlaylistHtmxPagination(
+        string PlaylistId,
+        string ShuffleParam,
+        int PageSize,
+        int Pagination);
+
+    /// <summary>
+    /// Reads HTMX infinite-scroll parameters from a Rumble playlist detail page
+    /// (<c>/-playlists/htmx/get-playlist-details</c>).
+    /// </summary>
+    internal static bool TryParsePlaylistHtmxPagination(string html, out RumblePlaylistHtmxPagination pagination)
+    {
+        pagination = default;
+
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return false;
+        }
+
+        var doc = new HtmlDocument();
+        doc.LoadHtml(html);
+
+        var section = doc.DocumentNode.SelectSingleNode(
+            "//section[contains(@hx-vals,'playlist_id') and contains(@hx-vals,'page_size')]");
+        if (section is null)
+        {
+            return false;
+        }
+
+        string hxVals = HtmlEntity.DeEntitize(section.GetAttributeValue("hx-vals", string.Empty)).Trim();
+        if (string.IsNullOrEmpty(hxVals))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var json = JsonDocument.Parse(hxVals);
+            JsonElement root = json.RootElement;
+            string playlistId = root.GetProperty("playlist_id").GetString() ?? string.Empty;
+            string shuffleParam = root.TryGetProperty("shuffle_param", out JsonElement shuffle)
+                ? shuffle.GetString() ?? string.Empty
+                : string.Empty;
+            if (!root.TryGetProperty("page_size", out JsonElement pageSizeEl) || !pageSizeEl.TryGetInt32(out int pageSize) || pageSize <= 0)
+            {
+                return false;
+            }
+
+            int paginationFlag = root.TryGetProperty("pagination", out JsonElement paginationEl)
+                ? paginationEl.GetInt32()
+                : 1;
+
+            if (string.IsNullOrEmpty(playlistId))
+            {
+                return false;
+            }
+
+            pagination = new RumblePlaylistHtmxPagination(playlistId, shuffleParam, pageSize, paginationFlag);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 }

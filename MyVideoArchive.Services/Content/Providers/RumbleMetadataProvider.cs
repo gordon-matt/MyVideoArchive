@@ -307,37 +307,89 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
             var videos = new List<VideoMetadata>();
             var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            for (int page = 1; page <= MaxChannelPages; page++)
+            string? initialHtml = await FetchHtmlAsync(baseUrl, cancellationToken);
+            if (initialHtml is null)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                return [];
+            }
 
-                string? html = await FetchHtmlAsync($"{baseUrl}?page={page}", cancellationToken);
-                if (html is null)
+            foreach (var video in RumblePageParser.ParsePlaylistVideos(initialHtml, playlistId, channelName, PlatformName))
+            {
+                if (seenIds.Add(video.VideoId))
                 {
-                    break;
+                    videos.Add(video);
                 }
+            }
 
-                int addedThisPage = 0;
-                foreach (var video in RumblePageParser.ParsePlaylistVideos(html, playlistId, channelName, PlatformName))
+            int? expectedCount = metadata is not null ? TryParseExpectedVideoCount(initialHtml) : null;
+
+            if (RumblePageParser.TryParsePlaylistHtmxPagination(initialHtml, out var htmx))
+            {
+                int maxPages = expectedCount.HasValue && htmx.PageSize > 0
+                    ? (int)Math.Ceiling(expectedCount.Value / (double)htmx.PageSize)
+                    : MaxChannelPages;
+
+                for (int pageNum = 2; pageNum <= maxPages; pageNum++)
                 {
-                    if (!seenIds.Add(video.VideoId))
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    string? fragment = await FetchPlaylistHtmxPageAsync(htmx, pageNum, baseUrl, cancellationToken);
+                    if (string.IsNullOrWhiteSpace(fragment))
                     {
-                        continue;
+                        break;
                     }
 
-                    videos.Add(video);
-                    addedThisPage++;
-                }
+                    int addedThisPage = 0;
+                    foreach (var video in RumblePageParser.ParsePlaylistVideos(fragment, playlistId, channelName, PlatformName))
+                    {
+                        if (!seenIds.Add(video.VideoId))
+                        {
+                            continue;
+                        }
 
-                if (addedThisPage == 0)
+                        videos.Add(video);
+                        addedThisPage++;
+                    }
+
+                    if (addedThisPage == 0)
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                for (int page = 2; page <= MaxChannelPages; page++)
                 {
-                    break;
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    string? html = await FetchHtmlAsync($"{baseUrl}?page={page}", cancellationToken);
+                    if (html is null)
+                    {
+                        break;
+                    }
+
+                    int addedThisPage = 0;
+                    foreach (var video in RumblePageParser.ParsePlaylistVideos(html, playlistId, channelName, PlatformName))
+                    {
+                        if (!seenIds.Add(video.VideoId))
+                        {
+                            continue;
+                        }
+
+                        videos.Add(video);
+                        addedThisPage++;
+                    }
+
+                    if (addedThisPage == 0)
+                    {
+                        break;
+                    }
                 }
             }
 
             await EnrichMissingVideoThumbnailsViaOEmbedAsync(videos, cancellationToken);
 
-            int? expectedCount = metadata is not null ? TryParseExpectedVideoCount(await FetchHtmlAsync(baseUrl, cancellationToken)) : null;
             if (expectedCount.HasValue && videos.Count < expectedCount.Value && logger.IsEnabled(LogLevel.Warning))
             {
                 logger.LogWarning(
@@ -486,6 +538,66 @@ public partial class RumbleMetadataProvider : IVideoMetadataProvider
             }
             return null;
         }
+    }
+
+    private async Task<string?> FetchPlaylistHtmxPageAsync(
+        RumblePageParser.RumblePlaylistHtmxPagination config,
+        int pageNum,
+        string refererUrl,
+        CancellationToken cancellationToken)
+    {
+        string url = BuildPlaylistHtmxUrl(config, pageNum);
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.TryAddWithoutValidation("HX-Request", "true");
+            request.Headers.TryAddWithoutValidation("HX-Current-URL", refererUrl);
+            request.Headers.Referrer = new Uri(refererUrl);
+            request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "empty");
+            request.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", "cors");
+            request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "same-origin");
+
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                if (logger.IsEnabled(LogLevel.Debug))
+                {
+                    logger.LogDebug(
+                        "Rumble playlist HTMX fetch failed for playlist {PlaylistId} page {PageNum}: {StatusCode}",
+                        config.PlaylistId, pageNum, response.StatusCode);
+                }
+
+                return null;
+            }
+
+            return await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+                logger.LogDebug(ex,
+                    "Error fetching Rumble playlist HTMX page {PageNum} for playlist {PlaylistId}",
+                    pageNum, config.PlaylistId);
+            }
+
+            return null;
+        }
+    }
+
+    private static string BuildPlaylistHtmxUrl(RumblePageParser.RumblePlaylistHtmxPagination config, int pageNum)
+    {
+        var query = new[]
+        {
+            $"playlist_id={Uri.EscapeDataString(config.PlaylistId)}",
+            $"shuffle_param={Uri.EscapeDataString(config.ShuffleParam)}",
+            $"page_size={config.PageSize}",
+            $"pagination={config.Pagination}",
+            $"page_num={pageNum}",
+        };
+
+        return "https://rumble.com/-playlists/htmx/get-playlist-details?" + string.Join('&', query);
     }
 
     private async Task EnrichMissingPlaylistThumbnailsAsync(

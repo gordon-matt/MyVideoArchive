@@ -42,6 +42,24 @@ public static class CustomChannelPathHelper
     }
 
     /// <summary>
+    /// Returns the on-disk folder for a channel's videos and thumbnails (write path).
+    /// Platform channel IDs such as Odysee's <c>@name:8</c> are sanitized so paths are valid on Windows.
+    /// Custom channels live under <c>_Custom/{channelId}</c>.
+    /// </summary>
+    public static string GetChannelDirectory(string downloadBasePath, string platform, string channelId)
+    {
+        string segment = SanitizeFolderNameSegment(channelId);
+        if (string.IsNullOrEmpty(segment) || segment is "." or "..")
+        {
+            segment = "unknown-channel";
+        }
+
+        return string.Equals(platform, "Custom", StringComparison.OrdinalIgnoreCase)
+            ? Path.Combine(downloadBasePath, "_Custom", segment)
+            : Path.Combine(downloadBasePath, segment);
+    }
+
+    /// <summary>
     /// Resolves the on-disk folder for a channel's downloaded files and thumbnails.
     /// Custom channels live under <c>_Custom/{channelId}</c>; platform channels use <c>{channelId}</c>.
     /// </summary>

@@ -6,9 +6,26 @@ public class CustomChannelPathHelperTests
     [InlineData("My Cool Channel", "My Cool Channel")]
     [InlineData("  Trimmed  ", "Trimmed")]
     [InlineData("a\u0000b", "ab")]
+    [InlineData("@nathansifugaming:8", "@nathansifugaming8")]
     public void SanitizeFolderNameSegment_RemovesInvalidCharacters(string input, string expected)
     {
         Assert.Equal(expected, CustomChannelPathHelper.SanitizeFolderNameSegment(input));
+    }
+
+    [Fact]
+    public void GetChannelDirectory_OdyseeChannelId_RemovesColon()
+    {
+        string path = CustomChannelPathHelper.GetChannelDirectory(
+            @"D:\Videos\MyVideoArchive", "Odysee", "@nathansifugaming:8");
+        Assert.Equal(@"D:\Videos\MyVideoArchive\@nathansifugaming8", path);
+    }
+
+    [Fact]
+    public void GetChannelDirectory_CustomChannel_UsesCustomPrefix()
+    {
+        string path = CustomChannelPathHelper.GetChannelDirectory(
+            @"D:\Videos\Archive", "Custom", "My Channel");
+        Assert.Equal(@"D:\Videos\Archive\_Custom\My Channel", path);
     }
 
     [Fact]
