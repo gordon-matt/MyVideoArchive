@@ -23,15 +23,18 @@ public partial class OdyseeMetadataProvider : IVideoMetadataProvider
     private const int CollectionsPageSize = 50;
 
     private readonly ILogger<OdyseeMetadataProvider> logger;
+    private readonly IConfiguration configuration;
     private readonly YoutubeDL ytdl;
     private readonly HttpClient httpClient;
 
     public OdyseeMetadataProvider(
         ILogger<OdyseeMetadataProvider> logger,
+        IConfiguration configuration,
         YoutubeDL ytdl,
         IHttpClientFactory httpClientFactory)
     {
         this.logger = logger;
+        this.configuration = configuration;
         this.ytdl = ytdl;
         httpClient = httpClientFactory.CreateClient();
     }
@@ -97,6 +100,8 @@ public partial class OdyseeMetadataProvider : IVideoMetadataProvider
                 DumpSingleJson = true,
                 PlaylistEnd = 1
             };
+
+            OdyseeRateLimitOptions.Apply(options, configuration, logger);
 
             var result = await ytdl.RunVideoDataFetch(channelUrl, overrideOptions: options, ct: cancellationToken);
 
@@ -246,6 +251,8 @@ public partial class OdyseeMetadataProvider : IVideoMetadataProvider
                 DumpSingleJson = true
             };
 
+            OdyseeRateLimitOptions.Apply(options, configuration, logger);
+
             var result = await ytdl.RunVideoDataFetch(channelUrl, overrideOptions: options, ct: cancellationToken);
 
             if (!result.Success || result.Data is null)
@@ -292,6 +299,8 @@ public partial class OdyseeMetadataProvider : IVideoMetadataProvider
                 FlatPlaylist = true,
                 DumpSingleJson = true
             };
+
+            OdyseeRateLimitOptions.Apply(options, configuration, logger);
 
             var result = await ytdl.RunVideoDataFetch(playlistUrl, overrideOptions: options, ct: cancellationToken);
 
@@ -345,6 +354,8 @@ public partial class OdyseeMetadataProvider : IVideoMetadataProvider
                 DumpSingleJson = true
             };
 
+            OdyseeRateLimitOptions.Apply(options, configuration, logger);
+
             var result = await ytdl.RunVideoDataFetch(playlistUrl, overrideOptions: options, ct: cancellationToken);
 
             if (!result.Success || result.Data is null)
@@ -382,7 +393,10 @@ public partial class OdyseeMetadataProvider : IVideoMetadataProvider
                 logger.LogInformation("Fetching Odysee video metadata for: {Url}", videoUrl);
             }
 
-            var result = await ytdl.RunVideoDataFetch(videoUrl, ct: cancellationToken);
+            var options = new OptionSet();
+            OdyseeRateLimitOptions.Apply(options, configuration, logger);
+
+            var result = await ytdl.RunVideoDataFetch(videoUrl, overrideOptions: options, ct: cancellationToken);
 
             if (!result.Success || result.Data is null)
             {

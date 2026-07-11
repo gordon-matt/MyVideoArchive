@@ -282,6 +282,7 @@
                             <th>Channel</th>
                             <th>Channel ID</th>
                             <th>Video ID</th>
+                            <th style="width: 100px;"></th>
                         </tr>
                     </thead>
                     <tbody data-bind="foreach: failedVideos">
@@ -316,6 +317,18 @@
                             </td>
                             <td>
                                 <code data-bind="text: videoId"></code>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" title="Re-queue download"
+                                        data-bind="click: $root.retryDownload, enable: !retrying(),
+                                                    css: { disabled: retrying() }">
+                                    <!-- ko ifnot: retrying() -->
+                                    <i class="bi bi-arrow-clockwise"></i> Retry
+                                    <!-- /ko -->
+                                    <!-- ko if: retrying() -->
+                                    <span class="spinner-border spinner-border-sm"></span>
+                                    <!-- /ko -->
+                                </button>
                             </td>
                         </tr>
                     </tbody>

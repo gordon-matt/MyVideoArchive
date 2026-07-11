@@ -44,7 +44,8 @@ internal static class SubtitleOptionsExtensions
         IConfiguration configuration,
         string videoUrl,
         string outputPath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<OptionSet>? configureOptions = null)
     {
         if (!AreSubtitlesEnabled(configuration))
         {
@@ -64,6 +65,7 @@ internal static class SubtitleOptionsExtensions
         };
 
         PopulateSubtitleOptions(options, configuration);
+        configureOptions?.Invoke(options);
 
         var result = await ytdl.RunVideoDownload(videoUrl, overrideOptions: options, ct: cancellationToken);
 

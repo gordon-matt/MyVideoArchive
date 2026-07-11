@@ -113,4 +113,15 @@ public class AdminApiController : ControllerBase
 
         return result.ToActionResult(this, value => Ok(new { videos = value.Videos }));
     }
+
+    /// <summary>
+    /// Clears the failed flag for a video and re-queues its download.
+    /// </summary>
+    [HttpPost("videos/{videoId:int}/retry-download")]
+    public async Task<IActionResult> RetryDownload(int videoId, CancellationToken cancellationToken)
+    {
+        var result = await videoService.RetryDownloadAsync(videoId, cancellationToken);
+
+        return result.ToActionResult(this, value => Ok(new { success = value.Success, message = value.Message }));
+    }
 }

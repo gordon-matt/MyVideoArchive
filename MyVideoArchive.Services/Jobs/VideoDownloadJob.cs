@@ -38,7 +38,20 @@ public class VideoDownloadJob
 
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
     [AutomaticRetry(Attempts = 0)]
-    public async Task ExecuteAsync(int videoId, CancellationToken cancellationToken = default)
+    public Task ExecuteAsync(int videoId, CancellationToken cancellationToken = default)
+        => RunDownloadAsync(videoId, 0, cancellationToken);
+
+    /// <summary>
+    /// Retry entry point used when a download was rescheduled after a transient failure
+    /// (e.g. HTTP 429 rate limiting). <paramref name="rateLimitAttempt"/> tracks how many
+    /// rate-limit retries have already occurred so the backoff can escalate and eventually give up.
+    /// </summary>
+    [HangfireSkipWhenPreviousInstanceIsRunningFilter]
+    [AutomaticRetry(Attempts = 0)]
+    public Task RetryDownloadAsync(int videoId, int rateLimitAttempt, CancellationToken cancellationToken = default)
+        => RunDownloadAsync(videoId, rateLimitAttempt, cancellationToken);
+
+    private async Task RunDownloadAsync(int videoId, int rateLimitAttempt, CancellationToken cancellationToken)
     {
         if (logger.IsEnabled(LogLevel.Information))
         {
@@ -229,6 +242,10 @@ public class VideoDownloadJob
 
             throw;
         }
+        catch (TransientDownloadException ex)
+        {
+            await HandleTransientFailureAsync(videoId, rateLimitAttempt, ex, cancellationToken);
+        }
         catch (Exception ex)
         {
             if (logger.IsEnabled(LogLevel.Error))
@@ -257,5 +274,65 @@ public class VideoDownloadJob
             // Do NOT rethrow — Hangfire should not retry permanently-failed downloads.
             // The video is flagged as DownloadFailed for user action.
         }
+    }
+
+    /// <summary>
+    /// Handles a transient (retryable) download failure such as HTTP 429 rate limiting.
+    /// Reschedules the video with exponential backoff instead of marking it permanently failed,
+    /// giving up only after <c>VideoDownload:Throttle:MaxRateLimitRetries</c> attempts.
+    /// </summary>
+    private async Task HandleTransientFailureAsync(
+        int videoId,
+        int rateLimitAttempt,
+        TransientDownloadException ex,
+        CancellationToken cancellationToken)
+    {
+        int maxRetries = configuration.GetValue<int>("VideoDownload:Throttle:MaxRateLimitRetries", 6);
+        int nextAttempt = rateLimitAttempt + 1;
+
+        if (nextAttempt > maxRetries)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex,
+                    "Video {VideoId} still rate limited after {Attempts} attempts. Marking as failed.",
+                    videoId, rateLimitAttempt);
+            }
+
+            try
+            {
+                var video = await videoRepository.FindOneAsync(videoId);
+                if (video is not null)
+                {
+                    video.IsQueued = false;
+                    video.DownloadFailed = true;
+                    await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+                }
+            }
+            catch (Exception resetEx)
+            {
+                if (logger.IsEnabled(LogLevel.Error))
+                {
+                    logger.LogError(resetEx, "Error marking video {VideoId} as failed", videoId);
+                }
+            }
+
+            return;
+        }
+
+        // Exponential backoff capped at 60 minutes: 2, 4, 8, 16, 32, 60 minutes.
+        int backoffMinutes = Math.Min(60, (int)Math.Pow(2, nextAttempt));
+        var delay = TimeSpan.FromMinutes(backoffMinutes);
+
+        if (logger.IsEnabled(LogLevel.Warning))
+        {
+            logger.LogWarning(
+                "Video {VideoId} was rate limited (attempt {Attempt}/{Max}). Rescheduling in {Delay} min. {Reason}",
+                videoId, nextAttempt, maxRetries, backoffMinutes, ex.Message);
+        }
+
+        backgroundJobClient.Schedule<VideoDownloadJob>(
+            job => job.RetryDownloadAsync(videoId, nextAttempt, CancellationToken.None),
+            delay);
     }
 }

@@ -63,6 +63,8 @@ public partial class OdyseeDownloader : IVideoDownloader
                 NoPlaylist = true
             };
 
+            OdyseeRateLimitOptions.Apply(options, configuration, logger);
+
             SubtitleOptionsExtensions.ApplySubtitleOptions(options, configuration);
 
             RunResult<string?> result = null;
@@ -91,6 +93,11 @@ public partial class OdyseeDownloader : IVideoDownloader
                 if (logger.IsEnabled(LogLevel.Error))
                 {
                     logger.LogError("Failed to download Odysee video from {Url}: {Error}", videoUrl, errorMessage);
+                }
+
+                if (TransientDownloadException.IsTransientError(errorMessage))
+                {
+                    throw new TransientDownloadException($"Odysee rate limited the download (will retry): {errorMessage}");
                 }
 
                 throw new InvalidOperationException($"Failed to download video: {errorMessage}");
@@ -129,7 +136,8 @@ public partial class OdyseeDownloader : IVideoDownloader
         try
         {
             return await SubtitleOptionsExtensions.RunSubtitleOnlyDownloadAsync(
-                ytdl, logger, configuration, videoUrl, outputPath, cancellationToken);
+                ytdl, logger, configuration, videoUrl, outputPath, cancellationToken,
+                options => OdyseeRateLimitOptions.Apply(options, configuration, logger));
         }
         catch (Exception ex)
         {
