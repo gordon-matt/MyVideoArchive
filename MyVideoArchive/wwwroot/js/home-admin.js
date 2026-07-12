@@ -12,12 +12,16 @@ function formatTotalDuration(hours) {
 const PLATFORM_ICONS = {
     YouTube: 'bi-youtube',
     BitChute: 'bi-play-btn-fill',
+    Odysee: 'bi-broadcast-pin',
+    Rumble: 'bi-collection-play-fill',
     Custom: 'bi-folder-fill'
 };
 
 const PLATFORM_BAR_CLASSES = {
     YouTube: 'bg-danger',
     BitChute: 'bg-warning',
+    Odysee: 'bg-info',
+    Rumble: 'bg-success',
     Custom: 'bg-secondary'
 };
 

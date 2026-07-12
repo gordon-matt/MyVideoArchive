@@ -85,8 +85,12 @@ public class PlaylistSyncJob
             string downloadPath = configuration.GetValue<string>("VideoDownload:OutputPath")
                 ?? Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
 
-            string channelDirId = playlist.Channel?.ChannelId ?? playlist.ChannelId.ToString();
-            string videoThumbnailDir = Path.Combine(downloadPath, channelDirId);
+            string platform = playlist.Channel?.Platform ?? playlist.Platform;
+            string channelDir = CustomChannelPathHelper.GetChannelDirectory(
+                downloadPath,
+                platform,
+                playlist.Channel?.ChannelId ?? playlist.ChannelId.ToString());
+            string videoThumbnailDir = channelDir;
 
             // Update playlist metadata
             var playlistMetadata = await provider.GetPlaylistMetadataAsync(playlist.Url, cancellationToken);
@@ -95,7 +99,7 @@ public class PlaylistSyncJob
                 playlist.Name = playlistMetadata.Name;
                 playlist.Description = playlistMetadata.Description;
 
-                string playlistThumbnailDir = Path.Combine(downloadPath, channelDirId, "Playlists");
+                string playlistThumbnailDir = Path.Combine(channelDir, "Playlists");
                 if (!ThumbnailService.IsLocalUrl(playlist.ThumbnailUrl) && !string.IsNullOrWhiteSpace(playlistMetadata.ThumbnailUrl))
                 {
                     string? localUrl = await thumbnailService.DownloadAndSaveAsync(

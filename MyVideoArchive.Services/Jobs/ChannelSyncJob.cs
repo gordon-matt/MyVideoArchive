@@ -89,7 +89,8 @@ public class ChannelSyncJob
                 // Users pick their preferred images via the thumbnail picker when a channel is
                 // first added or by editing channel images explicitly. Auto-updating during sync
                 // would clobber the user's choice whenever the upstream platform changes images.
-                string channelDir = Path.Combine(downloadPath, channel.ChannelId);
+                string channelDir = CustomChannelPathHelper.GetChannelDirectory(
+                    downloadPath, channel.Platform, channel.ChannelId);
 
                 // Populate images only if the channel has never had any set (e.g. legacy data
                 // imported without images). In the normal add-channel flow these are already set.

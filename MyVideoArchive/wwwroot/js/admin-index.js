@@ -207,13 +207,33 @@ class AdminViewModel {
             const response = await fetch('/api/admin/failed-downloads');
             if (!response.ok) return;
             const data = await response.json();
-            this.failedVideos(data.videos || []);
+            this.failedVideos((data.videos || []).map(v => ({ ...v, retrying: ko.observable(false) })));
             this.failedCount(data.videos?.length ?? 0);
             this.failedLoaded = true;
         } catch (error) {
             console.error('Error loading failed downloads:', error);
         } finally {
             this.failedLoading(false);
+        }
+    };
+
+    retryDownload = async (video) => {
+        video.retrying(true);
+        try {
+            const response = await fetch(`/api/admin/videos/${video.id}/retry-download`, { method: 'POST' });
+            const result = await response.json().catch(() => ({}));
+            if (response.ok && result.success) {
+                toast.success(result.message || 'Download re-queued.');
+                this.failedVideos.remove(video);
+                this.failedCount(this.failedVideos().length);
+            } else {
+                toast.error(result.message || 'Failed to re-queue download.');
+                video.retrying(false);
+            }
+        } catch (error) {
+            console.error('Error retrying download:', error);
+            toast.error('An unexpected error occurred.');
+            video.retrying(false);
         }
     };
 
@@ -541,7 +561,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
             if (data) {
-                viewModel.failedVideos(data.videos || []);
+                viewModel.failedVideos((data.videos || []).map(v => ({ ...v, retrying: ko.observable(false) })));
                 viewModel.failedCount(data.videos?.length ?? 0);
                 viewModel.failedLoaded = true;
             }

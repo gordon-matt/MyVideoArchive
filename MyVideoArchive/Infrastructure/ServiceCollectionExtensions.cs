@@ -253,6 +253,37 @@ internal static class ServiceCollectionExtensions
 
         public void MvaAddServices()
         {
+            // Rumble scraping client: rumble.com sits behind Cloudflare bot protection that 403s
+            // requests carrying only a User-Agent. A full browser-like header set (Accept,
+            // Accept-Language, Sec-Fetch-*, client hints) plus gzip/br decompression (which also
+            // sends Accept-Encoding) and cookie support is required for fetches to succeed.
+            services.AddHttpClient(RumbleMetadataProvider.HttpClientName, client =>
+            {
+                client.DefaultRequestVersion = HttpVersion.Version20;
+                client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+
+                var headers = client.DefaultRequestHeaders;
+                headers.TryAddWithoutValidation("User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36");
+                headers.TryAddWithoutValidation("Accept",
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
+                headers.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9");
+                headers.TryAddWithoutValidation("Sec-Ch-Ua", "\"Not/A)Brand\";v=\"8\", \"Chromium\";v=\"126\", \"Google Chrome\";v=\"126\"");
+                headers.TryAddWithoutValidation("Sec-Ch-Ua-Mobile", "?0");
+                headers.TryAddWithoutValidation("Sec-Ch-Ua-Platform", "\"Windows\"");
+                headers.TryAddWithoutValidation("Sec-Fetch-Dest", "document");
+                headers.TryAddWithoutValidation("Sec-Fetch-Mode", "navigate");
+                headers.TryAddWithoutValidation("Sec-Fetch-Site", "none");
+                headers.TryAddWithoutValidation("Sec-Fetch-User", "?1");
+                headers.TryAddWithoutValidation("Upgrade-Insecure-Requests", "1");
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AutomaticDecompression = DecompressionMethods.All,
+                UseCookies = true,
+                CookieContainer = new CookieContainer()
+            });
+
             // Register video services
             services.AddSingleton<YoutubeDLInitializer>();
             services.AddSingleton(sp =>
@@ -264,10 +295,14 @@ internal static class ServiceCollectionExtensions
             // Register metadata providers
             services.AddSingleton<IVideoMetadataProvider, YouTubeMetadataProvider>();
             services.AddSingleton<IVideoMetadataProvider, BitChuteMetadataProvider>();
+            services.AddSingleton<IVideoMetadataProvider, OdyseeMetadataProvider>();
+            services.AddSingleton<IVideoMetadataProvider, RumbleMetadataProvider>();
 
             // Register downloaders
             services.AddSingleton<IVideoDownloader, YouTubeDownloader>();
             services.AddSingleton<IVideoDownloader, BitChuteDownloader>();
+            services.AddSingleton<IVideoDownloader, OdyseeDownloader>();
+            services.AddSingleton<IVideoDownloader, RumbleDownloader>();
 
             // Register factories
             services.AddSingleton<VideoMetadataProviderFactory>();

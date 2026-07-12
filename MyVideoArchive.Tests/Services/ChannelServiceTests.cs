@@ -385,4 +385,43 @@ public class ChannelServiceTests
         var result = await service.DownloadVideosAsync(channel.Id, new DownloadVideosRequest { VideoIds = [] });
         Assert.Equal(ResultStatus.Invalid, result.Status);
     }
+
+    [Fact]
+    public async Task DeleteChannelAsync_WithUnsafeChannelId_DoesNotDeleteDownloadRoot()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "mva-delete-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(Path.Combine(root, "survivor.txt"), "survivor");
+
+        try
+        {
+            using var db = new InMemoryDatabaseFixture();
+            var channel = await db.ChannelRepository.InsertAsync(new Channel
+            {
+                ChannelId = "..",
+                Name = "Bad",
+                Url = "https://example.com",
+                Platform = "YouTube",
+                SubscribedAt = DateTime.UtcNow
+            });
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["VideoDownload:OutputPath"] = root
+                })
+                .Build();
+
+            var service = CreateChannelService(db, configuration: config);
+            var result = await service.DeleteChannelAsync(channel.Id, deleteMetadata: false, deleteFiles: true);
+
+            Assert.False(result.IsSuccess);
+            Assert.True(Directory.Exists(root));
+            Assert.True(File.Exists(Path.Combine(root, "survivor.txt")));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { /* ignore */ }
+        }
+    }
 }
