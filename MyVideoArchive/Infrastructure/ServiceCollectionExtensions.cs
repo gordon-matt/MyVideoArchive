@@ -324,6 +324,11 @@ internal static class ServiceCollectionExtensions
             // Register file system scan state (singleton - tracks progress across requests)
             services.AddSingleton<FileSystemScanStateService>();
 
+            // Register yt-dlp maintenance (backup/update/rollback) support
+            services.AddSingleton<YtDlpBackupManager>();
+            services.AddSingleton<YtDlpMaintenanceStateService>();
+            services.AddSingleton<IYtDlpMaintenanceService, YtDlpMaintenanceService>();
+
             // Register user context service
             services.AddHttpContextAccessor();
             services.AddScoped<IUserContextService, UserContextService>();

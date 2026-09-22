@@ -182,6 +182,72 @@
                         </div>
                     </div>
                 </div>
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-box-seam"></i> yt-dlp</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text text-muted">
+                            YouTube (and other platforms) regularly change their internal APIs, which can break
+                            downloads until yt-dlp is updated. A weekly job applies the latest release automatically,
+                            but you can also update on demand here — the current version is backed up first, so you
+                            can roll back in one click if the new release causes problems.
+                        </p>
+
+                        <div data-bind="visible: ytDlpLoading()" class="text-center py-2">
+                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                        </div>
+
+                        <div data-bind="visible: !ytDlpLoading()">
+                            <dl class="row mb-3 small">
+                                <dt class="col-5 col-sm-4 text-muted">Current version</dt>
+                                <dd class="col-7 col-sm-8">
+                                    <code data-bind="text: ytDlpVersion() || 'Unknown'"></code>
+                                </dd>
+                                <dt class="col-5 col-sm-4 text-muted">Backup available</dt>
+                                <dd class="col-7 col-sm-8">
+                                    <!-- ko if: ytDlpBackup() -->
+                                    <code data-bind="text: ytDlpBackup() && ytDlpBackup().version || 'Unknown'"></code>
+                                    <span class="text-muted">(taken <span data-bind="text: ytDlpBackupAgo"></span>)</span>
+                                    <!-- /ko -->
+                                    <!-- ko ifnot: ytDlpBackup() -->
+                                    <span class="text-muted">None yet</span>
+                                    <!-- /ko -->
+                                </dd>
+                            </dl>
+
+                            <div data-bind="visible: ytDlpLastResult()" class="mb-3">
+                                <div class="alert py-2 px-3 mb-0 small"
+                                     data-bind="css: { 'alert-success': ytDlpLastResult() && ytDlpLastResult().success, 'alert-danger': ytDlpLastResult() && !ytDlpLastResult().success }">
+                                    <span data-bind="text: ytDlpLastResult() && ytDlpLastResult().message"></span>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button class="btn btn-primary" data-bind="click: updateYtDlp, enable: !ytDlpBusy()">
+                                    <span data-bind="visible: !(ytDlpBusy() && ytDlpOperation() === 'Update')">
+                                        <i class="bi bi-cloud-arrow-down"></i> Update yt-dlp
+                                    </span>
+                                    <span data-bind="visible: ytDlpBusy() && ytDlpOperation() === 'Update'">
+                                        <span class="spinner-border spinner-border-sm me-1"></span> Updating&hellip;
+                                    </span>
+                                </button>
+                                <button class="btn btn-outline-warning"
+                                        data-bind="click: rollbackYtDlp, enable: !ytDlpBusy() && ytDlpBackup()">
+                                    <span data-bind="visible: !(ytDlpBusy() && ytDlpOperation() === 'Rollback')">
+                                        <i class="bi bi-arrow-counterclockwise"></i> Roll back
+                                    </span>
+                                    <span data-bind="visible: ytDlpBusy() && ytDlpOperation() === 'Rollback'">
+                                        <span class="spinner-border spinner-border-sm me-1"></span> Rolling back&hellip;
+                                    </span>
+                                </button>
+                            </div>
+                            <div data-bind="visible: ytDlpBusy()" class="small text-muted mt-2">
+                                This may take a minute — it's queued behind any in-progress download.
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

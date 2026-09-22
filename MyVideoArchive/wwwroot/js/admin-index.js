@@ -112,6 +112,19 @@ class AdminViewModel {
         });
 
         this._pollTimer = null;
+
+        // yt-dlp maintenance (update/rollback)
+        this.ytDlpLoading = ko.observable(true);
+        this.ytDlpVersion = ko.observable(null);
+        this.ytDlpBackup = ko.observable(null);
+        this.ytDlpLastResult = ko.observable(null);
+        this.ytDlpBusy = ko.observable(false);
+        this.ytDlpOperation = ko.observable(null);
+        this.ytDlpBackupAgo = ko.pureComputed(() => {
+            const backup = this.ytDlpBackup();
+            return backup ? timeAgo(backup.backedUpAtUtc) : '';
+        });
+        this._ytDlpPollTimer = null;
     }
 
     // ── File System Scan ─────────────────────────────────────────────────────
@@ -532,6 +545,131 @@ class AdminViewModel {
             toast.error('An unexpected error occurred.');
         }
     };
+
+    // ── yt-dlp maintenance (update/rollback) ────────────────────────────────────
+
+    loadYtDlpStatus = async () => {
+        this.ytDlpLoading(true);
+        try {
+            const response = await fetch('/api/admin/yt-dlp/status');
+            if (!response.ok) return;
+            this._applyYtDlpStatus(await response.json());
+        } catch (error) {
+            console.error('Error loading yt-dlp status:', error);
+        } finally {
+            this.ytDlpLoading(false);
+        }
+    };
+
+    updateYtDlp = async () => {
+        try {
+            const response = await fetch('/api/admin/yt-dlp/update', { method: 'POST' });
+            if (response.status === 409) {
+                toast.warning('An update or rollback is already in progress.');
+                this._startYtDlpPolling();
+                return;
+            }
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.message || 'Failed to start the yt-dlp update.');
+                return;
+            }
+            this.ytDlpBusy(true);
+            this.ytDlpOperation('Update');
+            this._startYtDlpPolling();
+        } catch (error) {
+            console.error('Error starting yt-dlp update:', error);
+            toast.error('An unexpected error occurred.');
+        }
+    };
+
+    rollbackYtDlp = async () => {
+        if (!confirm('Roll back yt-dlp to the version backed up before the last update?')) return;
+        try {
+            const response = await fetch('/api/admin/yt-dlp/rollback', { method: 'POST' });
+            if (response.status === 409) {
+                toast.warning('An update or rollback is already in progress.');
+                this._startYtDlpPolling();
+                return;
+            }
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                toast.error(data.message || 'Failed to start the yt-dlp rollback.');
+                return;
+            }
+            this.ytDlpBusy(true);
+            this.ytDlpOperation('Rollback');
+            this._startYtDlpPolling();
+        } catch (error) {
+            console.error('Error starting yt-dlp rollback:', error);
+            toast.error('An unexpected error occurred.');
+        }
+    };
+
+    _applyYtDlpStatus = (data) => {
+        this.ytDlpVersion(data.currentVersion || null);
+        this.ytDlpBackup(data.backup || null);
+        this.ytDlpBusy(!!data.isRunning);
+        this.ytDlpOperation(data.currentOperation || null);
+        this.ytDlpLastResult(data.lastResult || null);
+    };
+
+    _startYtDlpPolling = () => {
+        this._stopYtDlpPolling();
+        this._ytDlpPollTimer = setInterval(() => this._pollYtDlpStatus(), POLL_INTERVAL_MS);
+    };
+
+    _stopYtDlpPolling = () => {
+        if (this._ytDlpPollTimer !== null) {
+            clearInterval(this._ytDlpPollTimer);
+            this._ytDlpPollTimer = null;
+        }
+    };
+
+    _pollYtDlpStatus = async () => {
+        try {
+            const response = await fetch('/api/admin/yt-dlp/status');
+            if (!response.ok) return;
+            const data = await response.json();
+            this._applyYtDlpStatus(data);
+
+            if (!data.isRunning) {
+                this._stopYtDlpPolling();
+                const result = data.lastResult;
+                if (result) {
+                    if (result.success) {
+                        toast.success(result.message);
+                    } else {
+                        toast.error(result.message);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error polling yt-dlp status:', error);
+        }
+    };
+}
+
+function timeAgo(isoDateString) {
+    if (!isoDateString) return '';
+    const then = new Date(isoDateString).getTime();
+    if (Number.isNaN(then)) return '';
+    const seconds = Math.max(0, Math.floor((Date.now() - then) / 1000));
+
+    const units = [
+        ['year', 31536000],
+        ['month', 2592000],
+        ['day', 86400],
+        ['hour', 3600],
+        ['minute', 60]
+    ];
+    for (const [name, secondsInUnit] of units) {
+        const value = Math.floor(seconds / secondsInUnit);
+        if (value >= 1) {
+            return `${value} ${name}${value === 1 ? '' : 's'} ago`;
+        }
+    }
+    return 'just now';
 }
 
 function showAlert(type, message) {
@@ -582,5 +720,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch {
         // Non-critical; ignore errors on initial status check
+    }
+
+    // Load yt-dlp version/backup status, and attach to an in-progress update/rollback if any
+    await viewModel.loadYtDlpStatus();
+    if (viewModel.ytDlpBusy()) {
+        viewModel._startYtDlpPolling();
     }
 });
