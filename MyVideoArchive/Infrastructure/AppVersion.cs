@@ -13,7 +13,7 @@ public static class AppVersion
 
     private static string Resolve()
     {
-        Assembly assembly = typeof(AppVersion).Assembly;
+        var assembly = typeof(AppVersion).Assembly;
 
         string? informational = assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
@@ -25,7 +25,7 @@ public static class AppVersion
             return plus >= 0 ? informational[..plus] : informational;
         }
 
-        Version? version = assembly.GetName().Version;
+        var version = assembly.GetName().Version;
         return version is null ? "0.0.0" : $"{version.Major}.{version.Minor}.{version.Build}";
     }
 }

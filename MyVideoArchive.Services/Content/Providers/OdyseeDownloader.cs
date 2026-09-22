@@ -58,8 +58,12 @@ public partial class OdyseeDownloader : IVideoDownloader
                 Output = Path.Combine(outputPath, "%(id)s.%(ext)s"),
                 WriteInfoJson = true,
                 WriteThumbnail = true,
-                EmbedThumbnail = true,
-                EmbedMetadata = true,
+                // Deliberately NOT EmbedThumbnail/EmbedMetadata: Odysee's "original" format is
+                // already a complete, correctly-muxed mp4 (no separate video/audio merge needed).
+                // Running it back through ffmpeg to embed the thumbnail as an attached-pic stream
+                // was found to corrupt the H.264 bitstream (malformed NAL unit lengths), which
+                // plays fine sequentially but throws MEDIA_ERR_DECODE in browsers on seek. The
+                // thumbnail is still saved as a sidecar file via WriteThumbnail above.
                 NoPlaylist = true
             };
 

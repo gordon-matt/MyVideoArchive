@@ -1,6 +1,7 @@
 using Hangfire;
 using MyVideoArchive.Infrastructure;
 using MyVideoArchive.Services.Content;
+using YoutubeDLSharp;
 
 namespace MyVideoArchive.Services.Jobs;
 
@@ -19,6 +20,7 @@ public class VideoDownloadJob
     private readonly VideoDownloaderFactory downloaderFactory;
     private readonly IRepository<Video> videoRepository;
     private readonly ThumbnailService thumbnailService;
+    private readonly YoutubeDL ytdl;
 
     public VideoDownloadJob(
         ILogger<VideoDownloadJob> logger,
@@ -26,7 +28,8 @@ public class VideoDownloadJob
         IBackgroundJobClient backgroundJobClient,
         VideoDownloaderFactory downloaderFactory,
         IRepository<Video> videoRepository,
-        ThumbnailService thumbnailService)
+        ThumbnailService thumbnailService,
+        YoutubeDL ytdl)
     {
         this.logger = logger;
         this.configuration = configuration;
@@ -34,6 +37,7 @@ public class VideoDownloadJob
         this.downloaderFactory = downloaderFactory;
         this.videoRepository = videoRepository;
         this.thumbnailService = thumbnailService;
+        this.ytdl = ytdl;
     }
 
     [HangfireSkipWhenPreviousInstanceIsRunningFilter]
@@ -196,6 +200,30 @@ public class VideoDownloadJob
                 progress,
                 cancellationToken);
 
+            // ── Integrity check ─────────────────────────────────────────────────
+            // Catches container/bitstream corruption that can be introduced by the download or
+            // post-processing pipeline (e.g. a buggy remux) — the resulting file may play fine
+            // sequentially but throw a decode error in the browser as soon as the user seeks.
+            if (configuration.GetValue("VideoDownload:VerifyDownloadIntegrity", true))
+            {
+                VideoIntegrityResult integrity = await VideoIntegrityChecker.VerifyAsync(
+                    ytdl.FFmpegPath, filePath, logger, cancellationToken);
+
+                if (!integrity.IsValid)
+                {
+                    TryDeleteFile(filePath);
+                    throw new TransientDownloadException(
+                        $"Downloaded file failed integrity check (corrupt video stream): {integrity.Error}");
+                }
+            }
+
+            // ── Optional downscale ──────────────────────────────────────────────
+            // Some platforms (e.g. Odysee) expose only a single "original" quality via yt-dlp, so
+            // VideoDownload:VideoQuality has nothing smaller to select. When enabled, this
+            // transcodes oversized videos down with ffmpeg; a no-op when already small enough.
+            filePath = await VideoDownscaleService.EnsureMaxHeightAsync(
+                ytdl.FFmpegPath, filePath, configuration, logger, cancellationToken);
+
             video.FilePath = filePath;
             video.FileSize = new FileInfo(filePath).Length;
             video.DownloadedAt = DateTime.UtcNow;
@@ -334,5 +362,23 @@ public class VideoDownloadJob
         backgroundJobClient.Schedule<VideoDownloadJob>(
             job => job.RetryDownloadAsync(videoId, nextAttempt, CancellationToken.None),
             delay);
+    }
+
+    private void TryDeleteFile(string filePath)
+    {
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Warning))
+            {
+                logger.LogWarning(ex, "Could not delete corrupt file {FilePath}", filePath);
+            }
+        }
     }
 }
