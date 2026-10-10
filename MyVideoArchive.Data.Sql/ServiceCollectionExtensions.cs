@@ -3,6 +3,8 @@ using Hangfire.SqlServer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
+using LogVue.Data.Sql;
+
 namespace MyVideoArchive.Data.Sql;
 
 public static class ServiceCollectionExtensions
@@ -33,6 +35,11 @@ public static class ServiceCollectionExtensions
 
             services.AddScoped<ApplicationDbContextBase>(sp => sp.GetRequiredService<ApplicationDbContext>());
             services.AddSingleton<IDbContextFactory, ApplicationDbContextFactory>();
+
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                services.AddLogVueSqlServer(connectionString);
+            }
 
             return services;
         }

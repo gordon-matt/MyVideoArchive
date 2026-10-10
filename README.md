@@ -84,14 +84,14 @@ Access is restricted to authenticated admin users.
 
 ---
 
-### Logging dashboard (Sejil)
+### Logging dashboard (LogVue)
 
-Application logs are available in the [Sejil](https://github.com/alaatm/Sejil) log dashboard at `/sejil`, linked from **Admin → Monitoring & Diagnostics**. Use it to:
+Application logs are available in the LogVue dashboard at `/logvue`, linked from **Admin → Monitoring & Diagnostics**. Use it to:
 
 - Search and filter log entries by level, message, and time.
 - Diagnose errors and trace behaviour of syncs, downloads, and file system scans.
 
-<img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/_Misc/Screenshots/sejil.png" alt="Sejil Log Dashboard" />
+<img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/_Misc/Screenshots/sejil.png" alt="LogVue log dashboard" />
 
 ---
 
@@ -115,7 +115,7 @@ Results are paginated. Combined with tags and custom playlists, you can organise
 - **Entity Framework Core** — Data access with repository pattern using Extenso.Data.Entity
 - **YoutubeDLSharp** — C# wrapper for yt-dlp video downloader
 - **Hangfire** — Background jobs and dashboard (PostgreSQL storage)
-- **Sejil** — Log dashboard (Serilog sink)
+- **LogVue** — Log dashboard (Serilog sink)
 - **Knockout.js** — Frontend MVVM framework
 - **Bootstrap 5** — Responsive UI
 - **Autofac** — Dependency injection container
