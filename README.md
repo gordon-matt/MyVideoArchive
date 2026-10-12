@@ -1,4 +1,4 @@
-<img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/MyVideoArchive/_Misc/Logo_Background_Wide.jpg" alt="Logo" width="100%" />
+<img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/_Misc/Logo_Background_Wide.jpg" alt="Logo" width="100%" />
 
 # MyVideoArchive
 
