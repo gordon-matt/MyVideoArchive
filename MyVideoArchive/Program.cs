@@ -68,7 +68,7 @@ builder.Services.MvaAddHangfire(builder.Configuration);
 // Register HTTP client (used by ThumbnailService)
 builder.Services.AddHttpClient();
 
-builder.Services.MvaAddServices();
+builder.Services.MvaAddServices(builder.Configuration);
 
 // Configure Autofac
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>

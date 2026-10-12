@@ -10,8 +10,8 @@ A video archiving application inspired by [TubeArchivist](https://github.com/tub
 
 - **YouTube** — Subscribe to channels by URL; metadata and thumbnails are fetched via yt-dlp. Videos and playlists sync on a schedule.
 - **BitChute** — Same workflow as YouTube: add a channel URL, and the app fetches metadata and supports downloading. Playlists are not yet supported, but watch this space...
-- **Odysee** — Add a channel URL (e.g. `https://odysee.com/@Channel:id`); metadata and videos are fetched via yt-dlp.
-- **Rumble** — Add a channel URL (e.g. `https://rumble.com/c/Channel` or `https://rumble.com/user/Name`); metadata and videos are fetched via yt-dlp.
+- **Odysee** *(beta)* — Add a channel URL (e.g. `https://odysee.com/@Channel:id`); metadata and videos are fetched via yt-dlp. Requires `EnableBetaFeatures` (see [Configuration](#configuration)).
+- **Rumble** *(beta)* — Add a channel URL (e.g. `https://rumble.com/c/Channel` or `https://rumble.com/user/Name`); metadata and videos are fetched via yt-dlp. Requires `EnableBetaFeatures` (see [Configuration](#configuration)).
 - **Custom channels** — Create your own channels. Add playlists and videos manually, upload or copy files into the configured folder, and use the file system scan to import them.
 
 The **Channels** page lists all channels (or “My Channels” for non-admins) with filters by platform (YouTube, BitChute, Odysee, Rumble, Custom) and view modes (banner or avatar grid). Add new channels via the **Add Channel** modal.
@@ -208,6 +208,7 @@ where `your_email_replace_at` is the `@` signed replaced by an underscore `_` fo
   - **SQL Server:** `Server=db;Database=myvideoarchive;User Id=sa;Password=your_password;TrustServerCertificate=True`
   - **MySQL:** `Server=db;Database=myvideoarchive;User=root;Password=your_password;Allow User Variables=True`
   - **SQLite:** `Data Source=/app/data/myvideoarchive.db`
+- **Beta features:** Set `EnableBetaFeatures` to `true` (or the `EnableBetaFeatures` environment variable) and restart to enable features that are still being stabilised. Currently this gates the **Odysee** and **Rumble** platforms. Defaults to `false`; while disabled those platforms are hidden and their providers aren't loaded, so existing Odysee/Rumble channels won't sync or download until it's re-enabled.
 - **Local development:** Use **User Secrets** for the connection string (Visual Studio: right-click project → **Manage User Secrets**).
 
 - **Docker:** The container reads settings from environment variables in `docker-compose.yml` or from a `.env` file.

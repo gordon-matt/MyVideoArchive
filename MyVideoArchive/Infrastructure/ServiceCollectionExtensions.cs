@@ -251,7 +251,47 @@ internal static class ServiceCollectionExtensions
             });
         }
 
-        public void MvaAddServices()
+        /// <summary>
+        /// Registers the application services. The Odysee and Rumble providers are still beta and
+        /// are only registered when <c>EnableBetaFeatures</c> is <c>true</c> (default <c>false</c>).
+        /// Without a registered provider/downloader the platform can't be resolved anywhere (adding
+        /// channels, syncing, downloading, ...), so the gate needs no checks at the call sites.
+        /// </summary>
+        public void MvaAddServices(IConfiguration configuration)
+        {
+            bool enableBetaFeatures = BetaFeatureService.IsEnabledInConfiguration(configuration);
+            services.AddSingleton<IBetaFeatureService>(new BetaFeatureService(enableBetaFeatures));
+
+            // Register video services
+            services.AddSingleton<YoutubeDLInitializer>();
+            services.AddSingleton(sp =>
+            {
+                var initializer = sp.GetRequiredService<YoutubeDLInitializer>();
+                return initializer.GetInstanceAsync().GetAwaiter().GetResult();
+            });
+
+            // Register metadata providers and downloaders (stable platforms)
+            services.AddSingleton<IVideoMetadataProvider, YouTubeMetadataProvider>();
+            services.AddSingleton<IVideoMetadataProvider, BitChuteMetadataProvider>();
+            services.AddSingleton<IVideoDownloader, YouTubeDownloader>();
+            services.AddSingleton<IVideoDownloader, BitChuteDownloader>();
+
+            if (enableBetaFeatures)
+            {
+                services.MvaAddBetaPlatforms();
+            }
+
+            // Register factories
+            services.AddSingleton<VideoMetadataProviderFactory>();
+            services.AddSingleton<VideoDownloaderFactory>();
+
+            services.MvaAddCoreServices();
+        }
+
+        /// <summary>
+        /// Odysee and Rumble providers (beta; see <see cref="BetaFeatureService"/>).
+        /// </summary>
+        public void MvaAddBetaPlatforms()
         {
             // Rumble scraping client: rumble.com sits behind Cloudflare bot protection that 403s
             // requests carrying only a User-Agent. A full browser-like header set (Accept,
@@ -284,30 +324,18 @@ internal static class ServiceCollectionExtensions
                 CookieContainer = new CookieContainer()
             });
 
-            // Register video services
-            services.AddSingleton<YoutubeDLInitializer>();
-            services.AddSingleton(sp =>
-            {
-                var initializer = sp.GetRequiredService<YoutubeDLInitializer>();
-                return initializer.GetInstanceAsync().GetAwaiter().GetResult();
-            });
-
-            // Register metadata providers
-            services.AddSingleton<IVideoMetadataProvider, YouTubeMetadataProvider>();
-            services.AddSingleton<IVideoMetadataProvider, BitChuteMetadataProvider>();
             services.AddSingleton<IVideoMetadataProvider, OdyseeMetadataProvider>();
             services.AddSingleton<IVideoMetadataProvider, RumbleMetadataProvider>();
 
-            // Register downloaders
-            services.AddSingleton<IVideoDownloader, YouTubeDownloader>();
-            services.AddSingleton<IVideoDownloader, BitChuteDownloader>();
             services.AddSingleton<IVideoDownloader, OdyseeDownloader>();
             services.AddSingleton<IVideoDownloader, RumbleDownloader>();
+        }
 
-            // Register factories
-            services.AddSingleton<VideoMetadataProviderFactory>();
-            services.AddSingleton<VideoDownloaderFactory>();
-
+        /// <summary>
+        /// Services that are independent of which platforms are enabled.
+        /// </summary>
+        public void MvaAddCoreServices()
+        {
             // Register thumbnail service
             services.AddTransient<ThumbnailService>();
 

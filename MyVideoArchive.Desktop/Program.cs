@@ -87,7 +87,7 @@ builder.Services.MvaAddHangfire(builder.Configuration);
 
 builder.Services.AddHttpClient();
 
-builder.Services.MvaAddServices();
+builder.Services.MvaAddServices(builder.Configuration);
 
 // Register Electron services and wire up the desktop window. UseElectron is a no-op
 // when launched as a regular ASP.NET Core process (e.g. `dotnet run`), so this same
