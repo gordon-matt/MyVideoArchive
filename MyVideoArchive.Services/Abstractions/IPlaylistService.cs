@@ -47,6 +47,11 @@ public interface IPlaylistService
     Task<Result> SyncPlaylistAsync(int playlistId);
 
     /// <summary>
+    /// Returns whether a playlist sync job is currently queued or running for the given playlist.
+    /// </summary>
+    Task<bool?> GetSyncStatusAsync(int playlistId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Subscribe to all playlists for a channel and queue sync jobs.
     /// </summary>
     Task<Result<SubscribePlaylistsResponse>> SubscribeAllPlaylistsAsync(int channelId);

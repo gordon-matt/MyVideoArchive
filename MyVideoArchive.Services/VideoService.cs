@@ -4,6 +4,7 @@ using MyVideoArchive.Models.Metadata;
 using MyVideoArchive.Models.Responses;
 using MyVideoArchive.Models.Video;
 using MyVideoArchive.Services.Content;
+using MyVideoArchive.Services.Jobs;
 
 namespace MyVideoArchive.Services;
 
@@ -357,6 +358,50 @@ public class VideoService : IVideoService
             }
 
             return Result.Error("An error occurred while retrieving failed downloads");
+        }
+    }
+
+    public async Task<Result<RetryDownloadResponse>> RetryDownloadAsync(int videoId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var video = await videoRepository.FindOneAsync(new SearchOptions<Video>
+            {
+                CancellationToken = cancellationToken,
+                Query = x => x.Id == videoId
+            });
+
+            if (video is null)
+            {
+                return Result.NotFound("Video not found");
+            }
+
+            if (!video.DownloadFailed)
+            {
+                return Result.Success(new RetryDownloadResponse(false, "Video is not currently flagged as failed"));
+            }
+
+            video.DownloadFailed = false;
+            video.IsQueued = true;
+            await videoRepository.UpdateAsync(video, ContextOptions.ForCancellationToken(cancellationToken));
+
+            backgroundJobClient.Enqueue<VideoDownloadJob>(job => job.ExecuteAsync(video.Id, CancellationToken.None));
+
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("Re-queued previously failed download for video {VideoId}", videoId);
+            }
+
+            return Result.Success(new RetryDownloadResponse(true, "Download re-queued"));
+        }
+        catch (Exception ex)
+        {
+            if (logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(ex, "Error retrying download for video {VideoId}", videoId);
+            }
+
+            return Result.Error("An error occurred while retrying the download");
         }
     }
 

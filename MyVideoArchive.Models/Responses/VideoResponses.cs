@@ -23,6 +23,8 @@ public record GetVideoPlaylistsResponse(IReadOnlyList<VideoPlaylistItem> Playlis
 
 public record GetWatchedVideoIdsResponse(IReadOnlyList<int> WatchedIds);
 
+public record RetryDownloadResponse(bool Success, string Message);
+
 public record RetryMetadataResponse(bool Success, string Message);
 
 public record StandaloneInfoResponse(

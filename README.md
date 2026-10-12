@@ -1,18 +1,20 @@
-<img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/MyVideoArchive/wwwroot/img/MVA-Logo.png" alt="Logo" width="250" />
+<img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/MyVideoArchive/_Misc/Logo_Background_Wide.jpg" alt="Logo" width="100%" />
 
 # MyVideoArchive
 
-A video archiving application inspired by [TubeArchivist](https://github.com/tubearchivist/tubearchivist). Archive your favourite videos, channels, and playlists from YouTube and BitChute, or create custom channels and upload your own. Built with ASP.NET Core.
+A video archiving application inspired by [TubeArchivist](https://github.com/tubearchivist/tubearchivist). Archive your favourite videos, channels, and playlists from YouTube, BitChute, Odysee and Rumble, or create custom channels and upload your own. Built with ASP.NET Core.
 
 ## Features
 
-### Channels: YouTube, BitChute & Custom
+### Channels: YouTube, BitChute, Odysee, Rumble & Custom
 
 - **YouTube** — Subscribe to channels by URL; metadata and thumbnails are fetched via yt-dlp. Videos and playlists sync on a schedule.
 - **BitChute** — Same workflow as YouTube: add a channel URL, and the app fetches metadata and supports downloading. Playlists are not yet supported, but watch this space...
+- **Odysee** *(beta)* — Add a channel URL (e.g. `https://odysee.com/@Channel:id`); metadata and videos are fetched via yt-dlp. Requires `EnableBetaFeatures` (see [Configuration](#configuration)).
+- **Rumble** *(beta)* — Add a channel URL (e.g. `https://rumble.com/c/Channel` or `https://rumble.com/user/Name`); metadata and videos are fetched via yt-dlp. Requires `EnableBetaFeatures` (see [Configuration](#configuration)).
 - **Custom channels** — Create your own channels. Add playlists and videos manually, upload or copy files into the configured folder, and use the file system scan to import them.
 
-The **Channels** page lists all channels (or “My Channels” for non-admins) with filters by platform (YouTube, BitChute, Custom) and view modes (banner or avatar grid). Add new channels via the **Add Channel** modal.
+The **Channels** page lists all channels (or “My Channels” for non-admins) with filters by platform (YouTube, BitChute, Odysee, Rumble, Custom) and view modes (banner or avatar grid). Add new channels via the **Add Channel** modal.
 
 <img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/_Misc/Screenshots/channel-index.png" alt="Channel Index" />
 
@@ -82,14 +84,14 @@ Access is restricted to authenticated admin users.
 
 ---
 
-### Logging dashboard (Sejil)
+### Logging dashboard (LogVue)
 
-Application logs are available in the [Sejil](https://github.com/alaatm/Sejil) log dashboard at `/sejil`, linked from **Admin → Monitoring & Diagnostics**. Use it to:
+Application logs are available in the LogVue dashboard at `/logvue`, linked from **Admin → Monitoring & Diagnostics**. Use it to:
 
 - Search and filter log entries by level, message, and time.
 - Diagnose errors and trace behaviour of syncs, downloads, and file system scans.
 
-<img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/_Misc/Screenshots/sejil.png" alt="Sejil Log Dashboard" />
+<img src="https://github.com/gordon-matt/MyVideoArchive/blob/master/_Misc/Screenshots/sejil.png" alt="LogVue log dashboard" />
 
 ---
 
@@ -113,7 +115,7 @@ Results are paginated. Combined with tags and custom playlists, you can organise
 - **Entity Framework Core** — Data access with repository pattern using Extenso.Data.Entity
 - **YoutubeDLSharp** — C# wrapper for yt-dlp video downloader
 - **Hangfire** — Background jobs and dashboard (PostgreSQL storage)
-- **Sejil** — Log dashboard (Serilog sink)
+- **LogVue** — Log dashboard (Serilog sink)
 - **Knockout.js** — Frontend MVVM framework
 - **Bootstrap 5** — Responsive UI
 - **Autofac** — Dependency injection container
@@ -206,6 +208,7 @@ where `your_email_replace_at` is the `@` signed replaced by an underscore `_` fo
   - **SQL Server:** `Server=db;Database=myvideoarchive;User Id=sa;Password=your_password;TrustServerCertificate=True`
   - **MySQL:** `Server=db;Database=myvideoarchive;User=root;Password=your_password;Allow User Variables=True`
   - **SQLite:** `Data Source=/app/data/myvideoarchive.db`
+- **Beta features:** Set `EnableBetaFeatures` to `true` (or the `EnableBetaFeatures` environment variable) and restart to enable features that are still being stabilised. Currently this gates the **Odysee** and **Rumble** platforms. Defaults to `false`; while disabled those platforms are hidden and their providers aren't loaded, so existing Odysee/Rumble channels won't sync or download until it's re-enabled.
 - **Local development:** Use **User Secrets** for the connection string (Visual Studio: right-click project → **Manage User Secrets**).
 
 - **Docker:** The container reads settings from environment variables in `docker-compose.yml` or from a `.env` file.

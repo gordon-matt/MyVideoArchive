@@ -42,4 +42,10 @@
 		<Using Include="Xunit" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<None Update="Fixtures\Rumble\**\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
 </Project>

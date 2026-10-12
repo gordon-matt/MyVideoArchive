@@ -38,7 +38,7 @@ class ChannelsViewModel {
 
         this.formatDate = formatDate;
 
-        this.urlBasedPlatforms = ['YouTube', 'BitChute'];
+        this.urlBasedPlatforms = ['YouTube', 'BitChute', 'Odysee', 'Rumble'];
         this.isUrlBasedPlatform = ko.computed(() => this.urlBasedPlatforms.includes(this.selectedPlatform()));
         this.canSubmit = ko.computed(() => {
             if (this.isUrlBasedPlatform()) return this.newChannelUrl().length > 0;
@@ -476,7 +476,8 @@ class ChannelsViewModel {
         if (match) return match[1];
         match = url.match(/user\/([^\/\?]+)/);
         if (match) return match[1];
-        match = url.match(/\/@@([^\/\?]+)/);
+        // Odysee handles look like /@Name:claimId (keep the @ prefix)
+        match = url.match(/\/(@[^\/\?]+)/);
         if (match) return match[1];
         return url;
     };

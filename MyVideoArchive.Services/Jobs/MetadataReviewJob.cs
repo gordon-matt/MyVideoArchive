@@ -118,7 +118,8 @@ public class MetadataReviewJob
                 video.LikeCount = metadata.LikeCount;
                 video.NeedsMetadataReview = false;
 
-                string thumbnailDir = Path.Combine(downloadPath, video.Channel.ChannelId);
+                string thumbnailDir = CustomChannelPathHelper.GetChannelDirectory(
+                    downloadPath, video.Channel.Platform, video.Channel.ChannelId);
                 video.ThumbnailUrl = await thumbnailService.DownloadAndSaveAsync(
                     metadata.ThumbnailUrl,
                     thumbnailDir,

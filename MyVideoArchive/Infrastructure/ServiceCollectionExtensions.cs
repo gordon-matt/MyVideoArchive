@@ -251,8 +251,17 @@ internal static class ServiceCollectionExtensions
             });
         }
 
-        public void MvaAddServices()
+        /// <summary>
+        /// Registers the application services. The Odysee and Rumble providers are still beta and
+        /// are only registered when <c>EnableBetaFeatures</c> is <c>true</c> (default <c>false</c>).
+        /// Without a registered provider/downloader the platform can't be resolved anywhere (adding
+        /// channels, syncing, downloading, ...), so the gate needs no checks at the call sites.
+        /// </summary>
+        public void MvaAddServices(IConfiguration configuration)
         {
+            bool enableBetaFeatures = BetaFeatureService.IsEnabledInConfiguration(configuration);
+            services.AddSingleton<IBetaFeatureService>(new BetaFeatureService(enableBetaFeatures));
+
             // Register video services
             services.AddSingleton<YoutubeDLInitializer>();
             services.AddSingleton(sp =>
@@ -261,18 +270,72 @@ internal static class ServiceCollectionExtensions
                 return initializer.GetInstanceAsync().GetAwaiter().GetResult();
             });
 
-            // Register metadata providers
+            // Register metadata providers and downloaders (stable platforms)
             services.AddSingleton<IVideoMetadataProvider, YouTubeMetadataProvider>();
             services.AddSingleton<IVideoMetadataProvider, BitChuteMetadataProvider>();
-
-            // Register downloaders
             services.AddSingleton<IVideoDownloader, YouTubeDownloader>();
             services.AddSingleton<IVideoDownloader, BitChuteDownloader>();
+
+            if (enableBetaFeatures)
+            {
+                services.MvaAddBetaPlatforms();
+            }
 
             // Register factories
             services.AddSingleton<VideoMetadataProviderFactory>();
             services.AddSingleton<VideoDownloaderFactory>();
 
+            services.MvaAddCoreServices();
+        }
+
+        /// <summary>
+        /// Odysee and Rumble providers (beta; see <see cref="BetaFeatureService"/>).
+        /// </summary>
+        public void MvaAddBetaPlatforms()
+        {
+            // Rumble scraping client: rumble.com sits behind Cloudflare bot protection that 403s
+            // requests carrying only a User-Agent. A full browser-like header set (Accept,
+            // Accept-Language, Sec-Fetch-*, client hints) plus gzip/br decompression (which also
+            // sends Accept-Encoding) and cookie support is required for fetches to succeed.
+            services.AddHttpClient(RumbleMetadataProvider.HttpClientName, client =>
+            {
+                client.DefaultRequestVersion = HttpVersion.Version20;
+                client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+
+                var headers = client.DefaultRequestHeaders;
+                headers.TryAddWithoutValidation("User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36");
+                headers.TryAddWithoutValidation("Accept",
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
+                headers.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9");
+                headers.TryAddWithoutValidation("Sec-Ch-Ua", "\"Not/A)Brand\";v=\"8\", \"Chromium\";v=\"126\", \"Google Chrome\";v=\"126\"");
+                headers.TryAddWithoutValidation("Sec-Ch-Ua-Mobile", "?0");
+                headers.TryAddWithoutValidation("Sec-Ch-Ua-Platform", "\"Windows\"");
+                headers.TryAddWithoutValidation("Sec-Fetch-Dest", "document");
+                headers.TryAddWithoutValidation("Sec-Fetch-Mode", "navigate");
+                headers.TryAddWithoutValidation("Sec-Fetch-Site", "none");
+                headers.TryAddWithoutValidation("Sec-Fetch-User", "?1");
+                headers.TryAddWithoutValidation("Upgrade-Insecure-Requests", "1");
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AutomaticDecompression = DecompressionMethods.All,
+                UseCookies = true,
+                CookieContainer = new CookieContainer()
+            });
+
+            services.AddSingleton<IVideoMetadataProvider, OdyseeMetadataProvider>();
+            services.AddSingleton<IVideoMetadataProvider, RumbleMetadataProvider>();
+
+            services.AddSingleton<IVideoDownloader, OdyseeDownloader>();
+            services.AddSingleton<IVideoDownloader, RumbleDownloader>();
+        }
+
+        /// <summary>
+        /// Services that are independent of which platforms are enabled.
+        /// </summary>
+        public void MvaAddCoreServices()
+        {
             // Register thumbnail service
             services.AddTransient<ThumbnailService>();
 
@@ -289,12 +352,18 @@ internal static class ServiceCollectionExtensions
             // Register file system scan state (singleton - tracks progress across requests)
             services.AddSingleton<FileSystemScanStateService>();
 
+            // Register yt-dlp maintenance (backup/update/rollback) support
+            services.AddSingleton<YtDlpBackupManager>();
+            services.AddSingleton<YtDlpMaintenanceStateService>();
+            services.AddSingleton<IYtDlpMaintenanceService, YtDlpMaintenanceService>();
+
             // Register user context service
             services.AddHttpContextAccessor();
             services.AddScoped<IUserContextService, UserContextService>();
 
             // Register other services
             services.AddSingleton<IAdditionalContentService, AdditionalContentService>();
+            services.AddSingleton<IAdminDashboardService, AdminDashboardService>();
             services.AddSingleton<IChannelService, ChannelService>();
             services.AddSingleton<ISeriesService, SeriesService>();
             services.AddSingleton<ICustomChannelService, CustomChannelService>();

@@ -20,6 +20,9 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=myvideoarchive;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}"
+      # Beta features (currently the Odysee and Rumble platforms). Still being stabilised, so off by default.
+      # Set to "true" and recreate the container to enable.
+      EnableBetaFeatures: "false"
       # Optional: initial admin created on first run (defaults: admin@myvideoarchive.local / Admin@123)
       # SeedAdmin__Email: admin@example.com
       # SeedAdmin__Password: "${ADMIN_PASSWORD}"

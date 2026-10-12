@@ -2,13 +2,12 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Extenso.AspNetCore.OData;
 using Hangfire;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Identity;
+using LogVue;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OData;
 using MyVideoArchive.Data;
 using MyVideoArchive.Infrastructure;
 using MyVideoArchive.Services.Content;
-using Sejil;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,16 +23,16 @@ if (string.IsNullOrEmpty(connectionString))
         "appsettings, or environment variable ConnectionStrings__DefaultConnection (e.g. in Docker).");
 }
 
-Log.Logger = new LoggerConfiguration()
+builder.Services.AddLogVue(options =>
+    builder.Configuration.GetSection(LogVueOptions.SectionName).Bind(options));
+
+builder.Services.AddSerilog((services, configuration) => configuration
     .MinimumLevel.Information()
     .WriteTo.Console()
-    .WriteToMvaDatabase(builder.Configuration)
-    .CreateLogger();
+    .WriteTo.LogVue(services));
 
 // Use Autofac as DI container
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
-builder.Host.UseSerilog();
-builder.Host.UseSejil(writeToProviders: true);
 
 builder.Services.MvaAddDatabase(builder.Configuration);
 
@@ -47,17 +46,6 @@ string authProviderName = builder.Configuration.GetValue<string>("Authentication
 bool useKeycloak = authProviderName.Equals("Keycloak", StringComparison.OrdinalIgnoreCase);
 
 builder.Services.MvaAddAuthentication(builder.Configuration, useKeycloak);
-
-if (useKeycloak)
-{
-    builder.Services.ConfigureSejil(options =>
-        options.AuthenticationScheme = CookieAuthenticationDefaults.AuthenticationScheme);
-}
-else
-{
-    builder.Services.ConfigureSejil(options =>
-        options.AuthenticationScheme = IdentityConstants.ApplicationScheme);
-}
 
 builder.Services.AddControllersWithViews()
     .AddNewtonsoftJson()
@@ -80,7 +68,7 @@ builder.Services.MvaAddHangfire(builder.Configuration);
 // Register HTTP client (used by ThumbnailService)
 builder.Services.AddHttpClient();
 
-builder.Services.MvaAddServices();
+builder.Services.MvaAddServices(builder.Configuration);
 
 // Configure Autofac
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
@@ -165,7 +153,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseSerilogRequestLogging();
-app.UseSejil();
+app.MapLogVue().RequireAuthorization(new AuthorizeAttribute
+{
+    Roles = MyVideoArchive.Constants.Roles.Administrator
+});
 
 // Configure Hangfire Dashboard
 app.MapHangfireDashboard("/hangfire", new DashboardOptions

@@ -96,6 +96,16 @@ public class PlaylistApiController : ControllerBase
     }
 
     /// <summary>
+    /// Returns whether a playlist sync job is currently queued or running.
+    /// </summary>
+    [HttpGet("{playlistId}/sync-status")]
+    public async Task<IActionResult> GetSyncStatus(int playlistId, CancellationToken cancellationToken)
+    {
+        bool? isSyncing = await playlistService.GetSyncStatusAsync(playlistId, cancellationToken);
+        return isSyncing is null ? NotFound() : Ok(new { isSyncing = isSyncing.Value });
+    }
+
+    /// <summary>
     /// Upload a thumbnail for a playlist (only if it doesn't already have one).
     /// </summary>
     [HttpPost("{playlistId}/thumbnail")]

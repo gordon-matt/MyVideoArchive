@@ -687,14 +687,8 @@ public class AdditionalContentService : IAdditionalContentService
     private string GetExtrasDirectoryRoot(Channel channel) =>
         Path.Combine(GetChannelArchiveRoot(channel), "_extras");
 
-    /// <summary>Physical folder for the channel’s videos and extras (not including <c>_extras</c>).</summary>
-    private string GetChannelArchiveRoot(Channel channel)
-    {
-        string downloadPath = GetDownloadPath();
-        return channel.Platform == "Custom"
-            ? Path.Combine(downloadPath, "_Custom", channel.ChannelId)
-            : Path.Combine(downloadPath, channel.ChannelId);
-    }
+    private string GetChannelArchiveRoot(Channel channel) =>
+        CustomChannelPathHelper.GetChannelDirectory(GetDownloadPath(), channel.Platform, channel.ChannelId);
 
     private string GetDownloadPath() =>
         configuration.GetValue<string>("VideoDownload:OutputPath")

@@ -27,6 +27,12 @@ public interface IVideoService
     Task<Result<FailedDownloadsResponse>> GetFailedDownloadsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Clears the failed/queued flags for a video previously flagged as DownloadFailed and
+    /// re-enqueues the download job, for admin review.
+    /// </summary>
+    Task<Result<RetryDownloadResponse>> RetryDownloadAsync(int videoId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get standalone status info for a video (for the banner on the details page)
     /// </summary>
     Task<Result<StandaloneInfoResponse>> GetStandaloneInfoAsync(int videoId);

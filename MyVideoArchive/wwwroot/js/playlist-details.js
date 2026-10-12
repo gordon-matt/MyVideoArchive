@@ -41,6 +41,8 @@ class PlaylistDetailsViewModel {
         this.loading = ko.observable(true);
         this.loadingVideos = ko.observable(false);
         this.refreshing = ko.observable(false);
+        this.isSyncing = ko.observable(false);
+        this._playlistSyncPollTimer = null;
         this.useCustomOrder = ko.observable(false);
         this.isAdmin = window.isAdmin === true;
         this.applyingDefaultOrder = ko.observable(false);
@@ -113,7 +115,7 @@ class PlaylistDetailsViewModel {
     };
 
     refreshFromSource = async () => {
-        if (this.refreshing()) {
+        if (this.refreshing() || this.isSyncing()) {
             return;
         }
 
@@ -129,6 +131,7 @@ class PlaylistDetailsViewModel {
 
             if (response.ok) {
                 toast.info(data.message || 'Playlist sync queued successfully.');
+                this.startSyncPolling();
             }
             else {
                 toast.error(data.message || 'Error queueing playlist sync.');
@@ -139,6 +142,41 @@ class PlaylistDetailsViewModel {
         } finally {
             this.refreshing(false);
         }
+    };
+
+    startSyncPolling = () => {
+        this._checkSyncStatus();
+        if (this._playlistSyncPollTimer === null) {
+            this._playlistSyncPollTimer = setInterval(() => this._checkSyncStatus(), 5000);
+        }
+    };
+
+    _stopSyncPolling = () => {
+        if (this._playlistSyncPollTimer !== null) {
+            clearInterval(this._playlistSyncPollTimer);
+            this._playlistSyncPollTimer = null;
+        }
+    };
+
+    _checkSyncStatus = async () => {
+        try {
+            const response = await fetch(`/api/playlists/${this.playlistId}/sync-status`);
+            if (!response.ok) return;
+            const data = await response.json();
+            const wasSyncing = this.isSyncing();
+            this.isSyncing(data.isSyncing);
+
+            if (wasSyncing && !data.isSyncing) {
+                this._stopSyncPolling();
+                await this._fetchPlaylist();
+                await this.loadPlaylistVideos();
+                toast.success('Playlist sync complete. Content has been refreshed.');
+            }
+
+            if (!data.isSyncing) {
+                this._stopSyncPolling();
+            }
+        } catch { /* non-critical */ }
     };
 
     _fetchPlaylist = async () => {
@@ -762,4 +800,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await viewModel.loadPlaylist();
     await viewModel.initPlaylistTags();
+    viewModel.startSyncPolling();
 });

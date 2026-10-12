@@ -5,15 +5,14 @@ using ElectronNET.API;
 using ElectronNET.API.Entities;
 using Extenso.AspNetCore.OData;
 using Hangfire;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Identity;
+using LogVue;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OData;
 using Microsoft.Extensions.FileProviders;
 using MyVideoArchive.Data;
 using MyVideoArchive.Desktop;
 using MyVideoArchive.Infrastructure;
 using MyVideoArchive.Services.Content;
-using Sejil;
 using Serilog;
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -49,15 +48,15 @@ if (string.IsNullOrEmpty(connectionString))
         "(ConnectionStrings__DefaultConnection).");
 }
 
-Log.Logger = new LoggerConfiguration()
+builder.Services.AddLogVue(options =>
+    builder.Configuration.GetSection(LogVueOptions.SectionName).Bind(options));
+
+builder.Services.AddSerilog((services, configuration) => configuration
     .MinimumLevel.Information()
     .WriteTo.Console()
-    .WriteToMvaDatabase(builder.Configuration)
-    .CreateLogger();
+    .WriteTo.LogVue(services));
 
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
-builder.Host.UseSerilog();
-builder.Host.UseSejil(writeToProviders: true);
 
 builder.Services.MvaAddDatabase(builder.Configuration);
 
@@ -67,17 +66,6 @@ string authProviderName = builder.Configuration.GetValue<string>("Authentication
 bool useKeycloak = authProviderName.Equals("Keycloak", StringComparison.OrdinalIgnoreCase);
 
 builder.Services.MvaAddAuthentication(builder.Configuration, useKeycloak);
-
-if (useKeycloak)
-{
-    builder.Services.ConfigureSejil(options =>
-        options.AuthenticationScheme = CookieAuthenticationDefaults.AuthenticationScheme);
-}
-else
-{
-    builder.Services.ConfigureSejil(options =>
-        options.AuthenticationScheme = IdentityConstants.ApplicationScheme);
-}
 
 builder.Services.AddControllersWithViews()
     .AddNewtonsoftJson()
@@ -99,7 +87,7 @@ builder.Services.MvaAddHangfire(builder.Configuration);
 
 builder.Services.AddHttpClient();
 
-builder.Services.MvaAddServices();
+builder.Services.MvaAddServices(builder.Configuration);
 
 // Register Electron services and wire up the desktop window. UseElectron is a no-op
 // when launched as a regular ASP.NET Core process (e.g. `dotnet run`), so this same
@@ -186,7 +174,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseSerilogRequestLogging();
-app.UseSejil();
+app.MapLogVue().RequireAuthorization(new AuthorizeAttribute
+{
+    Roles = MyVideoArchive.Constants.Roles.Administrator
+});
 
 app.MapHangfireDashboard("/hangfire", new DashboardOptions
 {

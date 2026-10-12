@@ -198,7 +198,8 @@ public class FileSystemScanJob
                         totalChannels,
                         processedChannels,
                         cancellationToken);
-                    string customChannelPath = Path.Combine(customBasePath, channel.ChannelId);
+                    string customChannelPath = CustomChannelPathHelper.GetChannelDirectory(
+                        downloadPath, "Custom", channel.ChannelId);
                     await ScanExtrasAsync(channel, customChannelPath, result, cancellationToken);
                 }
                 else
@@ -211,7 +212,8 @@ public class FileSystemScanJob
                         totalChannels,
                         processedChannels,
                         cancellationToken);
-                    string channelPath = Path.Combine(downloadPath, channel.ChannelId);
+                    string channelPath = CustomChannelPathHelper.GetChannelDirectory(
+                        downloadPath, channel.Platform, channel.ChannelId);
                     await ScanExtrasAsync(channel, channelPath, result, cancellationToken);
                 }
 
@@ -1374,7 +1376,8 @@ public class FileSystemScanJob
         int processedChannelsBefore,
         CancellationToken cancellationToken)
     {
-        string channelPath = Path.Combine(downloadPath, channel.ChannelId);
+        string channelPath = CustomChannelPathHelper.GetChannelDirectory(
+            downloadPath, channel.Platform, channel.ChannelId);
 
         var videoEntries = (await videoRepository.FindAsync(
             new SearchOptions<Video>

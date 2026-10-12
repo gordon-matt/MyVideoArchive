@@ -64,10 +64,21 @@ dotnet run  --project MyVideoArchive.Desktop
 
 When packaging for distribution, `dotnet publish` will pick up the linked
 `Content` items so the published output contains a real `wwwroot` and `Views`
-tree alongside the executable. See the
-[ElectronNET.Core wiki](https://github.com/ElectronNET/Electron.NET/wiki) for
-packaging details and the auto-generated `Properties\electron-builder.json`
-that gets created on first build.
+tree alongside the executable.
+
+### Windows installer
+
+From the repo root, with the .NET 10 SDK and Node.js 22+:
+
+```powershell
+.\create-installer-win.ps1
+```
+
+The NSIS installer is written to
+`MyVideoArchive.Desktop\publish\Release\net10.0\win-x64\`. Packaging is a
+self-contained `dotnet publish` (profile `win-x64`); ElectronNET.Core then
+runs electron-builder from `Properties\electron-builder.json`. The older
+`electronize` CLI is not used.
 
 ## What this project does **not** do
 
