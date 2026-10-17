@@ -1,4 +1,6 @@
 ﻿global using Extenso.Collections;
+global using Heroicsoft.NetForge.Abstractions.Auth;
+global using IUserContextService = MyVideoArchive.Services.IUserContextService;
 global using Extenso.Data.Entity;
 global using Microsoft.AspNetCore.Authorization;
 global using Microsoft.AspNetCore.Mvc;

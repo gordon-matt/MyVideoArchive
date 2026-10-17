@@ -5,6 +5,7 @@ using ElectronNET.API;
 using ElectronNET.API.Entities;
 using Extenso.AspNetCore.OData;
 using Hangfire;
+using Heroicsoft.NetForge.Hangfire;
 using LogVue;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OData;
@@ -181,7 +182,7 @@ app.MapLogVue().RequireAuthorization(new AuthorizeAttribute
 
 app.MapHangfireDashboard("/hangfire", new DashboardOptions
 {
-    Authorization = [new HangfireAuthorizationFilter()]
+    Authorization = [new AdministratorDashboardAuthorizationFilter()]
 });
 
 if (app.Environment.IsDevelopment())
