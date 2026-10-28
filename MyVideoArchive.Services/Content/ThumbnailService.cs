@@ -1,4 +1,4 @@
-using Xabe.FFmpeg;
+using Heroicsoft.NetForge.Video;
 
 namespace MyVideoArchive.Services.Content;
 
@@ -22,11 +22,16 @@ public class ThumbnailService
 
     private readonly ILogger<ThumbnailService> logger;
     private readonly IHttpClientFactory httpClientFactory;
+    private readonly IVideoFrameService frames;
 
-    public ThumbnailService(ILogger<ThumbnailService> logger, IHttpClientFactory httpClientFactory)
+    public ThumbnailService(
+        ILogger<ThumbnailService> logger,
+        IHttpClientFactory httpClientFactory,
+        IVideoFrameService? frames = null)
     {
         this.logger = logger;
         this.httpClientFactory = httpClientFactory;
+        this.frames = frames ?? new VideoFrameService(new LoggerAdapter<VideoFrameService>(logger));
     }
 
     /// <summary>
@@ -162,33 +167,24 @@ public class ThumbnailService
             return null;
         }
 
-        string outPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jpg");
-
         try
         {
-            var conversion = await FFmpeg.Conversions.FromSnippet.Snapshot(
-                videoFilePath, outPath, TimeSpan.FromSeconds(3));
+            Directory.CreateDirectory(saveDirectory);
+            string savePath = Path.Combine(saveDirectory, fileNameWithoutExtension + ".jpg");
+            bool captured = await frames.TryCaptureJpegAsync(
+                videoFilePath,
+                savePath,
+                TimeSpan.FromSeconds(3),
+                cancellationToken);
 
-            conversion.SetOverwriteOutput(true);
-
-            cancellationToken.ThrowIfCancellationRequested();
-            await conversion.Start();
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (!File.Exists(outPath))
+            if (!captured)
             {
                 return null;
             }
 
-            byte[] bytes = await File.ReadAllBytesAsync(outPath, cancellationToken);
-
-            Directory.CreateDirectory(saveDirectory);
-            string savePath = Path.Combine(saveDirectory, fileNameWithoutExtension + ".jpg");
-            await File.WriteAllBytesAsync(savePath, bytes, cancellationToken);
-
             return BuildRelativeUrl(downloadBasePath, savePath);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             if (logger.IsEnabled(LogLevel.Warning))
             {
@@ -196,20 +192,6 @@ public class ThumbnailService
             }
 
             return null;
-        }
-        finally
-        {
-            try
-            {
-                if (File.Exists(outPath))
-                {
-                    File.Delete(outPath);
-                }
-            }
-            catch
-            {
-                // Ignore temp file cleanup failures
-            }
         }
     }
 }

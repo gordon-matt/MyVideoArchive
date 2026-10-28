@@ -1,4 +1,5 @@
 ﻿global using Extenso.Collections;
+global using Heroicsoft.NetForge.Video;
 global using Extenso.Data.Entity;
 global using LinqKit;
 global using Microsoft.EntityFrameworkCore;

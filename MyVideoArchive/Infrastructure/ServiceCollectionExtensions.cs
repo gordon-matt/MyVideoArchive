@@ -1,6 +1,7 @@
 using System.Net;
 using Hangfire;
 using Heroicsoft.NetForge.Authentication;
+using Heroicsoft.NetForge.Video;
 using Microsoft.AspNetCore.HttpOverrides;
 using MyVideoArchive.Data;
 using MyVideoArchive.Data.MySql;
@@ -220,6 +221,8 @@ internal static class ServiceCollectionExtensions
         /// </summary>
         public void MvaAddCoreServices()
         {
+            services.AddNetForgeVideo();
+
             // Register thumbnail service
             services.AddTransient<ThumbnailService>();
 
