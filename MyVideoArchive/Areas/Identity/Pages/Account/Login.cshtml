@@ -1,0 +1,34 @@
+@page
+@model MyVideoArchive.Areas.Identity.Pages.Account.LoginModel
+@{
+    Layout = "/Areas/Identity/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Sign in";
+}
+
+<h1>@ViewData["Title"]</h1>
+<p class="nf-hint">Use the administrator account, or one you registered.</p>
+
+<form id="account" method="post">
+    <div asp-validation-summary="ModelOnly" class="nf-validation" role="alert"></div>
+
+    <div class="nf-field">
+        <label asp-for="Input.Email"></label>
+        <input asp-for="Input.Email" class="nf-input" autocomplete="username" autofocus />
+        <span asp-validation-for="Input.Email" class="nf-validation"></span>
+    </div>
+
+    <div class="nf-field">
+        <label asp-for="Input.Password"></label>
+        <input asp-for="Input.Password" class="nf-input" autocomplete="current-password" />
+        <span asp-validation-for="Input.Password" class="nf-validation"></span>
+    </div>
+
+    <label class="nf-check">
+        <input asp-for="Input.RememberMe" />
+        <span>Remember me</span>
+    </label>
+
+    <button id="login-submit" type="submit" class="nf-button nf-button-primary nf-button-block">Sign in</button>
+</form>
+
+<p class="nf-hint">No account yet? <a asp-page="./Register" asp-route-returnUrl="@Model.ReturnUrl">Create one</a></p>

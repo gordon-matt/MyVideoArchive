@@ -1,0 +1,45 @@
+@using Microsoft.Extensions.Options
+@using Heroicsoft.NetForge.Components
+@using Heroicsoft.NetForge.Components.Theming
+@inject IOptions<ForgeUiOptions> UiOptions
+@*
+    Layout for the sign-in page. Identity renders before the MVC chrome, so this loads the same
+    stylesheet, theme script and accent as the newer apps. Account management stays on the site layout.
+*@
+@{
+    const string siteName = "MyVideoArchive";
+    var ui = UiOptions.Value;
+    string? accentCss = ForgeAccentCss.Build(ui);
+    string defaultScheme = ui.DefaultColorScheme.Trim().ToLowerInvariant();
+}
+<!DOCTYPE html>
+<html lang="en" data-theme="@(defaultScheme == "dark" ? "dark" : "light")">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - @siteName</title>
+    <link rel="icon" type="image/png" href="~/img/Icon.png" />
+    <script src="~/_content/Heroicsoft.NetForge.Components/js/theme-init.js"
+            data-theme-key="@ui.ThemeStorageKey"
+            data-default-theme="@defaultScheme"></script>
+    <link rel="stylesheet" href="~/_content/Heroicsoft.NetForge.Components/css/nf.css" />
+    @if (accentCss is not null)
+    {
+        <style>@Html.Raw(accentCss)</style>
+    }
+</head>
+<body>
+    <div class="nf-standalone">
+        <div class="nf-standalone-body">
+            <div class="nf-auth-card">
+                <a class="nf-brand-link" href="/" style="gap: 0.55rem">
+                    <img class="nf-brand-logo" src="~/img/Icon.png" alt="" />
+                    <span class="nf-brand-text">@siteName</span>
+                </a>
+                @RenderBody()
+            </div>
+        </div>
+    </div>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

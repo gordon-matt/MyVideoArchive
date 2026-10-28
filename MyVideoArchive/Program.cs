@@ -2,6 +2,7 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Extenso.AspNetCore.OData;
 using Hangfire;
+using Heroicsoft.NetForge.Components;
 using Heroicsoft.NetForge.Hangfire;
 using LogVue;
 using Microsoft.AspNetCore.Authorization;
@@ -47,6 +48,15 @@ string authProviderName = builder.Configuration.GetValue<string>("Authentication
 bool useKeycloak = authProviderName.Equals("Keycloak", StringComparison.OrdinalIgnoreCase);
 
 builder.Services.MvaAddAuthentication(builder.Configuration, useKeycloak);
+
+// The Identity pages render before any app chrome. Same accent and theme key the sign-in card reads.
+builder.Services.AddNetForgeComponents(ui =>
+{
+    ui.ThemeStorageKey = "myvideoarchive.theme";
+    ui.DefaultColorScheme = "light";
+    ui.AccentColor = "#e09a1a";
+    ui.AccentColorDark = "#f5c451";
+});
 
 builder.Services.AddControllersWithViews()
     .AddNewtonsoftJson()
