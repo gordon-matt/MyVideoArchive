@@ -196,7 +196,8 @@ app.MapHangfireDashboard("/hangfire", new DashboardOptions
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapStaticAssets();
+    app.MapStaticAssets();
+    app.MapNetForgeAssets();
 }
 
 app.MapControllerRoute(
